@@ -30,7 +30,7 @@ release-job:
     - echo "$SA_PROD_DEPLOYER_PRIVATE_KEY" > key.json
     - yc config profile create sa-profile
     - yc config set service-account-key key.json
-    - yc serverless container revision deploy --container-name prod --image "${CI_REGISTRY}/${CI_PROJECT_PATH}:${CI_COMMIT_SHORT_SHA}" --cores 1 --memory 512mb --concurrency 1 --execution-timeout 10s --cloud-id ${cloud_id} --folder-id ${cart_prod} --service-account-id ${PROD_SA_ID}
+    - yc serverless container revision deploy --container-name eventum-prod --image "${CI_REGISTRY}/${CI_PROJECT_PATH}:${CI_COMMIT_SHORT_SHA}" --cores 1 --memory 512mb --concurrency 1 --execution-timeout 10s --cloud-id ${cloud_id} --folder-id ${cart_prod} --service-account-id ${PROD_SA_ID}
     - container_id=${prod_container_id}
 # Создание продакшн среды.
   environment:
