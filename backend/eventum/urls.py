@@ -15,8 +15,19 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path
+from django.urls import path, include
+from django.conf.urls.static import static
+
+from eventum import settings
+from app.views import EventViewSet, ParticipantViewSet
+
+from rest_framework.routers import DefaultRouter
+
+router = DefaultRouter()
+router.register(r'events', EventViewSet)
+router.register(r'participants', ParticipantViewSet)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-]
+    path('api/', include(router.urls))
+] + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
