@@ -19,15 +19,19 @@ from django.urls import path, include
 from django.conf.urls.static import static
 
 from eventum import settings
-from app.views import EventViewSet, ParticipantViewSet
+from app import views
 
 from rest_framework.routers import DefaultRouter
 
 router = DefaultRouter()
-router.register(r'events', EventViewSet)
-router.register(r'participants', ParticipantViewSet)
+router.register(r'eventum', views.EventumViewSet)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/', include(router.urls))
+    path('api/eventum/<slug:eventum_slug>/participants/', views.ParticipantViewSet.as_view({'get': 'list', 'post': 'create'})),
+    path('api/eventum/<slug:eventum_slug>/groups/', views.GroupViewSet.as_view({'get': 'list', 'post': 'create'})),
+    path('api/eventum/<slug:eventum_slug>/events/', views.EventViewSet.as_view({'get': 'list', 'post': 'create'})),
+    path('api/eventum/<slug:eventum_slug>/group-tags/', views.GroupTagViewSet.as_view({'get': 'list', 'post': 'create'})),
+    path('api/eventum/<slug:eventum_slug>/event-tags/', views.EventTagViewSet.as_view({'get': 'list', 'post': 'create'})),
+    path('api/', include(router.urls)),
 ] + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
