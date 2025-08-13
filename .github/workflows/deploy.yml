@@ -51,16 +51,18 @@ jobs:
           yc config profile create sa-profile
           yc config set service-account-key key.json
 
-      # 5. ИЗМЕНЕНО: Создание учетных данных для Kaniko для Yandex Container Registry
+      # 5. ИЗМЕНЕНО: Создание Kaniko config.json ВНУТРИ рабочей директории
       - name: Create Kaniko config.json for Yandex Registry
         run: |
-          mkdir -p /home/runner/kaniko/.docker
-          # Используем команду yc для получения временного пароля
+          # Создаем папки kaniko/.docker прямо в корне репозитория
+          mkdir -p ${{ github.workspace }}/kaniko/.docker
+          # Получаем пароль
           YC_REGISTRY_PASSWORD=$(yc container registry get-login-password --format=json | jq -r .password)
           YC_REGISTRY_ENDPOINT="cr.yandex"
-          echo "{\"auths\":{\"${YC_REGISTRY_ENDPOINT}\":{\"username\":\"json_key\",\"password\":\"${YC_REGISTRY_PASSWORD}\"}}}" > /home/runner/kaniko/.docker/config.json
+          # Записываем config.json в созданную папку
+          echo "{\"auths\":{\"${YC_REGISTRY_ENDPOINT}\":{\"username\":\"json_key\",\"password\":\"${YC_REGISTRY_PASSWORD}\"}}}" > ${{ github.workspace }}/kaniko/.docker/config.json
 
-      # 6. Сборка и отправка образа с помощью Kaniko
+      # 6. ИЗМЕНЕНО: Сборка и отправка образа с указанием пути к конфигу
       - name: Build and push container image with Kaniko
         uses: docker://gcr.io/kaniko-project/executor:debug
         with:
@@ -70,6 +72,7 @@ jobs:
             --destination "cr.yandex/${{ secrets.YC_REGISTRY_ID }}/${{ env.IMAGE_NAME_YC }}:${{ steps.vars.outputs.sha_short }}"
             --custom-platform "linux/amd64"
             --cache=true
+            --docker-config="/github/workspace/kaniko"
 
   # Задача деплоя остается почти без изменений
   deploy:
