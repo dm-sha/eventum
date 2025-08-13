@@ -89,7 +89,7 @@ jobs:
         run: |
           sudo apt-get update && sudo apt-get install -y bash curl jq gettext
           curl --fail --silent --location --remote-name https://storage.yandexcloud.net/yandexcloud-yc/install.sh
-          bash install.sh -i /usr/local/yandex-cloud -n
+          sudo bash install.sh -i /usr/local/yandex-cloud -n
           sudo ln -s /usr/local/yandex-cloud/bin/yc /usr/local/bin/yc
 
       # 2. Аутентификация в Yandex Cloud через сервисный аккаунт
