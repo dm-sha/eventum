@@ -1,0 +1,25 @@
+export interface Eventum {
+    id: number;
+    name: string;
+    slug: string;
+    // password_hash мы не получаем на фронтенде, поэтому его здесь нет
+}
+
+export interface Participant {
+  id: number;
+  name: string;
+  eventum: number; // ID of the eventum
+}
+
+export interface Event {
+  id: number;
+  name: string;
+  description: string;
+  start_time: string; // ISO 8601 string date
+  end_time: string;   // ISO 8601 string date
+  eventum: number;    // ID of the eventum
+  // (arrays of IDs)
+  participants: number[];
+  groups: number[];
+  tags: number[];
+}

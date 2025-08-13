@@ -1,0 +1,122 @@
+# Имя вашего workflow, будет отображаться в разделе "Actions" на GitHub
+name: Build and Deploy to Yandex Cloud
+
+# Триггеры для запуска:
+# - при пуше в ветку main
+# - позволяет запускать вручную из интерфейса GitHub
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+# Переменные окружения, доступные во всех задачах (jobs)
+env:
+  # Используем GitHub Container Registry (ghcr.io)
+  REGISTRY: ghcr.io
+  # Имя репозитория в формате 'владелец/имя_репозитория'
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # Первая задача: сборка и публикация Docker-образа
+  build:
+    name: Build and Push Docker Image
+    runs-on: ubuntu-latest
+    
+    # Права доступа, необходимые для задачи. 
+    # packages: write - для публикации пакета (образа) в GHCR.
+    permissions:
+      contents: read
+      packages: write
+
+    # Выходные данные (outputs), чтобы передать короткий хэш коммита в следующую задачу
+    outputs:
+      sha_short: ${{ steps.vars.outputs.sha_short }}
+
+    steps:
+      # 1. Клонируем репозиторий
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      # 2. Аутентификация в GitHub Container Registry (GHCR)
+      # Использует стандартный GITHUB_TOKEN, который создается автоматически
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      # 3. Устанавливаем короткий хэш коммита в переменную для использования в теге
+      - name: Set short git SHA
+        id: vars
+        run: echo "sha_short=$(echo ${{ github.sha }} | cut -c1-8)" >> $GITHUB_OUTPUT
+      
+      # 4. Создаем учетные данные для Kaniko (аналогично вашему скрипту)
+      - name: Create Kaniko config.json
+        run: |
+          mkdir -p /home/runner/kaniko/.docker
+          echo "{\"auths\":{\"${{ env.REGISTRY }}\":{\"auth\":\"$(echo -n ${{ github.actor }}:${{ secrets.GITHUB_TOKEN }} | base64 | tr -d '\n' )\"}}}" > /home/runner/kaniko/.docker/config.json
+
+      # 5. Сборка и отправка образа с помощью Kaniko
+      # Используем тот же образ Kaniko, что и у вас
+      - name: Build and push container image with Kaniko
+        uses: docker://gcr.io/kaniko-project/executor:debug
+        with:
+          args: >-
+            --context "${{ github.workspace }}/backend"
+            --dockerfile "${{ github.workspace }}/backend/Dockerfile"
+            --destination "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.vars.outputs.sha_short }}"
+            --custom-platform "linux/amd64"
+            --cache=true
+
+  # Вторая задача: деплой в Yandex Cloud
+  deploy:
+    name: Deploy to Yandex Cloud
+    # Эта задача зависит от успешного завершения задачи 'build'
+    needs: build
+    runs-on: ubuntu-latest
+    
+    # Указываем окружение, для которого выполняется деплой
+    # Это позволяет использовать Environment-специфичные секреты и видеть историю деплоев в GitHub
+    environment:
+      name: production
+      url: ${{ steps.deploy.outputs.url }} # Сюда можно подставить URL вашего приложения
+
+    steps:
+      # 1. Установка Yandex Cloud CLI (аналогично вашему скрипту)
+      - name: Install Yandex Cloud CLI
+        run: |
+          sudo apt-get update && sudo apt-get install -y bash curl jq gettext
+          curl --fail --silent --location --remote-name https://storage.yandexcloud.net/yandexcloud-yc/install.sh
+          bash install.sh -i /usr/local/yandex-cloud -n
+          sudo ln -s /usr/local/yandex-cloud/bin/yc /usr/local/bin/yc
+
+      # 2. Аутентификация в Yandex Cloud через сервисный аккаунт
+      # Используем секрет, который вы добавите в настройках репозитория
+      - name: Authenticate in Yandex Cloud
+        run: |
+          echo "${{ secrets.YC_SA_KEY_JSON }}" > key.json
+          yc config profile create sa-profile
+          yc config set service-account-key key.json
+          yc config set cloud-id ${{ secrets.YC_CLOUD_ID }}
+          yc config set folder-id ${{ secrets.YC_FOLDER_ID }}
+
+      # 3. Деплой новой ревизии Serverless Container
+      # Все переменные из GitLab CI заменены на секреты и переменные GitHub
+      - name: Deploy new container revision
+        id: deploy
+        run: |
+          yc serverless container revision deploy \
+            --container-id ${{ secrets.YC_CONTAINER_ID }} \
+            --image "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build.outputs.sha_short }}" \
+            --cores 4 \
+            --memory 1024mb \
+            --concurrency 1 \
+            --execution-timeout 10s \
+            --service-account-id ${{ secrets.YC_SERVICE_ACCOUNT_ID }} \
+            --secret environment-variable=DB_NAME,id=e6qmac6cr2goqb03sfjn,version-id=e6qtom5dst8bamfc4pfh,key=DB_NAME \
+            --secret environment-variable=DB_HOST,id=e6qmac6cr2goqb03sfjn,version-id=e6qtom5dst8bamfc4pfh,key=DB_HOST \
+            --secret environment-variable=DB_PASSWORD,id=e6qmac6cr2goqb03sfjn,version-id=e6qtom5dst8bamfc4pfh,key=DB_PASSWORD \
+            --secret environment-variable=DB_USER,id=e6qmac6cr2goqb03sfjn,version-id=e6qtom5dst8bamfc4pfh,key=DB_USER
+

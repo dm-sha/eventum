@@ -1,0 +1,104 @@
+# =============================================================================
+# Файлы окружения и секреты
+# Никогда не должны попадать в репозиторий!
+# =============================================================================
+**/.env
+**/.env.*
+**/*.local
+
+# =============================================================================
+# Зависимости
+# =============================================================================
+# Python
+/venv/
+/backend/venv/
+# Node.js
+/frontend/node_modules/
+
+# =============================================================================
+# Python / Django
+# =============================================================================
+# Скомпилированные файлы
+**/__pycache__/
+*.py[cod]
+*$py.class
+
+# Кэш инструментов разработки
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Файлы базы данных
+*.sqlite3
+db.sqlite3
+
+# Статические и медиафайлы, собранные Django
+/backend/staticfiles/
+/backend/mediafiles/
+
+# Отчеты о покрытии тестами
+.coverage
+.coverage.*
+htmlcov/
+
+# =============================================================================
+# Node.js / React / Vite
+# =============================================================================
+# Логи
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Сборочные артефакты
+/frontend/dist/
+/frontend/dist-ssr/
+
+# Кэш Vite
+/frontend/.vite/
+
+# Файлы, генерируемые IDE (например, для TypeScript)
+/frontend/tsconfig.tsbuildinfo
+
+# Отчеты о покрытии тестами
+/frontend/coverage/
+
+# Артефакты для e2e тестов (например, Cypress)
+/frontend/cypress/videos/
+/frontend/cypress/screenshots/
+
+# =============================================================================
+# Файлы ОС и редакторов кода
+# =============================================================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Thumbnails
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+
+# VSCode
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+
+# JetBrains (PyCharm, WebStorm, etc.)
+.idea/
+
+# Другие редакторы
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
