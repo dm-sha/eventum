@@ -107,7 +107,7 @@ class Event(models.Model):
             raise ValidationError("End time must be after start time")
         
         # Ensure all participants belong to the same eventum
-        for participant in self.individual_participants.all():
+        for participant in self.participants.all():
             if participant.eventum != self.eventum:
                 raise ValidationError(
                     f"Participant {participant.name} belongs to a different eventum"
