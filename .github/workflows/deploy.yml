@@ -57,7 +57,7 @@ jobs:
           mkdir -p ${{ github.workspace }}/kaniko_creds/.docker
           YC_REGISTRY_PASSWORD=$(yc container registry get-login-password --format=json | jq -r .password)
           YC_REGISTRY_ENDPOINT="cr.yandex"
-          echo "{\"auths\":{\"$YC_REGISTRY_ID\":{\"auth\":\"$(echo -n "json_key:${YC_REGISTRY_KEY}" | base64 | tr -d '\n' )\"}}}" > ${{ github.workspace }}/kaniko_creds/.docker/config.json
+          echo "{\"auths\":{\"$YC_REGISTRY_ID\":{\"auth\":\"$(echo -n "json_key:${YC_REGISTRY_KEY}" | base64 | tr -d '\n' )\"}}}" > ${{ github.workspace }}/kaniko/.docker/config.json
 
       # 6. Сборка и отправка образа через прямой вызов Docker
       - name: Build and push container image with Kaniko
