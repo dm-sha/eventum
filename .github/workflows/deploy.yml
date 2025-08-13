@@ -57,7 +57,9 @@ jobs:
           mkdir -p ${{ github.workspace }}/kaniko_creds/.docker
           YC_REGISTRY_PASSWORD=$(yc container registry get-login-password --format=json | jq -r .password)
           YC_REGISTRY_ENDPOINT="cr.yandex"
-          echo "{\"auths\":{\"${YC_REGISTRY_ENDPOINT}\":{\"username\":\"json_key\",\"password\":\"${YC_REGISTRY_PASSWORD}\"}}}" > ${{ github.workspace }}/kaniko_creds/.docker/config.json
+          cat <<EOF > ${{ github.workspace }}/kaniko_creds/.docker/config.json
+          {\"auths\":{\"${YC_REGISTRY_ENDPOINT}\":{\"username\":\"json_key\",\"password\":\"${YC_REGISTRY_PASSWORD}\"}}}
+          EOF
           echo "--- Проверка содержимого config.json (пароль будет скрыт в логах GitHub) ---"
           cat ${{ github.workspace }}/kaniko_creds/.docker/config.json
           echo "----------------------------------------------------------------------"
