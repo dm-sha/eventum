@@ -57,12 +57,7 @@ jobs:
           mkdir -p ${{ github.workspace }}/kaniko_creds/.docker
           YC_REGISTRY_PASSWORD=$(yc container registry get-login-password --format=json | jq -r .password)
           YC_REGISTRY_ENDPOINT="cr.yandex"
-          cat <<EOF > ${{ github.workspace }}/kaniko_creds/.docker/config.json
-          {\"auths\":{\"${YC_REGISTRY_ENDPOINT}\":{\"username\":\"json_key\",\"password\":\"${YC_REGISTRY_PASSWORD}\"}}}
-          EOF
-          echo "--- Проверка содержимого config.json (пароль будет скрыт в логах GitHub) ---"
-          cat ${{ github.workspace }}/kaniko_creds/.docker/config.json
-          echo "----------------------------------------------------------------------"
+          echo "{\"auths\":{\"$YC_REGISTRY_ID\":{\"auth\":\"$(echo -n "json_key:${YC_REGISTRY_KEY}" | base64 | tr -d '\n' )\"}}}" > ${{ github.workspace }}/kaniko_creds/.docker/config.json
 
       # 6. Сборка и отправка образа через прямой вызов Docker
       - name: Build and push container image with Kaniko
@@ -74,7 +69,7 @@ jobs:
             gcr.io/kaniko-project/executor:latest \
             --context "dir:///workspace" \
             --dockerfile "backend/Dockerfile" \
-            --destination "cr.yandex/${{ secrets.YC_REGISTRY_ID }}/${{ env.IMAGE_NAME_YC }}:${{ steps.vars.outputs.sha_short }}" \
+            --destination "${{ secrets.YC_REGISTRY_ID }}/${{ env.IMAGE_NAME_YC }}:${{ steps.vars.outputs.sha_short }}" \
             --custom-platform "linux/amd64" \
             --cache=true
 
