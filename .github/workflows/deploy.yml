@@ -1,99 +1,92 @@
-# Имя вашего workflow, будет отображаться в разделе "Actions" на GitHub
+# Имя вашего workflow
 name: Build and Deploy to Yandex Cloud
 
-# Триггеры для запуска:
-# - при пуше в ветку main
-# - позволяет запускать вручную из интерфейса GitHub
 on:
   push:
     branches:
       - main
   workflow_dispatch:
 
-# Переменные окружения, доступные во всех задачах (jobs)
+# Переменные окружения
 env:
-  # Используем GitHub Container Registry (ghcr.io)
-  REGISTRY: ghcr.io
-  # Имя репозитория в формате 'владелец/имя_репозитория'
-  IMAGE_NAME: ${{ github.repository }}
+  # ИЗМЕНЕНО: Имя образа в Yandex Container Registry (может быть любым)
+  IMAGE_NAME_YC: eventum-backend
 
 jobs:
-  # Первая задача: сборка и публикация Docker-образа
+  # Задача: сборка и публикация Docker-образа в Yandex Container Registry
   build:
-    name: Build and Push Docker Image
+    name: Build and Push Image to Yandex Registry
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
+    
+    # Права доступа для этой задачи больше не нужны, так как мы не используем GHCR
+    # permissions:
+    #   packages: write
+    #   contents: read
 
-    # Выходные данные для передачи в следующую задачу
     outputs:
-      tags: ${{ steps.meta.outputs.tags }}
-      version: ${{ steps.meta.outputs.version }}
+      sha_short: ${{ steps.vars.outputs.sha_short }}
 
     steps:
       # 1. Клонируем репозиторий
       - name: Check out repository
         uses: actions/checkout@v4
+      
+      # 2. Устанавливаем короткий хэш коммита
+      - name: Set short git SHA
+        id: vars
+        run: echo "sha_short=$(echo ${{ github.sha }} | cut -c1-8)" >> $GITHUB_OUTPUT
 
-      # 2. Аутентификация в GitHub Container Registry (GHCR)
-      - name: Log in to the Container registry
-        uses: docker/login-action@v3
+      # 3. ИЗМЕНЕНО: Установка Yandex Cloud CLI (нужен для аутентификации в реестре)
+      - name: Install Yandex Cloud CLI
+        run: |
+          curl -sSL https://storage.yandexcloud.net/yandexcloud-yc/install.sh | bash -s -- -i /usr/local/yandex-cloud -n
+          sudo ln -s /usr/local/yandex-cloud/bin/yc /usr/local/bin/yc
+      
+      # 4. ИЗМЕНЕНО: Аутентификация в Yandex Cloud (нужна для получения токена к реестру)
+      - name: Authenticate in Yandex Cloud
+        run: |
+          echo "${{ secrets.YC_SA_KEY_JSON }}" > key.json
+          yc config profile create sa-profile
+          yc config set service-account-key key.json
+
+      # 5. ИЗМЕНЕНО: Создание учетных данных для Kaniko для Yandex Container Registry
+      - name: Create Kaniko config.json for Yandex Registry
+        run: |
+          mkdir -p /home/runner/kaniko/.docker
+          # Используем команду yc для получения временного пароля
+          YC_REGISTRY_PASSWORD=$(yc container registry get-login-password --format=json | jq -r .password)
+          YC_REGISTRY_ENDPOINT="cr.yandex"
+          echo "{\"auths\":{\"${YC_REGISTRY_ENDPOINT}\":{\"username\":\"json_key\",\"password\":\"${YC_REGISTRY_PASSWORD}\"}}}" > /home/runner/kaniko/.docker/config.json
+
+      # 6. ИЗМЕНЕНО: Сборка и отправка образа с помощью Kaniko в Yandex Container Registry
+      - name: Build and push container image with Kaniko
+        uses: docker://gcr.io/kaniko-project/executor:debug
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          args: >-
+            --context "${{ github.workspace }}/backend"
+            --dockerfile "${{ github.workspace }}/backend/Dockerfile"
+            --destination "cr.yandex/${{ secrets.YC_REGISTRY_ID }}/${{ env.IMAGE_NAME_YC }}:${{ steps.vars.outputs.sha_short }}"
+            --custom-platform "linux/amd64"
+            --cache=true
 
-      # 3. (НОВЫЙ ШАГ) Настройка Docker Buildx
-      # Этот шаг необходим для использования кэширования 'type=gha'
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      # 4. (УЛУЧШЕНИЕ) Генерация метаданных (тегов и лейблов) для образа
-      # Автоматически создает тег с коротким SHA и другие полезные теги
-      - name: Extract Docker metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-
-      # 5. (ИСПРАВЛЕННЫЙ ШАГ) Сборка и отправка образа
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: ./backend # Указываем контекст сборки
-          file: ./backend/Dockerfile # Явное указание Dockerfile
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          # Включаем кэширование, которое теперь будет работать
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-  # Вторая задача: деплой в Yandex Cloud
+  # Задача деплоя остается почти без изменений
   deploy:
     name: Deploy to Yandex Cloud
-    # Эта задача зависит от успешного завершения задачи 'build'
     needs: build
     runs-on: ubuntu-latest
     
-    # Указываем окружение, для которого выполняется деплой
-    # Это позволяет использовать Environment-специфичные секреты и видеть историю деплоев в GitHub
     environment:
       name: production
-      url: ${{ steps.deploy.outputs.url }} # Сюда можно подставить URL вашего приложения
+      # url: (можно указать URL вашего контейнера)
 
     steps:
-      # 1. Установка Yandex Cloud CLI (аналогично вашему скрипту)
+      # 1. Установка Yandex Cloud CLI
       - name: Install Yandex Cloud CLI
         run: |
-          sudo apt-get update && sudo apt-get install -y bash curl jq gettext
-          curl --fail --silent --location --remote-name https://storage.yandexcloud.net/yandexcloud-yc/install.sh
-          sudo bash install.sh -i /usr/local/yandex-cloud -n
+          curl -sSL https://storage.yandexcloud.net/yandexcloud-yc/install.sh | bash -s -- -i /usr/local/yandex-cloud -n
           sudo ln -s /usr/local/yandex-cloud/bin/yc /usr/local/bin/yc
 
-      # 2. Аутентификация в Yandex Cloud через сервисный аккаунт
-      # Используем секрет, который вы добавите в настройках репозитория
+      # 2. Аутентификация в Yandex Cloud
       - name: Authenticate in Yandex Cloud
         run: |
           cat <<EOF > key.json
@@ -104,14 +97,13 @@ jobs:
           yc config set cloud-id ${{ secrets.YC_CLOUD_ID }}
           yc config set folder-id ${{ secrets.YC_FOLDER_ID }}
 
-      # 3. Деплой новой ревизии Serverless Container
-      # Все переменные из GitLab CI заменены на секреты и переменные GitHub
+      # 3. ИЗМЕНЕНО: Деплой новой ревизии Serverless Container, используя образ из Yandex Registry
       - name: Deploy new container revision
         id: deploy
         run: |
           yc serverless container revision deploy \
             --container-id ${{ secrets.YC_CONTAINER_ID }} \
-            --image "${{ needs.build.outputs.tags }}" \
+            --image "cr.yandex/${{ secrets.YC_REGISTRY_ID }}/${{ env.IMAGE_NAME_YC }}:${{ needs.build.outputs.sha_short }}" \
             --cores 4 \
             --memory 1024mb \
             --concurrency 1 \
@@ -121,4 +113,3 @@ jobs:
             --secret environment-variable=DB_HOST,id=e6qmac6cr2goqb03sfjn,version-id=e6qtom5dst8bamfc4pfh,key=DB_HOST \
             --secret environment-variable=DB_PASSWORD,id=e6qmac6cr2goqb03sfjn,version-id=e6qtom5dst8bamfc4pfh,key=DB_PASSWORD \
             --secret environment-variable=DB_USER,id=e6qmac6cr2goqb03sfjn,version-id=e6qtom5dst8bamfc4pfh,key=DB_USER
-
