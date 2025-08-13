@@ -54,10 +54,11 @@ jobs:
       # 5. Создание Kaniko config.json ВНУТРИ рабочей директории
       - name: Create Kaniko config.json for Yandex Registry
         run: |
-          mkdir -p ${{ github.workspace }}/kaniko_creds/.docker
-          YC_REGISTRY_PASSWORD=$(yc container registry get-login-password --format=json | jq -r .password)
-          YC_REGISTRY_ENDPOINT="cr.yandex"
+          mkdir -p ${{ github.workspace }}/kaniko/.docker
           echo "{\"auths\":{\"$YC_REGISTRY_ID\":{\"auth\":\"$(echo -n "json_key:${YC_REGISTRY_KEY}" | base64 | tr -d '\n' )\"}}}" > ${{ github.workspace }}/kaniko/.docker/config.json
+          echo "--- Проверка содержимого config.json (пароль будет скрыт в логах GitHub) ---"
+          cat ${{ github.workspace }}/kaniko/.docker/config.json
+          echo "----------------------------------------------------------------------"
 
       # 6. Сборка и отправка образа через прямой вызов Docker
       - name: Build and push container image with Kaniko
@@ -65,7 +66,7 @@ jobs:
           docker run \
             --rm \
             -v ${{ github.workspace }}:/workspace \
-            -v ${{ github.workspace }}/kaniko_creds/.docker:/kaniko/.docker \
+            -v ${{ github.workspace }}/kaniko/.docker:/kaniko/.docker \
             gcr.io/kaniko-project/executor:latest \
             --context "dir:///workspace" \
             --dockerfile "backend/Dockerfile" \
