@@ -60,13 +60,13 @@ jobs:
           YC_REGISTRY_ENDPOINT="cr.yandex"
           echo "{\"auths\":{\"${YC_REGISTRY_ENDPOINT}\":{\"username\":\"json_key\",\"password\":\"${YC_REGISTRY_PASSWORD}\"}}}" > /home/runner/kaniko/.docker/config.json
 
-      # 6. ИЗМЕНЕНО: Сборка и отправка образа с помощью Kaniko в Yandex Container Registry
+      # 6. Сборка и отправка образа с помощью Kaniko
       - name: Build and push container image with Kaniko
         uses: docker://gcr.io/kaniko-project/executor:debug
         with:
           args: >-
-            --context "${{ github.workspace }}/backend"
-            --dockerfile "Dockerfile"
+            --context "."
+            --dockerfile "backend/Dockerfile"
             --destination "cr.yandex/${{ secrets.YC_REGISTRY_ID }}/${{ env.IMAGE_NAME_YC }}:${{ steps.vars.outputs.sha_short }}"
             --custom-platform "linux/amd64"
             --cache=true
