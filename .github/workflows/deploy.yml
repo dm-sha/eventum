@@ -39,7 +39,7 @@ jobs:
       # 3. ИЗМЕНЕНО: Установка Yandex Cloud CLI (нужен для аутентификации в реестре)
       - name: Install Yandex Cloud CLI
         run: |
-          curl -sSL https://storage.yandexcloud.net/yandexcloud-yc/install.sh | bash -s -- -i /usr/local/yandex-cloud -n
+          curl -sSL https://storage.yandexcloud.net/yandexcloud-yc/install.sh | sudo bash -s -- -i /usr/local/yandex-cloud -n
           sudo ln -s /usr/local/yandex-cloud/bin/yc /usr/local/bin/yc
       
       # 4. ИЗМЕНЕНО: Аутентификация в Yandex Cloud (нужна для получения токена к реестру)
