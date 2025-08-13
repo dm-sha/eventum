@@ -45,7 +45,9 @@ jobs:
       # 4. ИЗМЕНЕНО: Аутентификация в Yandex Cloud (нужна для получения токена к реестру)
       - name: Authenticate in Yandex Cloud
         run: |
-          echo "${{ secrets.YC_SA_KEY_JSON }}" > key.json
+          cat <<EOF > key.json
+          ${{ secrets.YC_SA_KEY_JSON }}
+          EOF
           yc config profile create sa-profile
           yc config set service-account-key key.json
 
