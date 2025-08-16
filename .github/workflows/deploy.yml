@@ -21,9 +21,10 @@ jobs:
       - name: Configure Kaniko auth
         run: |
           mkdir -p ${{ github.workspace }}/kaniko/.docker
-          auth_val=$(echo -n "json_key:${{ secrets.YC_REGISTRY_KEY }}" | base64 | tr -d '\n')
+          echo "${{ secrets.YC_SA_KEY_JSON }}" > ${{ github.workspace }}/key.json
+          auth_val=$(echo -n "json_key:$(cat ${{ github.workspace }}/key.json)" | base64 | tr -d '\n')
           cat <<EOF > ${{ github.workspace }}/kaniko/.docker/config.json
-          {"auths":{"${{ secrets.YC_REGISTRY_ID }}":{"auth":"$auth_val"}}}
+          {"auths":{"cr.yandex":{"auth":"$auth_val"}}}
           EOF
       - name: Build and push image
         run: |
