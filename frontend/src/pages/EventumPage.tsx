@@ -73,8 +73,12 @@ const EventumPage = () => {
 
           {/* Содержимое вкладок */}
           <div>
-            {activeTab === 'participants' && <ParticipantList eventumSlug={eventumSlug} />}
-            {activeTab === 'events' && <EventList eventumSlug={eventumSlug} />}
+            <div className={activeTab === 'participants' ? '' : 'hidden'}>
+              <ParticipantList eventumSlug={eventumSlug} />
+            </div>
+            <div className={activeTab === 'events' ? '' : 'hidden'}>
+              <EventList eventumSlug={eventumSlug} />
+            </div>
           </div>
         </div>
       </div>
