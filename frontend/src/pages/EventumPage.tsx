@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { getEventumBySlug } from "../api/eventum";
 import type { Eventum } from "../types";
 import LoadingSpinner from "../components/LoadingSpinner";
@@ -50,9 +50,15 @@ const EventumPage = () => {
     <main className="min-h-screen p-4 md:p-8">
       <div className="max-w-5xl mx-auto">
         
-        <h1 className="text-3xl font-bold text-gray-900 mb-6">
-          {eventum.name}
-        </h1>
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-3xl font-bold text-gray-900">{eventum.name}</h1>
+          <Link
+            to={`/${eventumSlug}/admin`}
+            className="text-sm text-blue-600 hover:underline"
+          >
+            Админка
+          </Link>
+        </div>
 
         <div className="bg-white rounded-lg shadow-md p-4 md:p-6">
           {/* Панель с вкладками */}
