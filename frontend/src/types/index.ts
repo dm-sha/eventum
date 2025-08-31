@@ -11,6 +11,20 @@ export interface Participant {
   eventum: number; // ID of the eventum
 }
 
+export interface GroupTag {
+  id: number;
+  name: string;
+  slug: string;
+}
+
+export interface ParticipantGroup {
+  id: number;
+  name: string;
+  slug: string;
+  participants: number[];
+  tags: GroupTag[];
+}
+
 export interface Event {
   id: number;
   name: string;
