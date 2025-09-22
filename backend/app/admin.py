@@ -4,8 +4,14 @@ from import_export.admin import ImportExportModelAdmin
 
 # Импортируем все модели
 from .models import (
-    Eventum, Participant, ParticipantGroup,
-    GroupTag, Event, EventTag
+    Eventum,
+    EventumMembership,
+    EventTag,
+    GroupTag,
+    Participant,
+    ParticipantGroup,
+    UserProfile,
+    Event,
 )
 
 # Импортируем все ресурсы, которые мы определили в resources.py
@@ -147,3 +153,15 @@ class EventTagAdmin(ImportExportModelAdmin):
     # Добавлено для удобства
     search_fields = ('name',)
 
+
+@admin.register(UserProfile)
+class UserProfileAdmin(admin.ModelAdmin):
+    list_display = ('user', 'organization', 'phone', 'created_at')
+    search_fields = ('user__username', 'user__email', 'organization')
+
+
+@admin.register(EventumMembership)
+class EventumMembershipAdmin(admin.ModelAdmin):
+    list_display = ('user', 'eventum', 'role', 'created_at')
+    list_filter = ('role', 'eventum')
+    search_fields = ('user__username', 'user__email', 'eventum__name', 'eventum__slug')

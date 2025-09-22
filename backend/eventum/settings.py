@@ -141,3 +141,17 @@ STATIC_ROOT = 'static/'
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'app.authentication.JWTAuthentication',
+    ),
+    'DEFAULT_PERMISSION_CLASSES': (
+        'rest_framework.permissions.AllowAny',
+    ),
+}
+
+
+ACCESS_TOKEN_LIFETIME = 60 * 60  # 1 час
+REFRESH_TOKEN_LIFETIME = 60 * 60 * 24 * 7  # 7 дней
