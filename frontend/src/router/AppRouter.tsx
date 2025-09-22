@@ -10,6 +10,7 @@ import AdminParticipantsPage from "../pages/admin/ParticipantsPage";
 import AdminEventTagsPage from "../pages/admin/EventTagsPage";
 import AdminGroupTagsPage from "../pages/admin/GroupTagsPage";
 import AdminGroupsPage from "../pages/admin/GroupsPage";
+import DashboardPage from "../pages/DashboardPage";
 
 export const AppRouter = () => {
   return (
@@ -17,6 +18,7 @@ export const AppRouter = () => {
       {/* Public site layout */}
       <Route path="/" element={<Layout />}>
         <Route index element={<HomePage />} />
+        <Route path="dashboard" element={<DashboardPage />} />
         <Route path=":eventumSlug" element={<EventumPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
