@@ -1,5 +1,6 @@
-import { Link, NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet } from "react-router-dom";
 import { useEffect, useState } from "react";
+import Header from "./Header";
 import {
   IconCalendar,
   IconChevronLeft,
@@ -48,16 +49,7 @@ const AdminLayout = () => {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Top bar across the page */}
-      <header className="h-14 bg-white border-b border-gray-200 sticky top-0 z-40">
-        <div className="h-full px-4 sm:px-6 flex items-center gap-3">
-          <Link
-            to="/"
-            className="text-lg sm:text-xl font-medium text-gray-900 hover:text-gray-700"
-          >
-            Eventum
-          </Link>
-        </div>
-      </header>
+      <Header variant="admin" />
 
       {/* Content row: sidebar + page */}
       <div className="flex flex-1 min-h-0">
