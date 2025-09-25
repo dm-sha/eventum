@@ -1,8 +1,5 @@
-import { Link, NavLink, Outlet, useParams } from "react-router-dom";
-import { useEffect, useMemo, useState } from "react";
-import { getMyEventums } from "../api";
-import LoadingSpinner from "./LoadingSpinner";
-import { useAuth } from "../hooks/useAuth";
+import { Link, NavLink, Outlet } from "react-router-dom";
+import { useEffect, useState } from "react";
 import {
   IconBars3,
   IconCalendar,
@@ -17,64 +14,22 @@ import {
 } from "./icons";
 
 const AdminLayout = () => {
-  const { user, isLoading } = useAuth();
-  const { eventumSlug } = useParams<{ eventumSlug: string }>();
-  const [accessChecked, setAccessChecked] = useState(false);
-  const [hasAccess, setHasAccess] = useState(false);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    const checkAccess = async () => {
-      if (!user || !eventumSlug) {
-        if (isMounted) {
-          setHasAccess(false);
-          setAccessChecked(true);
-        }
-        return;
-      }
-
-      try {
-        const eventums = await getMyEventums();
-        const match = eventums.find((item) => item.slug === eventumSlug);
-        if (isMounted) {
-          setHasAccess(match?.role === "organizer");
-          setAccessChecked(true);
-        }
-      } catch (error) {
-        if (isMounted) {
-          console.error("Не удалось проверить права доступа", error);
-          setHasAccess(false);
-          setAccessChecked(true);
-        }
-      }
-    };
-
-    checkAccess();
-    return () => {
-      isMounted = false;
-    };
-  }, [user, eventumSlug]);
-
-  const menu = useMemo(
-    () => [
-      { to: ".", label: "Общие", icon: IconHome, end: true },
-      { to: "events", label: "Мероприятия", icon: IconCalendar },
-      { to: "participants", label: "Участники", icon: IconUsers },
-      { to: "event-tags", label: "Теги мероприятий", icon: IconTag },
-      { to: "group-tags", label: "Теги групп", icon: IconTags },
-      { to: "groups", label: "Группы", icon: IconGrid },
-    ],
-    [],
-  );
+  const menu = [
+    { to: ".", label: "Общие", icon: IconHome, end: true },
+    { to: "events", label: "Мероприятия", icon: IconCalendar },
+    { to: "participants", label: "Участники", icon: IconUsers },
+    { to: "event-tags", label: "Теги мероприятий", icon: IconTag },
+    { to: "group-tags", label: "Теги групп", icon: IconTags },
+    { to: "groups", label: "Группы", icon: IconGrid },
+  ];
 
   // Sidebar collapsed state with responsive default and persistence
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     try {
       const saved = localStorage.getItem("adminSidebarCollapsed");
       if (saved !== null) return JSON.parse(saved);
-    } catch (error) {
-      console.warn("Не удалось прочитать настройки сайдбара", error);
+    } catch (_) {
+      // ignore
     }
     if (typeof window !== "undefined") {
       return window.innerWidth < 1024; // collapse by default on narrow screens
@@ -84,9 +39,12 @@ const AdminLayout = () => {
 
   useEffect(() => {
     try {
-      localStorage.setItem("adminSidebarCollapsed", JSON.stringify(collapsed));
-    } catch (error) {
-      console.warn("Не удалось сохранить настройки сайдбара", error);
+      localStorage.setItem(
+        "adminSidebarCollapsed",
+        JSON.stringify(collapsed)
+      );
+    } catch (_) {
+      // ignore
     }
   }, [collapsed]);
 
@@ -94,46 +52,6 @@ const AdminLayout = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const AsideToggleIcon = collapsed ? IconChevronRight : IconChevronLeft;
-
-  if (isLoading || !accessChecked) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <LoadingSpinner />
-      </div>
-    );
-  }
-
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-        <div className="max-w-md w-full bg-white p-6 rounded-xl shadow">
-          <h1 className="text-xl font-semibold text-gray-900 mb-3">Требуется авторизация</h1>
-          <p className="text-sm text-gray-600 mb-4">
-            Войдите в личный кабинет, чтобы управлять мероприятием.
-          </p>
-          <Link
-            to="/dashboard"
-            className="inline-flex px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700"
-          >
-            Перейти к авторизации
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
-  if (!hasAccess) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-        <div className="max-w-md w-full bg-white p-6 rounded-xl shadow">
-          <h1 className="text-xl font-semibold text-gray-900 mb-3">Нет прав доступа</h1>
-          <p className="text-sm text-gray-600">
-            Только организаторы мероприятия могут открывать админку. Обратитесь к администратору Eventum, чтобы получить доступ.
-          </p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -173,7 +91,8 @@ const AdminLayout = () => {
         <aside
           className={`${
             collapsed ? "w-16" : "w-64"
-          } bg-white border-r border-gray-200 pt-2 pb-3 pl-0 pr-2 flex flex-col transition-all duration-200 z-40 fixed left-0 top-14 bottom-0 transform ${mobileOpen ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0 lg:sticky lg:top-14 lg:h-[calc(100vh-56px)] overflow-hidden`}
+          } bg-white border-r border-gray-200 pt-2 pb-3 pl-0 pr-2 flex flex-col transition-all duration-200 z-40
+             fixed left-0 top-14 bottom-0 transform ${mobileOpen ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0 lg:sticky lg:top-14 lg:h-[calc(100vh-56px)] overflow-hidden`}
           aria-label="Админ-меню"
         >
           <div className="lg:hidden flex justify-end pr-2 pb-1">
