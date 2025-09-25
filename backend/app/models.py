@@ -36,6 +36,7 @@ class GroupTag(models.Model):
     def save(self, *args, **kwargs):
         if not self.slug:
             self.slug = slugify(self.name)
+        self.full_clean()
         super().save(*args, **kwargs)
     
     def __str__(self):
@@ -54,6 +55,7 @@ class ParticipantGroup(models.Model):
     def save(self, *args, **kwargs):
         if not self.slug:
             self.slug = slugify(self.name)
+        self.full_clean()
         super().save(*args, **kwargs)
     
     def clean(self):
@@ -78,6 +80,7 @@ class EventTag(models.Model):
     def save(self, *args, **kwargs):
         if not self.slug:
             self.slug = slugify(self.name)
+        self.full_clean()
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -100,6 +103,10 @@ class Event(models.Model):
         blank=True
     )
     tags = models.ManyToManyField(EventTag, related_name='events', blank=True)
+    
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
     
     def clean(self):
         # Ensure end time is after start time

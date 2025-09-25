@@ -15,9 +15,9 @@ class ParticipantResource(resources.ModelResource):
 
     class Meta:
         model = Participant
-        # 'id' нужен, чтобы другие ресурсы (Group, Event) могли ссылаться на участников.
+        # Используем комбинацию name + eventum для уникальной идентификации
         fields = ('id', 'name', 'eventum')
-        import_id_fields = ('id',) # Используем 'id' как уникальный идентификатор при импорте.
+        import_id_fields = ('name', 'eventum') # Более надежно чем только id
 
 
 # --- Ресурс для тегов групп ---
@@ -30,7 +30,7 @@ class GroupTagResource(resources.ModelResource):
     class Meta:
         model = GroupTag
         fields = ('id', 'name', 'slug', 'eventum')
-        import_id_fields = ('id',)
+        import_id_fields = ('name', 'eventum') # Более надежно чем только id
 
 
 # --- Ресурс для тегов событий ---
@@ -43,7 +43,7 @@ class EventTagResource(resources.ModelResource):
     class Meta:
         model = EventTag
         fields = ('id', 'name', 'slug', 'eventum')
-        import_id_fields = ('id',)
+        import_id_fields = ('name', 'eventum') # Более надежно чем только id
 
 
 # --- Ресурс для групп участников ---
@@ -67,7 +67,7 @@ class ParticipantGroupResource(resources.ModelResource):
     class Meta:
         model = ParticipantGroup
         fields = ('id', 'name', 'slug', 'eventum', 'participants', 'tags')
-        import_id_fields = ('id',)
+        import_id_fields = ('name', 'eventum') # Более надежно чем только id
 
 
 # --- Ресурс для Событий (Events) ---
@@ -105,4 +105,4 @@ class EventResource(resources.ModelResource):
     class Meta:
         model = Event
         fields = ('id', 'name', 'description', 'start_time', 'end_time', 'eventum', 'participants', 'groups', 'tags')
-        import_id_fields = ('id',)
+        import_id_fields = ('name', 'eventum') # Более надежно чем только id

@@ -1,5 +1,6 @@
 from django import forms
 from django.contrib import admin
+from django.core.exceptions import ValidationError
 from import_export.admin import ImportExportModelAdmin
 
 # Импортируем все модели
@@ -26,24 +27,81 @@ class ParticipantInline(admin.TabularInline):
 class EventInline(admin.TabularInline):
     model = Event
     extra = 1
-    # Важно: filter_horizontal в инлайнах может не работать идеально,
-    # это известное ограничение Django. Для полноценного редактирования M2M
-    # лучше переходить на страницу самого события.
-    # Но мы оставляем вашу логику здесь.
-    filter_horizontal = ['participants', 'groups', 'tags']
+    # filter_horizontal не работает в TabularInline - это ограничение Django
+    # Для редактирования M2M полей нужно переходить на страницу события
+    fields = ['name', 'description', 'start_time', 'end_time']
 
 
 class EventumAdminForm(forms.ModelForm):
     password = forms.CharField(
         label="Password",
         required=False,
-        widget=forms.PasswordInput(render_value=False), # Изменено на False для безопасности
+        widget=forms.PasswordInput(render_value=True), # True для возможности просмотра при редактировании
         help_text="Оставьте пустым, чтобы не менять пароль"
     )
     
     class Meta:
         model = Eventum
         exclude = ('password_hash',)
+    
+    def clean(self):
+        cleaned_data = super().clean()
+        password = cleaned_data.get('password')
+        
+        # Валидация пароля при создании нового Eventum
+        if not self.instance.pk and not password:
+            raise ValidationError("Пароль обязателен для нового мероприятия")
+        
+        return cleaned_data
+
+class ParticipantGroupAdminForm(forms.ModelForm):
+    class Meta:
+        model = ParticipantGroup
+        fields = '__all__'
+    
+    def clean(self):
+        cleaned_data = super().clean()
+        participants = cleaned_data.get('participants')
+        eventum = cleaned_data.get('eventum')
+        
+        # Проверяем, что все участники принадлежат тому же eventum
+        if participants and eventum:
+            for participant in participants:
+                if participant.eventum != eventum:
+                    raise ValidationError(
+                        f"Участник '{participant.name}' принадлежит другому мероприятию"
+                    )
+        
+        return cleaned_data
+
+class EventAdminForm(forms.ModelForm):
+    class Meta:
+        model = Event
+        fields = '__all__'
+    
+    def clean(self):
+        cleaned_data = super().clean()
+        participants = cleaned_data.get('participants')
+        groups = cleaned_data.get('groups')
+        eventum = cleaned_data.get('eventum')
+        
+        # Проверяем участников
+        if participants and eventum:
+            for participant in participants:
+                if participant.eventum != eventum:
+                    raise ValidationError(
+                        f"Участник '{participant.name}' принадлежит другому мероприятию"
+                    )
+        
+        # Проверяем группы
+        if groups and eventum:
+            for group in groups:
+                if group.eventum != eventum:
+                    raise ValidationError(
+                        f"Группа '{group.name}' принадлежит другому мероприятию"
+                    )
+        
+        return cleaned_data
 
 # --- EventumAdmin ---
 # Мы НЕ делаем его ImportExportModelAdmin, так как это корневая сущность,
@@ -102,6 +160,7 @@ class ParticipantAdmin(ImportExportModelAdmin):
 # Наследуемся от ImportExportModelAdmin и добавляем resource_class
 @admin.register(ParticipantGroup)
 class ParticipantGroupAdmin(ImportExportModelAdmin):
+    form = ParticipantGroupAdminForm
     resource_class = ParticipantGroupResource
     # Вся ваша логика отображения и фильтров сохранена
     list_display = ('name', 'slug', 'eventum')
@@ -109,6 +168,7 @@ class ParticipantGroupAdmin(ImportExportModelAdmin):
     filter_horizontal = ['participants', 'tags']
     # Добавлено для удобства
     prepopulated_fields = {'slug': ('name',)}
+    readonly_fields = ('slug',)
     search_fields = ('name',)
 
 # --- GroupTagAdmin ---
@@ -120,6 +180,7 @@ class GroupTagAdmin(ImportExportModelAdmin):
     list_display = ('name', 'slug', 'eventum')
     list_filter = ('eventum',)
     prepopulated_fields = {'slug': ('name',)}
+    readonly_fields = ('slug',)
     # Добавлено для удобства
     search_fields = ('name',)
 
@@ -127,10 +188,11 @@ class GroupTagAdmin(ImportExportModelAdmin):
 # Наследуемся от ImportExportModelAdmin и добавляем resource_class
 @admin.register(Event)
 class EventAdmin(ImportExportModelAdmin):
+    form = EventAdminForm
     resource_class = EventResource
     # Вся ваша логика отображения и фильтров сохранена
     list_display = ('name', 'start_time', 'end_time', 'eventum')
-    list_filter = ('eventum', 'start_time', 'tags') # Добавил 'tags' для удобства
+    list_filter = ('eventum', 'start_time') # Убрал 'tags' - может быть медленно для M2M
     filter_horizontal = ['participants', 'groups', 'tags']
     # Добавлено для удобства
     search_fields = ('name', 'description')
@@ -144,6 +206,7 @@ class EventTagAdmin(ImportExportModelAdmin):
     list_display = ('name', 'slug', 'eventum')
     list_filter = ('eventum',)
     prepopulated_fields = {'slug': ('name',)}
+    readonly_fields = ('slug',)
     # Добавлено для удобства
     search_fields = ('name',)
 
