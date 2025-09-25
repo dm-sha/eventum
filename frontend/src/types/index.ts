@@ -17,6 +17,12 @@ export interface GroupTag {
   slug: string;
 }
 
+export interface EventTag {
+  id: number;
+  name: string;
+  slug: string;
+}
+
 export interface ParticipantGroup {
   id: number;
   name: string;
