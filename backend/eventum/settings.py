@@ -61,6 +61,7 @@ MIDDLEWARE = [
 
 CORS_ALLOWED_ORIGINS = [
   'http://localhost:5173',  # For dev
+  'http://localhost:5174',  # For dev (alternative port)
   'https://eventum-web-ui.vercel.app',  # Your Vercel URL
   'https://bbapo5ibqs4eg6dail89.containers.yandexcloud.net',  # Yandex Cloud container
 ]
@@ -68,13 +69,23 @@ CORS_ALLOWED_ORIGINS = [
 # CSRF trusted origins для админки Django
 CSRF_TRUSTED_ORIGINS = [
     'http://localhost:5173',
+    'http://localhost:5174',
     'https://eventum-web-ui.vercel.app',
     'https://bbapo5ibqs4eg6dail89.containers.yandexcloud.net',
 ]
 
 # Дополнительные CORS настройки
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOW_ALL_ORIGINS = False  # Безопасность: разрешаем только указанные домены
+
+# В режиме разработки разрешаем все localhost порты
+if DEBUG:
+    CORS_ALLOW_ALL_ORIGINS = False
+    CORS_ALLOWED_ORIGIN_REGEXES = [
+        r"^http://localhost:\d+$",  # Разрешаем любой localhost порт
+        r"^http://127\.0\.0\.1:\d+$",  # Разрешаем 127.0.0.1
+    ]
+else:
+    CORS_ALLOW_ALL_ORIGINS = False  # Безопасность: разрешаем только указанные домены
 CORS_ALLOWED_HEADERS = [
     'accept',
     'accept-encoding',
