@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import type { EventTag } from '../../types';
 import { eventTagApi } from '../../api/eventTag';
-import type { CreateEventTagRequest, UpdateEventTagRequest } from '../../api/eventTag';
 import LoadingSpinner from '../LoadingSpinner';
 
 interface EventTagListProps {

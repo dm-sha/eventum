@@ -1,14 +1,6 @@
 import type { EventTag } from '../types';
 import apiClient from './client';
 
-export interface CreateEventTagRequest {
-  name: string;
-}
-
-export interface UpdateEventTagRequest {
-  name: string;
-}
-
 export const eventTagApi = {
   // Получить все теги мероприятий для конкретного eventum
   getEventTags: async (eventumSlug: string): Promise<EventTag[]> => {
@@ -17,7 +9,7 @@ export const eventTagApi = {
   },
 
   // Создать новый тег мероприятия
-  createEventTag: async (eventumSlug: string, data: CreateEventTagRequest): Promise<EventTag> => {
+  createEventTag: async (eventumSlug: string, data: { name: string }): Promise<EventTag> => {
     const response = await apiClient.post(`/eventums/${eventumSlug}/event-tags/`, data);
     return response.data;
   },
@@ -26,7 +18,7 @@ export const eventTagApi = {
   updateEventTag: async (
     eventumSlug: string, 
     tagId: number, 
-    data: UpdateEventTagRequest
+    data: { name: string }
   ): Promise<EventTag> => {
     const response = await apiClient.put(`/eventums/${eventumSlug}/event-tags/${tagId}/`, data);
     return response.data;
