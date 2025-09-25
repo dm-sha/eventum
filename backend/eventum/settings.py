@@ -65,6 +65,13 @@ CORS_ALLOWED_ORIGINS = [
   'https://bbapo5ibqs4eg6dail89.containers.yandexcloud.net',  # Yandex Cloud container
 ]
 
+# CSRF trusted origins для админки Django
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:5173',
+    'https://eventum-web-ui.vercel.app',
+    'https://bbapo5ibqs4eg6dail89.containers.yandexcloud.net',
+]
+
 # Дополнительные CORS настройки
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_ALL_ORIGINS = False  # Безопасность: разрешаем только указанные домены
