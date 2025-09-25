@@ -1,7 +1,7 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action, api_view
 from rest_framework.response import Response
-from rest_framework.exceptions import PermissionDenied, NotFound
+from rest_framework.exceptions import NotFound
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from .models import Eventum, Participant, ParticipantGroup, GroupTag, Event, EventTag
@@ -15,25 +15,10 @@ class EventumViewSet(viewsets.ModelViewSet):
     serializer_class = EventumSerializer
     lookup_field = 'slug'
 
-    @action(detail=True, methods=['post'])
-    def verify_password(self, request, slug=None):
-        eventum = self.get_object()
-        password = request.data.get('password', '')
-        if eventum.check_password(password):
-            return Response({'verified': True})
-        return Response({'verified': False}, status=400)
-
 class EventumScopedViewSet:
     def get_eventum(self):
         eventum_slug = self.kwargs.get('eventum_slug')
         eventum = get_object_or_404(Eventum, slug=eventum_slug)
-        
-        # Verify password for write operations
-        if self.request.method not in ('GET', 'HEAD', 'OPTIONS'):
-            password = self.request.META.get('HTTP_X_EVENTUM_PASSWORD', '')
-            if not eventum.check_password(password):
-                raise PermissionDenied("Invalid eventum password")
-        
         return eventum
     
     def get_queryset(self):
@@ -80,20 +65,3 @@ class EventViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
         serializer = self.get_serializer(events, many=True)
         return Response(serializer.data)
 
-@api_view(['POST'])
-def verify_eventum_password(request, slug):
-    try:
-        eventum = Eventum.objects.get(slug=slug)
-    except Eventum.DoesNotExist:
-        return Response(
-            {'error': 'Eventum not found'},
-            status=status.HTTP_404_NOT_FOUND
-        )
-    
-    password = request.data.get('password', '')
-    if eventum.check_password(password):
-        return Response({'verified': True})
-    return Response(
-        {'verified': False},
-        status=status.HTTP_403_FORBIDDEN
-    )

@@ -1,5 +1,4 @@
 from django.db import models
-from django.contrib.auth.hashers import make_password, check_password
 from django.core.exceptions import ValidationError
 from django.utils.text import slugify
 from django.utils import timezone
@@ -7,13 +6,6 @@ from django.utils import timezone
 class Eventum(models.Model):
     name = models.CharField(max_length=200)
     slug = models.SlugField(max_length=200, unique=True)
-    password_hash = models.CharField(max_length=128)  # Storing hashed password
-    
-    def set_password(self, raw_password):
-        self.password_hash = make_password(raw_password)
-    
-    def check_password(self, raw_password):
-        return check_password(raw_password, self.password_hash)
     
     def __str__(self):
         return self.name

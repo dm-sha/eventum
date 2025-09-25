@@ -33,26 +33,9 @@ class EventInline(admin.TabularInline):
 
 
 class EventumAdminForm(forms.ModelForm):
-    password = forms.CharField(
-        label="Password",
-        required=False,
-        widget=forms.PasswordInput(render_value=True), # True для возможности просмотра при редактировании
-        help_text="Оставьте пустым, чтобы не менять пароль"
-    )
-    
     class Meta:
         model = Eventum
-        exclude = ('password_hash',)
-    
-    def clean(self):
-        cleaned_data = super().clean()
-        password = cleaned_data.get('password')
-        
-        # Валидация пароля при создании нового Eventum
-        if not self.instance.pk and not password:
-            raise ValidationError("Пароль обязателен для нового мероприятия")
-        
-        return cleaned_data
+        fields = '__all__'
 
 class ParticipantGroupAdminForm(forms.ModelForm):
     class Meta:
@@ -111,39 +94,7 @@ class EventumAdmin(admin.ModelAdmin):
     form = EventumAdminForm
     list_display = ('name', 'slug')
     prepopulated_fields = {'slug': ('name',)}
-    inlines = [ParticipantInline, EventInline] # Ваша логика с инлайнами сохранена
-    
-    # Мы не показываем поле password_hash в админке
-    # Ваш exclude = ['password_hash'] заменен более явным get_fieldsets
-    
-    def get_fieldsets(self, request, obj=None):
-        # Ваша логика для полей пароля полностью сохранена
-        fieldsets = [
-            (None, {
-                'fields': ('name', 'slug')
-            })
-        ]
-        if obj:
-            fieldsets.append(
-                ('Изменить пароль', {
-                    'fields': ('password',),
-                    'description': 'Введите новый пароль, чтобы его изменить. Оставьте пустым, чтобы не менять.'
-                })
-            )
-        else:
-            fieldsets.append(
-                ('Пароль для доступа', {
-                    'fields': ('password',),
-                    'description': 'Этот пароль будет необходим для редактирования данных мероприятия.'
-                })
-            )
-        return fieldsets
-    
-    def save_model(self, request, obj, form, change):
-        # Ваша логика сохранения пароля полностью сохранена
-        if form.cleaned_data.get('password'):
-            obj.set_password(form.cleaned_data['password'])
-        super().save_model(request, obj, form, change)
+    inlines = [ParticipantInline, EventInline]
 
 # --- ParticipantAdmin ---
 # Наследуемся от ImportExportModelAdmin и добавляем resource_class

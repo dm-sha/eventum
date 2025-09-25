@@ -13,8 +13,4 @@ export const getEventumBySlug = async (slug: string): Promise<Eventum> => {
     return response.data;
 };
 
-// Проверить пароль для Eventum.
-export const verifyEventumPassword = async (slug: string, password: string): Promise<{ verified: boolean }> => {
-    const response = await apiClient.post(`/eventums/${slug}/verify_password/`, { password });
-    return response.data;
-};
+// Функция проверки пароля удалена - больше не нужна

@@ -6,8 +6,7 @@ from .views import (
     ParticipantGroupViewSet,
     GroupTagViewSet,
     EventViewSet,
-    EventTagViewSet,
-    verify_eventum_password
+    EventTagViewSet
 )
 
 router = DefaultRouter()
@@ -23,5 +22,4 @@ eventum_scoped_router.register(r'event-tags', EventTagViewSet, basename='eventta
 urlpatterns = [
     path('', include(router.urls)),
     path('eventums/<slug:eventum_slug>/', include(eventum_scoped_router.urls)),
-    path('api/eventums/<slug:slug>/verify-password/', verify_eventum_password, name='verify-password'),
 ]
