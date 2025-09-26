@@ -88,18 +88,14 @@ class VKAuthView(TokenObtainPairView):
     def post(self, request, *args, **kwargs):
         serializer = VKAuthSerializer(data=request.data)
         if not serializer.is_valid():
-            print(f"VK Auth validation errors: {serializer.errors}")
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
         code = serializer.validated_data['code']
-        print(f"VK Auth request - code: {code[:10]}...")
-        print(f"VK settings - APP_ID: {settings.VK_APP_ID}, REDIRECT_URI: {settings.VK_REDIRECT_URI}")
         
         try:
             # Проверяем, что пришло от фронтенда
             if code.startswith('vk2.a.'):
                 # Это access_token от VK ID SDK (уже обмененный на фронтенде)
-                print(f"VK ID access_token detected: {code[:20]}...")
                 access_token = code
                 
                 # Получаем информацию о пользователе через VK ID API
@@ -114,30 +110,23 @@ class VKAuthView(TokenObtainPairView):
                     }
                 )
                 
-                print(f"VK ID user_info response status: {user_info_response.status_code}")
-                print(f"VK ID user_info response content: {user_info_response.text}")
-                
                 if user_info_response.status_code != 200:
                     return Response(
-                        {'error': f'Failed to get user info from VK ID: {user_info_response.status_code}'}, 
+                        {'error': 'Failed to get user info from VK ID'}, 
                         status=status.HTTP_400_BAD_REQUEST
                     )
                 
                 user_data = user_info_response.json()
-                print(f"VK ID user_info data: {user_data}")
                 
                 if 'error' in user_data:
                     return Response(
-                        {'error': f"VK ID error: {user_data.get('error_description', user_data.get('error', 'Unknown VK ID error'))}"}, 
+                        {'error': f"VK ID error: {user_data.get('error_description', 'Unknown VK ID error')}"}, 
                         status=status.HTTP_400_BAD_REQUEST
                     )
                 
                 # VK ID API возвращает данные в формате {user: {...}}
                 vk_user_data = user_data.get('user', {})
                 vk_user_id = vk_user_data.get('user_id')
-                
-                print(f"VK user data: {vk_user_data}")
-                print(f"VK user ID: {vk_user_id}")
                 
                 if not vk_user_id:
                     return Response(
@@ -150,11 +139,9 @@ class VKAuthView(TokenObtainPairView):
                     'id': vk_user_id,
                     'first_name': vk_user_data.get('first_name', ''),
                     'last_name': vk_user_data.get('last_name', ''),
-                    'photo_200': vk_user_data.get('avatar', ''),  # Полный URL без обрезания
-                    'email': ''  # Email не нужен
+                    'photo_200': vk_user_data.get('avatar', ''),
+                    'email': ''
                 }
-                
-                print(f"Formatted VK user: {vk_user}")
                 
             else:
                 # Стандартный OAuth код
@@ -220,36 +207,20 @@ class VKAuthView(TokenObtainPairView):
                 vk_user = user_data['response'][0]
             
             # Создаем или обновляем пользователя
-            print(f"Creating/updating user with vk_id: {vk_user_id}")
-            print(f"User data: {vk_user}")
+            user, created = UserProfile.objects.get_or_create(
+                vk_id=vk_user_id,
+                defaults={
+                    'name': f"{vk_user.get('first_name', '')} {vk_user.get('last_name', '')}".strip(),
+                    'avatar_url': vk_user.get('photo_200', ''),
+                    'email': '',
+                }
+            )
             
-            try:
-                user, created = UserProfile.objects.get_or_create(
-                    vk_id=vk_user_id,
-                    defaults={
-                        'name': f"{vk_user.get('first_name', '')} {vk_user.get('last_name', '')}".strip(),
-                        'avatar_url': vk_user.get('photo_200', ''),
-                        'email': '',  # Email не нужен
-                    }
-                )
-                
-                print(f"User created: {created}")
-                print(f"User: {user}")
-                
-                if not created:
-                    # Обновляем данные существующего пользователя
-                    user.name = f"{vk_user.get('first_name', '')} {vk_user.get('last_name', '')}".strip()
-                    user.avatar_url = vk_user.get('photo_200', '')
-                    # Email не обновляем, так как не нужен
-                    user.save()
-                    print(f"User updated: {user}")
-                    
-            except Exception as e:
-                print(f"Error creating/updating user: {e}")
-                return Response(
-                    {'error': f'User creation failed: {str(e)}'}, 
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
-                )
+            if not created:
+                # Обновляем данные существующего пользователя
+                user.name = f"{vk_user.get('first_name', '')} {vk_user.get('last_name', '')}".strip()
+                user.avatar_url = vk_user.get('photo_200', '')
+                user.save()
             
             # Создаем JWT токены
             refresh = RefreshToken.for_user(user)
@@ -293,13 +264,4 @@ def user_roles(request):
     return Response(serializer.data)
 
 
-@api_view(['GET'])
-@permission_classes([AllowAny])
-def vk_settings(request):
-    """Получение настроек VK для отладки"""
-    return Response({
-        'VK_APP_ID': settings.VK_APP_ID,
-        'VK_REDIRECT_URI': settings.VK_REDIRECT_URI,
-        'VK_APP_SECRET': '***' if settings.VK_APP_SECRET else None,
-    })
 

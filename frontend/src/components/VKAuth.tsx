@@ -21,27 +21,17 @@ const VKAuth: React.FC = () => {
         setIsLoading(true);
         setError(null);
         
-        console.log('VK Auth success data:', data);
-        console.log('Access token:', data.access_token);
-        console.log('Refresh token:', data.refresh_token);
-        console.log('ID token:', data.id_token);
-        
-        // Отправляем код на бэкенд для обмена на токены
         const response = await authApi.vkAuth({ code: data.code });
-        console.log('Backend response:', response);
         login(response, response.user);
         
       } catch (err: any) {
-        console.error('VK Auth error:', err);
-        console.error('Error response:', err.response?.data);
         setError(err.response?.data?.error || 'Ошибка авторизации');
       } finally {
         setIsLoading(false);
       }
     };
 
-    const vkidOnError = (error: any) => {
-      console.error('VK Auth error:', error);
+    const vkidOnError = () => {
       setError('Ошибка авторизации через VK');
       setIsLoading(false);
     };
@@ -89,38 +79,19 @@ const VKAuth: React.FC = () => {
           const code = payload.code;
           const deviceId = payload.device_id;
 
-          console.log('VK ID payload:', payload);
-          console.log('Code:', code);
-          console.log('Device ID:', deviceId);
-
-          // Пробуем обменять код на токены на фронтенде
-          console.log('Trying VKID.Auth.exchangeCode...');
+          // Обмениваем код на токены на фронтенде
           VKID.Auth.exchangeCode(code, deviceId)
             .then((result: any) => {
-              console.log('VKID.Auth.exchangeCode SUCCESS:', result);
-              console.log('Result type:', typeof result);
-              console.log('Result keys:', Object.keys(result || {}));
-              
-              // Проверяем разные возможные форматы ответа
-              if (result && typeof result === 'object') {
-                if (result.access_token) {
-                  console.log('Found access_token, sending to backend');
-                  vkidOnSuccess({ code: result.access_token });
-                } else if (result.code) {
-                  console.log('Found code in result, sending to backend');
-                  vkidOnSuccess({ code: result.code });
-                } else {
-                  console.log('No access_token or code found, sending original code');
-                  vkidOnSuccess({ code });
-                }
+              // Если обмен прошел успешно, отправляем access_token на бэкенд
+              if (result && result.access_token) {
+                vkidOnSuccess({ code: result.access_token });
               } else {
-                console.log('Result is not an object, sending original code');
+                // Если обмен не сработал, отправляем исходный код
                 vkidOnSuccess({ code });
               }
             })
-            .catch((error: any) => {
-              console.error('VKID.Auth.exchangeCode ERROR:', error);
-              console.log('Sending original code to backend');
+            .catch(() => {
+              // Если обмен не сработал, отправляем исходный код
               vkidOnSuccess({ code });
             });
         });

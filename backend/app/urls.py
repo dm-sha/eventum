@@ -11,8 +11,7 @@ from .views import (
     VKAuthView,
     CustomTokenRefreshView,
     user_profile,
-    user_roles,
-    vk_settings
+    user_roles
 )
 
 router = DefaultRouter()
@@ -34,5 +33,4 @@ urlpatterns = [
     path('auth/refresh/', CustomTokenRefreshView.as_view(), name='token_refresh'),
     path('auth/profile/', user_profile, name='user_profile'),
     path('auth/roles/', user_roles, name='user_roles'),
-    path('auth/vk-settings/', vk_settings, name='vk_settings'),
 ]

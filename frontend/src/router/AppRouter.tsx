@@ -11,7 +11,6 @@ import AdminGroupTagsPage from "../pages/admin/GroupTagsPage";
 import AdminGroupsPage from "../pages/admin/GroupsPage";
 import VKAuth from "../components/VKAuth";
 import DashboardPage from "../pages/DashboardPage";
-import VKTestPage from "../pages/VKTestPage";
 import { useAuth } from "../contexts/AuthContext";
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -35,9 +34,6 @@ export const AppRouter = () => {
     <Routes>
       {/* Auth routes */}
       <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <VKAuth />} />
-      
-      {/* VK Test page */}
-      <Route path="/vk-test" element={<VKTestPage />} />
       
       {/* Dashboard route */}
       <Route 
