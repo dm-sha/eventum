@@ -389,6 +389,56 @@ def dev_user_auth(request):
         )
 
 
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def debug_static_files(request):
+    """Отладочный endpoint для проверки статических файлов"""
+    import os
+    from django.conf import settings
+    
+    static_root = settings.STATIC_ROOT
+    static_url = settings.STATIC_URL
+    
+    # Проверяем существование папки static
+    static_exists = os.path.exists(static_root)
+    
+    # Проверяем содержимое папки static
+    static_contents = []
+    if static_exists:
+        try:
+            static_contents = os.listdir(static_root)
+        except Exception as e:
+            static_contents = [f"Error reading directory: {str(e)}"]
+    
+    # Проверяем конкретно admin/css
+    admin_css_exists = False
+    admin_css_contents = []
+    if static_exists:
+        admin_css_path = os.path.join(static_root, 'admin', 'css')
+        admin_css_exists = os.path.exists(admin_css_path)
+        if admin_css_exists:
+            try:
+                admin_css_contents = os.listdir(admin_css_path)
+            except Exception as e:
+                admin_css_contents = [f"Error reading admin/css: {str(e)}"]
+    
+    # Проверяем конкретно base.css
+    base_css_exists = False
+    if admin_css_exists:
+        base_css_path = os.path.join(admin_css_path, 'base.css')
+        base_css_exists = os.path.exists(base_css_path)
+    
+    return Response({
+        'static_url': static_url,
+        'static_root': str(static_root),
+        'static_exists': static_exists,
+        'static_contents': static_contents,
+        'admin_css_exists': admin_css_exists,
+        'admin_css_contents': admin_css_contents,
+        'base_css_exists': base_css_exists,
+        'debug_mode': settings.DEBUG,
+        'whitenoise_configured': 'whitenoise.middleware.WhiteNoiseMiddleware' in settings.MIDDLEWARE
+    })
 
 
 

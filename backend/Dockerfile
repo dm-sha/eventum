@@ -14,6 +14,10 @@ COPY . .
 # Собираем статические файлы
 RUN python manage.py collectstatic --noinput
 
+# Проверяем что статические файлы собрались
+RUN ls -la static/
+RUN ls -la static/admin/css/ | head -10
+
 EXPOSE 8000
 
 CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT:-8000} --workers 4 --timeout 120 eventum.wsgi:application"]
