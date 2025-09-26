@@ -48,6 +48,11 @@
 - Добавили `CORS_EXPOSE_HEADERS` для заголовка Authorization
 - Добавили проверку preflight запросов в middleware
 
+### 11. Радикальное исправление CORS
+- Создали кастомный `CORSFixMiddleware` для ручной обработки CORS
+- Временно отключили стандартный `corsheaders.middleware.CorsMiddleware`
+- Добавили детальное логирование preflight запросов
+
 ## Развертывание
 
 ### 1. Обновите переменные окружения в продакшене

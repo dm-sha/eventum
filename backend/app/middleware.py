@@ -4,6 +4,35 @@ from django.http import JsonResponse
 
 logger = logging.getLogger(__name__)
 
+class CORSFixMiddleware(MiddlewareMixin):
+    """
+    Middleware для исправления проблем с CORS и заголовком Authorization
+    """
+    
+    def process_response(self, request, response):
+        # Добавляем CORS заголовки для всех API запросов
+        if request.path.startswith('/api/'):
+            origin = request.META.get('HTTP_ORIGIN', '')
+            
+            # Разрешаем только определенные домены
+            allowed_origins = [
+                'http://localhost:5173',
+                'http://localhost:5174', 
+                'https://eventum-web-ui.vercel.app',
+                'https://bbapo5ibqs4eg6dail89.containers.yandexcloud.net'
+            ]
+            
+            if origin in allowed_origins:
+                response['Access-Control-Allow-Origin'] = origin
+                response['Access-Control-Allow-Credentials'] = 'true'
+                response['Access-Control-Allow-Methods'] = 'GET, POST, PUT, PATCH, DELETE, OPTIONS'
+                response['Access-Control-Allow-Headers'] = 'accept, accept-encoding, authorization, Authorization, content-type, dnt, origin, user-agent, x-csrftoken, x-requested-with'
+                response['Access-Control-Expose-Headers'] = 'Authorization, authorization'
+                
+                logger.info(f"CORS headers added for origin: {origin}")
+        
+        return response
+
 class AuthDebugMiddleware(MiddlewareMixin):
     """
     Middleware для отладки проблем с аутентификацией в продакшене
@@ -27,13 +56,16 @@ class AuthDebugMiddleware(MiddlewareMixin):
             if request.method == 'OPTIONS':
                 logger.info("CORS preflight request detected")
                 access_control_request_headers = request.META.get('HTTP_ACCESS_CONTROL_REQUEST_HEADERS', '')
+                access_control_request_method = request.META.get('HTTP_ACCESS_CONTROL_REQUEST_METHOD', '')
                 logger.info(f"Access-Control-Request-Headers: {access_control_request_headers}")
+                logger.info(f"Access-Control-Request-Method: {access_control_request_method}")
                 
                 # Проверяем, запрашивается ли заголовок Authorization
                 if 'authorization' in access_control_request_headers.lower():
                     logger.info("Authorization header requested in preflight")
                 else:
                     logger.warning("Authorization header NOT requested in preflight!")
+                    logger.warning("This means the browser is not sending Authorization header!")
             
             # Логируем все заголовки для отладки
             logger.info(f"All headers: {dict(request.META)}")
