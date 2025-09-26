@@ -86,11 +86,18 @@ class VKAuthView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
     
     def post(self, request, *args, **kwargs):
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        logger.info(f"VK Auth request received: {request.data}")
+        
         serializer = VKAuthSerializer(data=request.data)
         if not serializer.is_valid():
+            logger.error(f"VK Auth validation failed: {serializer.errors}")
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
         code = serializer.validated_data['code']
+        logger.info(f"VK Auth code received: {code[:20]}...")
         
         try:
             # Проверяем, что пришло от фронтенда
@@ -225,6 +232,8 @@ class VKAuthView(TokenObtainPairView):
             # Создаем JWT токены
             refresh = RefreshToken.for_user(user)
             
+            logger.info(f"VK Auth successful for user: {user.name} (ID: {user.id})")
+            
             return Response({
                 'access': str(refresh.access_token),
                 'refresh': str(refresh),
@@ -232,6 +241,7 @@ class VKAuthView(TokenObtainPairView):
             })
             
         except Exception as e:
+            logger.error(f"VK Auth error: {str(e)}")
             return Response(
                 {'error': f'Authentication error: {str(e)}'}, 
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -334,6 +344,18 @@ def dev_user_auth(request):
             {'error': f'Error authenticating dev user: {str(e)}'}, 
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def vk_config_check(request):
+    """Проверка настроек VK для отладки"""
+    return Response({
+        'VK_APP_ID': settings.VK_APP_ID,
+        'VK_REDIRECT_URI': settings.VK_REDIRECT_URI,
+        'DEBUG': settings.DEBUG,
+        'ALLOWED_HOSTS': settings.ALLOWED_HOSTS,
+    })
 
 
 

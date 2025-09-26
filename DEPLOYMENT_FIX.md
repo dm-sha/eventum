@@ -24,6 +24,10 @@
 ### 5. Улучшение логирования в API
 - Добавили детальное логирование в `user_eventums` view
 
+### 6. Улучшение VK аутентификации
+- Добавили подробное логирование в VK аутентификацию
+- Создали endpoint `/api/auth/vk-config/` для проверки настроек VK
+
 ## Развертывание
 
 ### 1. Обновите переменные окружения в продакшене
@@ -76,6 +80,22 @@ from app.models import UserProfile, UserRole
 user = UserProfile.objects.get(vk_id=YOUR_VK_ID)
 roles = UserRole.objects.filter(user=user)
 print(f"User: {user.name}, Roles: {[r.role for r in roles]}")
+```
+
+### Проверка настроек VK
+Проверьте настройки VK в продакшене:
+```bash
+curl https://bbapo5ibqs4eg6dail89.containers.yandexcloud.net/api/auth/vk-config/
+```
+
+Должно вернуть:
+```json
+{
+  "VK_APP_ID": "your_app_id",
+  "VK_REDIRECT_URI": "https://eventum-web-ui.vercel.app",
+  "DEBUG": false,
+  "ALLOWED_HOSTS": ["*"]
+}
 ```
 
 ## Возможные дополнительные проблемы
