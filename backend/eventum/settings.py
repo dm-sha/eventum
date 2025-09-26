@@ -140,6 +140,12 @@ DATABASES = {
         'HOST': os.getenv('DB_HOST'),
         'PORT': '6432',
         'CONN_MAX_AGE': 300,
+        'OPTIONS': {
+            'sslmode': 'require',
+            'connect_timeout': 30,
+            'options': '-c default_transaction_isolation=read_committed'
+        },
+        'CONN_HEALTH_CHECKS': True,
     }
 }
 
@@ -258,6 +264,16 @@ ssl_context = ssl.create_default_context()
 ssl_context.check_hostname = True
 ssl_context.verify_mode = ssl.CERT_REQUIRED
 
+# Настройки сессий
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'
+SESSION_COOKIE_AGE = 1209600  # 2 недели
+SESSION_COOKIE_SECURE = not DEBUG
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = 'Lax'
+SESSION_SAVE_EVERY_REQUEST = False
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False
+SESSION_SERIALIZER = 'django.contrib.sessions.serializers.JSONSerializer'
+
 # Настройки логирования
 LOGGING = {
     'version': 1,
@@ -283,6 +299,16 @@ LOGGING = {
             'propagate': True,
         },
         'requests.packages.urllib3': {
+            'handlers': ['console', 'file'],
+            'level': 'WARNING',
+            'propagate': True,
+        },
+        'django.db.backends': {
+            'handlers': ['console', 'file'],
+            'level': 'WARNING',
+            'propagate': True,
+        },
+        'django.contrib.sessions': {
             'handlers': ['console', 'file'],
             'level': 'WARNING',
             'propagate': True,
