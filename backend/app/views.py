@@ -87,33 +87,43 @@ class VKAuthView(TokenObtainPairView):
     def post(self, request, *args, **kwargs):
         serializer = VKAuthSerializer(data=request.data)
         if not serializer.is_valid():
+            print(f"VK Auth validation errors: {serializer.errors}")
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
         code = serializer.validated_data['code']
+        print(f"VK Auth request - code: {code[:10]}...")
+        print(f"VK settings - APP_ID: {settings.VK_APP_ID}, REDIRECT_URI: {settings.VK_REDIRECT_URI}")
         
         try:
             # Получаем access_token от VK
+            vk_params = {
+                'client_id': settings.VK_APP_ID,
+                'client_secret': settings.VK_APP_SECRET,
+                'redirect_uri': settings.VK_REDIRECT_URI,
+                'code': code,
+            }
+            print(f"VK token request params: {vk_params}")
+            
             vk_token_response = requests.get(
                 'https://oauth.vk.com/access_token',
-                params={
-                    'client_id': settings.VK_APP_ID,
-                    'client_secret': settings.VK_APP_SECRET,
-                    'redirect_uri': settings.VK_REDIRECT_URI,
-                    'code': code,
-                }
+                params=vk_params
             )
+            
+            print(f"VK token response status: {vk_token_response.status_code}")
+            print(f"VK token response content: {vk_token_response.text}")
             
             if vk_token_response.status_code != 200:
                 return Response(
-                    {'error': 'VK authentication failed'}, 
+                    {'error': f'VK authentication failed: {vk_token_response.status_code} - {vk_token_response.text}'}, 
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
             vk_data = vk_token_response.json()
+            print(f"VK token response data: {vk_data}")
             
             if 'error' in vk_data:
                 return Response(
-                    {'error': vk_data['error_description']}, 
+                    {'error': f"VK error: {vk_data.get('error_description', vk_data.get('error', 'Unknown VK error'))}"}, 
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
@@ -205,4 +215,14 @@ def user_roles(request):
     roles = UserRole.objects.filter(user=request.user)
     serializer = UserRoleSerializer(roles, many=True)
     return Response(serializer.data)
+
+
+@api_view(['GET'])
+def vk_settings(request):
+    """Получение настроек VK для отладки"""
+    return Response({
+        'VK_APP_ID': settings.VK_APP_ID,
+        'VK_REDIRECT_URI': settings.VK_REDIRECT_URI,
+        'VK_APP_SECRET': '***' if settings.VK_APP_SECRET else None,
+    })
 

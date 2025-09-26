@@ -59,11 +59,16 @@ const VKAuth: React.FC = () => {
         setIsLoading(true);
         setError(null);
         
+        console.log('VK Auth success data:', data);
+        console.log('Sending code to backend:', data.code);
+        
         const response = await authApi.vkAuth({ code: data.code });
+        console.log('Backend response:', response);
         login(response, response.user);
         
       } catch (err: any) {
         console.error('VK Auth error:', err);
+        console.error('Error response:', err.response?.data);
         setError(err.response?.data?.error || 'Ошибка авторизации');
       } finally {
         setIsLoading(false);
