@@ -6,7 +6,7 @@ from import_export.admin import ImportExportModelAdmin
 # Импортируем все модели
 from .models import (
     Eventum, Participant, ParticipantGroup,
-    GroupTag, Event, EventTag
+    GroupTag, Event, EventTag, UserProfile, UserRole
 )
 
 # Импортируем все ресурсы, которые мы определили в resources.py
@@ -107,6 +107,7 @@ class EventumAdmin(admin.ModelAdmin):
     list_display = ('name', 'slug')
     prepopulated_fields = {'slug': ('name',)}
     inlines = [ParticipantInline, EventInline]
+    search_fields = ('name', 'slug')
 
 # --- ParticipantAdmin ---
 # Наследуемся от ImportExportModelAdmin и добавляем resource_class
@@ -172,4 +173,32 @@ class EventTagAdmin(ImportExportModelAdmin):
     readonly_fields = ('slug',)
     # Добавлено для удобства
     search_fields = ('name',)
+
+
+# --- UserProfileAdmin ---
+@admin.register(UserProfile)
+class UserProfileAdmin(admin.ModelAdmin):
+    list_display = ('vk_id', 'name', 'email', 'date_joined', 'last_login')
+    list_filter = ('date_joined', 'last_login')
+    search_fields = ('vk_id', 'name', 'email')
+    readonly_fields = ('vk_id', 'date_joined', 'last_login')
+    fieldsets = (
+        ('Основная информация', {
+            'fields': ('vk_id', 'name', 'email', 'avatar_url')
+        }),
+        ('Системная информация', {
+            'fields': ('date_joined', 'last_login', 'is_active', 'is_staff', 'is_superuser'),
+            'classes': ('collapse',)
+        }),
+    )
+
+
+# --- UserRoleAdmin ---
+@admin.register(UserRole)
+class UserRoleAdmin(admin.ModelAdmin):
+    list_display = ('user', 'eventum', 'role', 'created_at')
+    list_filter = ('role', 'created_at', 'eventum')
+    search_fields = ('user__name', 'user__vk_id', 'eventum__name')
+    readonly_fields = ('created_at',)
+    autocomplete_fields = ('user', 'eventum')
 

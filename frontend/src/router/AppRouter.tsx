@@ -1,6 +1,5 @@
-import { Route, Routes } from "react-router-dom";
+import { Route, Routes, Navigate } from "react-router-dom";
 import Layout from "../components/Layout";
-import HomePage from "../pages/HomePage";
 import EventumPage from "../pages/EventumPage";
 import NotFoundPage from "../pages/NotFoundPage";
 import AdminLayout from "../components/AdminLayout";
@@ -10,13 +9,45 @@ import AdminParticipantsPage from "../pages/admin/ParticipantsPage";
 import AdminEventTagsPage from "../pages/admin/EventTagsPage";
 import AdminGroupTagsPage from "../pages/admin/GroupTagsPage";
 import AdminGroupsPage from "../pages/admin/GroupsPage";
+import VKAuth from "../components/VKAuth";
+import DashboardPage from "../pages/DashboardPage";
+import { useAuth } from "../contexts/AuthContext";
+
+const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { isAuthenticated, isLoading } = useAuth();
+  
+  if (isLoading) {
+    return <div>Загрузка...</div>;
+  }
+  
+  return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />;
+};
 
 export const AppRouter = () => {
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return <div>Загрузка...</div>;
+  }
+
   return (
     <Routes>
+      {/* Auth routes */}
+      <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <VKAuth />} />
+      
+      {/* Dashboard route */}
+      <Route 
+        path="/dashboard" 
+        element={
+          <ProtectedRoute>
+            <DashboardPage />
+          </ProtectedRoute>
+        } 
+      />
+
       {/* Public site layout */}
       <Route path="/" element={<Layout />}>
-        <Route index element={<HomePage />} />
+        <Route index element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <VKAuth />} />
         <Route path=":eventumSlug" element={<EventumPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
