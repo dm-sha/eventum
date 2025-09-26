@@ -40,7 +40,7 @@ release-job:
       --cloud-id ${cloud_id}
       --folder-id ${cart_prod}
       --service-account-id ${PROD_SA_ID}
-      --network-id enps2mqrhf2muo7s7d74
+      --subnets e9bhrcq7obn68iubmq7c
       --secret environment-variable=DB_NAME,id=e6qmac6cr2goqb03sfjn,version-id=e6qtom5dst8bamfc4pfh,key=DB_NAME
       --secret environment-variable=DB_HOST,id=e6qmac6cr2goqb03sfjn,version-id=e6qtom5dst8bamfc4pfh,key=DB_HOST
       --secret environment-variable=DB_PASSWORD,id=e6qmac6cr2goqb03sfjn,version-id=e6qtom5dst8bamfc4pfh,key=DB_PASSWORD
