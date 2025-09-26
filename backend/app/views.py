@@ -1,7 +1,8 @@
 from rest_framework import viewsets, status
-from rest_framework.decorators import action, api_view
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.exceptions import NotFound, ValidationError
+from rest_framework.permissions import AllowAny
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.shortcuts import get_object_or_404
@@ -218,6 +219,7 @@ def user_roles(request):
 
 
 @api_view(['GET'])
+@permission_classes([AllowAny])
 def vk_settings(request):
     """Получение настроек VK для отладки"""
     return Response({
