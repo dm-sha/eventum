@@ -46,7 +46,7 @@ const Header = ({
       <div className="relative" ref={menuRef}>
         <button
           onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-          className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-100 transition-colors"
+          className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-100 transition-colors"
         >
           {user.avatar_url ? (
             <img
@@ -59,9 +59,6 @@ const Header = ({
               <IconUser size={16} className="text-gray-600" />
             </div>
           )}
-          <span className="text-sm font-medium text-gray-700 hidden sm:block">
-            {user.name}
-          </span>
           <IconBars3 size={16} className="text-gray-500" />
         </button>
 

@@ -64,7 +64,7 @@ const AdminLayout = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
       {/* Top bar across the page */}
       <Header
         variant="admin"
@@ -74,7 +74,7 @@ const AdminLayout = () => {
       />
 
       {/* Content row: sidebar + page */}
-      <div className="flex flex-1 min-h-0">
+      <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* Backdrop for mobile menu */}
         {isMobileMenuOpen && (
           <button
@@ -89,7 +89,7 @@ const AdminLayout = () => {
         <aside
           className={`${
             collapsed ? "lg:w-20" : "lg:w-64"
-          } fixed top-14 bottom-0 left-0 z-40 w-64 transform bg-white border-r border-gray-200 pt-2 pb-3 pl-0 pr-2 flex flex-col transition-transform duration-200 ease-in-out lg:static lg:translate-x-0 lg:h-[calc(100vh-56px)] ${
+          } fixed top-14 bottom-0 left-0 z-30 w-64 transform bg-white border-r border-gray-200 pt-2 pb-3 pl-0 pr-2 flex flex-col transition-transform duration-200 ease-in-out lg:static lg:translate-x-0 lg:h-full ${
             isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
           }`}
           aria-label="Админ-меню"
@@ -124,7 +124,7 @@ const AdminLayout = () => {
               })}
             </nav>
           </div>
-          <div className="mt-3 px-1">
+          <div className="mt-auto px-1">
             <button
               type="button"
               onClick={() => setCollapsed((c) => !c)}
@@ -133,15 +133,15 @@ const AdminLayout = () => {
               aria-expanded={!collapsed}
             >
               <AsideToggleIcon />
-              <span className={`text-sm ${collapsed ? 'hidden lg:inline' : ''}`}>
-                {collapsed ? "Открыть" : "Свернуть"}
+              <span className={`text-sm ${collapsed ? 'hidden' : ''}`}>
+                {collapsed ? "" : "Свернуть"}
               </span>
             </button>
           </div>
         </aside>
 
         {/* Page content */}
-        <main className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8">
+        <main className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8 overflow-y-auto">
           <Outlet />
         </main>
       </div>
