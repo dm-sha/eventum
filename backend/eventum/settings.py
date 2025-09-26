@@ -54,8 +54,8 @@ MIDDLEWARE = [
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',  # Включаем обратно CSRF
-    'app.middleware.AuthDebugMiddleware',  # Middleware для отладки аутентификации - ПЕРЕД AuthenticationMiddleware
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'app.middleware.AuthDebugMiddleware',  # Middleware для аутентификации - ПОСЛЕ AuthenticationMiddleware
     'app.middleware.CORSFixMiddleware',  # Middleware для исправления CORS (резервный)
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -234,7 +234,8 @@ SIMPLE_JWT = {
 # Настройки REST Framework
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'app.authentication.QueryTokenAuthentication',  # Наш кастомный аутентификатор
+        'rest_framework_simplejwt.authentication.JWTAuthentication',  # Резервный
     ),
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
