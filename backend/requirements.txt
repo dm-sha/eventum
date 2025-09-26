@@ -8,3 +8,5 @@ django-cors-headers
 djangorestframework-simplejwt==5.5.1
 requests==2.31.0
 setuptools>=80.0.0
+transliterate==1.10.2
+whitenoise==6.8.2

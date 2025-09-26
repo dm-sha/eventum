@@ -60,16 +60,19 @@ class ParticipantGroupSerializer(serializers.ModelSerializer):
         
         return value
     
-    def save(self, **kwargs):
-        """Переопределяем save для правильной обработки ManyToMany полей"""
+    def create(self, validated_data):
+        """Переопределяем create для правильной обработки ManyToMany полей"""
         # Извлекаем ManyToMany поля из validated_data
-        participants_data = self.validated_data.pop('participants', [])
-        tags_data = self.validated_data.pop('tags', [])
+        participants_data = validated_data.pop('participants', [])
+        tags_data = validated_data.pop('tags', [])
         
-        # Создаем объект
-        instance = super().save(**kwargs)
+        # Создаем объект через конструктор
+        instance = ParticipantGroup(**validated_data)
         
-        # Устанавливаем ManyToMany связи после создания объекта
+        # Сохраняем объект, чтобы вызвать метод save() модели
+        instance.save()
+        
+        # Устанавливаем ManyToMany связи после сохранения объекта
         if participants_data:
             instance.participants.set(participants_data)
         if tags_data:

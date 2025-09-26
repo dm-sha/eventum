@@ -11,6 +11,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
+# Собираем статические файлы
+RUN python manage.py collectstatic --noinput
+
 EXPOSE 8000
 
 CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT:-8000} --workers 4 --timeout 120 eventum.wsgi:application"]

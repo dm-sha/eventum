@@ -1,6 +1,7 @@
 from django.db import models
 from django.core.exceptions import ValidationError
 from django.utils.text import slugify
+from transliterate import translit
 from django.utils import timezone
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 
@@ -28,7 +29,9 @@ class GroupTag(models.Model):
     
     def save(self, *args, **kwargs):
         if not self.slug:
-            self.slug = slugify(self.name)
+            # Сначала транслитерируем русский текст в латиницу, затем создаем slug
+            transliterated = translit(self.name, 'ru', reversed=True)
+            self.slug = slugify(transliterated)
         self.full_clean()
         super().save(*args, **kwargs)
     
@@ -47,11 +50,19 @@ class ParticipantGroup(models.Model):
     
     def save(self, *args, **kwargs):
         if not self.slug:
-            self.slug = slugify(self.name)
+            # Сначала транслитерируем русский текст в латиницу, затем создаем slug
+            transliterated = translit(self.name, 'ru', reversed=True)
+            self.slug = slugify(transliterated)
         self.full_clean()
         super().save(*args, **kwargs)
     
     def clean(self):
+        # Many-to-many relations are unavailable until the instance is saved,
+        # so we skip the validation for unsaved objects (they will be validated
+        # once the relations are assigned after creation).
+        if not self.pk:
+            return
+
         # Ensure all participants belong to the same eventum
         # Only check if we have an eventum and participants
         if self.eventum_id and self.participants.exists():
@@ -75,7 +86,9 @@ class EventTag(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.slug:
-            self.slug = slugify(self.name)
+            # Сначала транслитерируем русский текст в латиницу, затем создаем slug
+            transliterated = translit(self.name, 'ru', reversed=True)
+            self.slug = slugify(transliterated)
         self.full_clean()
         super().save(*args, **kwargs)
 
