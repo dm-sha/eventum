@@ -7,7 +7,6 @@ const AdminParticipantsPage = () => {
   const { eventumSlug } = useParams();
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [nameFilter, setNameFilter] = useState("");
-  const [tagFilter, setTagFilter] = useState("");
 
   useEffect(() => {
     if (eventumSlug) {
@@ -27,12 +26,6 @@ const AdminParticipantsPage = () => {
           placeholder="Фильтр по имени"
           value={nameFilter}
           onChange={(e) => setNameFilter(e.target.value)}
-          className="border border-gray-300 rounded px-2 py-1"
-        />
-        <input
-          placeholder="Фильтр по тегу"
-          value={tagFilter}
-          onChange={(e) => setTagFilter(e.target.value)}
           className="border border-gray-300 rounded px-2 py-1"
         />
       </div>
