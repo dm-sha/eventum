@@ -26,11 +26,15 @@ class CORSFixMiddleware(MiddlewareMixin):
                 response['Access-Control-Allow-Origin'] = origin
                 response['Access-Control-Allow-Credentials'] = 'true'
                 response['Access-Control-Allow-Methods'] = 'GET, POST, PUT, PATCH, DELETE, OPTIONS'
-                response['Access-Control-Allow-Headers'] = '*'  # Разрешаем ВСЕ заголовки
-                response['Access-Control-Expose-Headers'] = '*'
+                response['Access-Control-Allow-Headers'] = 'accept, accept-encoding, content-type, dnt, origin, user-agent, x-csrftoken, x-requested-with'
+                response['Access-Control-Expose-Headers'] = 'Authorization, authorization'
+                
+                # Специальная обработка для preflight запросов
+                if request.method == 'OPTIONS':
+                    response.status_code = 200
+                    logger.info(f"CORS preflight response sent for origin: {origin}")
                 
                 logger.info(f"CORS headers added for origin: {origin}")
-                logger.info(f"CORS Allow-Headers: * (ALL HEADERS ALLOWED)")
         
         return response
 
@@ -71,38 +75,38 @@ class AuthDebugMiddleware(MiddlewareMixin):
             # Логируем ВСЕ заголовки для отладки
             logger.info(f"All headers: {dict(request.META)}")
             
-            # Получаем токен из разных источников
+            # Получаем токен из разных источников (приоритет query параметрам)
             token = None
             token_source = None
             
-            # 1. Из заголовка Authorization
-            if auth_header and auth_header.startswith('Bearer '):
-                token = auth_header[7:]  # Убираем "Bearer "
-                token_source = "Authorization header"
-                logger.info(f"Token found in Authorization header: {token[:50]}...")
+            # 1. Из query параметра 'access_token' (ПРИОРИТЕТ - работает!)
+            if 'access_token' in request.GET:
+                token = request.GET['access_token']
+                token_source = "access_token query parameter"
+                logger.info(f"Token found in access_token query parameter: {token[:50]}...")
             
-            # 2. Из query параметра 'token'
+            # 2. Из query параметра 'token' (альтернатива)
             elif 'token' in request.GET:
                 token = request.GET['token']
                 token_source = "query parameter"
                 logger.info(f"Token found in query parameter: {token[:50]}...")
             
-            # 3. Из query параметра 'access_token'
-            elif 'access_token' in request.GET:
-                token = request.GET['access_token']
-                token_source = "access_token query parameter"
-                logger.info(f"Token found in access_token query parameter: {token[:50]}...")
+            # 3. Из заголовка Authorization (резервный способ)
+            elif auth_header and auth_header.startswith('Bearer '):
+                token = auth_header[7:]  # Убираем "Bearer "
+                token_source = "Authorization header"
+                logger.info(f"Token found in Authorization header: {token[:50]}...")
             
             # 4. Из POST данных (для POST запросов)
             elif request.method == 'POST' and hasattr(request, 'data'):
-                if 'token' in request.data:
-                    token = request.data['token']
-                    token_source = "POST data token"
-                    logger.info(f"Token found in POST data: {token[:50]}...")
-                elif 'access_token' in request.data:
+                if 'access_token' in request.data:
                     token = request.data['access_token']
                     token_source = "POST data access_token"
                     logger.info(f"Token found in POST data access_token: {token[:50]}...")
+                elif 'token' in request.data:
+                    token = request.data['token']
+                    token_source = "POST data token"
+                    logger.info(f"Token found in POST data: {token[:50]}...")
             
             # Обрабатываем найденный токен
             if token:

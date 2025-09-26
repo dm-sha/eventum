@@ -49,14 +49,14 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    # 'corsheaders.middleware.CorsMiddleware',  # Временно отключаем для отладки
+    'corsheaders.middleware.CorsMiddleware',  # Включаем обратно стандартный CORS
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
-    # 'django.middleware.csrf.CsrfViewMiddleware',  # Временно отключаем CSRF для отладки
+    'django.middleware.csrf.CsrfViewMiddleware',  # Включаем обратно CSRF
     'app.middleware.AuthDebugMiddleware',  # Middleware для отладки аутентификации - ПЕРЕД AuthenticationMiddleware
     'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'app.middleware.CORSFixMiddleware',  # Middleware для исправления CORS
+    'app.middleware.CORSFixMiddleware',  # Middleware для исправления CORS (резервный)
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]

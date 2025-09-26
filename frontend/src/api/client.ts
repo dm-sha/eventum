@@ -17,7 +17,7 @@ const apiClient = axios.create({
     },
 });
 
-// Интерцептор для добавления токена аутентификации
+// Интерцептор для добавления токена аутентификации через query параметры
 apiClient.interceptors.request.use(
     (config) => {
         const tokens = localStorage.getItem('auth_tokens');
@@ -26,28 +26,12 @@ apiClient.interceptors.request.use(
             try {
                 const { access } = JSON.parse(tokens);
                 
-                // Пробуем разные способы передачи токена
-                // 1. Через заголовок Authorization (стандартный способ)
-                config.headers.Authorization = `Bearer ${access}`;
-                console.log('Authorization header set:', `Bearer ${access.substring(0, 20)}...`);
-                
-                // 2. Через query параметр (альтернативный способ)
-                if (config.method === 'get') {
-                    config.params = {
-                        ...config.params,
-                        access_token: access
-                    };
-                    console.log('Access token added to query params');
-                }
-                
-                // 3. Через POST данные (для POST запросов)
-                if (config.method === 'post' && config.data) {
-                    config.data = {
-                        ...config.data,
-                        access_token: access
-                    };
-                    console.log('Access token added to POST data');
-                }
+                // Передаем токен только через query параметры (работает!)
+                config.params = {
+                    ...config.params,
+                    access_token: access
+                };
+                console.log('Access token added to query params:', access.substring(0, 20) + '...');
                 
             } catch (error) {
                 console.error('Error parsing auth tokens:', error);
@@ -100,8 +84,11 @@ apiClient.interceptors.response.use(
                     
                     console.log('Токен обновлен, повторяем запрос...');
                     
-                    // Повторяем оригинальный запрос с новым токеном
-                    originalRequest.headers.Authorization = `Bearer ${access}`;
+                    // Повторяем оригинальный запрос с новым токеном через query параметр
+                    originalRequest.params = {
+                        ...originalRequest.params,
+                        access_token: access
+                    };
                     return apiClient(originalRequest);
                 } else {
                     console.log('Нет токенов для обновления');
