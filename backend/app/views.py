@@ -363,6 +363,10 @@ def vk_config_check(request):
         'VK_REDIRECT_URI': settings.VK_REDIRECT_URI,
         'DEBUG': settings.DEBUG,
         'ALLOWED_HOSTS': settings.ALLOWED_HOSTS,
+        'SECRET_KEY_LENGTH': len(settings.SECRET_KEY) if settings.SECRET_KEY else 0,
+        'SECRET_KEY_START': settings.SECRET_KEY[:10] if settings.SECRET_KEY else 'None',
+        'DATABASE_ENGINE': settings.DATABASES['default']['ENGINE'],
+        'DATABASE_NAME': settings.DATABASES['default']['NAME'],
     })
 
 
@@ -370,6 +374,7 @@ def vk_config_check(request):
 def debug_user_info(request):
     """Отладочная информация о текущем пользователе"""
     import logging
+    from django.conf import settings
     logger = logging.getLogger(__name__)
     
     logger.info(f"debug_user_info called by user: {request.user} (authenticated: {request.user.is_authenticated})")
@@ -381,6 +386,50 @@ def debug_user_info(request):
         'user_id': getattr(request.user, 'id', 'No ID'),
         'user_name': getattr(request.user, 'name', 'No Name'),
         'user_vk_id': getattr(request.user, 'vk_id', 'No VK ID'),
+        'secret_key_length': len(settings.SECRET_KEY) if settings.SECRET_KEY else 0,
+        'secret_key_start': settings.SECRET_KEY[:10] if settings.SECRET_KEY else 'None',
+    })
+
+
+@api_view(['GET', 'POST'])
+def test_token_auth(request):
+    """Тестирование разных способов передачи токена"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # Получаем токен из разных источников
+    token_sources = {}
+    
+    # 1. Из заголовка Authorization
+    auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+    if auth_header and auth_header.startswith('Bearer '):
+        token_sources['authorization_header'] = auth_header[7:][:50] + '...'
+    
+    # 2. Из query параметров
+    if 'token' in request.GET:
+        token_sources['query_token'] = request.GET['token'][:50] + '...'
+    if 'access_token' in request.GET:
+        token_sources['query_access_token'] = request.GET['access_token'][:50] + '...'
+    
+    # 3. Из POST данных
+    if request.method == 'POST' and hasattr(request, 'data'):
+        if 'token' in request.data:
+            token_sources['post_token'] = str(request.data['token'])[:50] + '...'
+        if 'access_token' in request.data:
+            token_sources['post_access_token'] = str(request.data['access_token'])[:50] + '...'
+    
+    logger.info(f"test_token_auth called by user: {request.user} (authenticated: {request.user.is_authenticated})")
+    logger.info(f"Token sources found: {token_sources}")
+    
+    return Response({
+        'user': str(request.user),
+        'is_authenticated': request.user.is_authenticated,
+        'user_id': getattr(request.user, 'id', 'No ID'),
+        'user_name': getattr(request.user, 'name', 'No Name'),
+        'token_sources': token_sources,
+        'method': request.method,
+        'query_params': dict(request.GET),
+        'post_data': request.data if hasattr(request, 'data') else {},
     })
 
 

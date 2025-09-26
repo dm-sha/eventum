@@ -25,8 +25,30 @@ apiClient.interceptors.request.use(
         if (tokens) {
             try {
                 const { access } = JSON.parse(tokens);
+                
+                // Пробуем разные способы передачи токена
+                // 1. Через заголовок Authorization (стандартный способ)
                 config.headers.Authorization = `Bearer ${access}`;
                 console.log('Authorization header set:', `Bearer ${access.substring(0, 20)}...`);
+                
+                // 2. Через query параметр (альтернативный способ)
+                if (config.method === 'get') {
+                    config.params = {
+                        ...config.params,
+                        access_token: access
+                    };
+                    console.log('Access token added to query params');
+                }
+                
+                // 3. Через POST данные (для POST запросов)
+                if (config.method === 'post' && config.data) {
+                    config.data = {
+                        ...config.data,
+                        access_token: access
+                    };
+                    console.log('Access token added to POST data');
+                }
+                
             } catch (error) {
                 console.error('Error parsing auth tokens:', error);
             }

@@ -71,16 +71,55 @@ class AuthDebugMiddleware(MiddlewareMixin):
             # Логируем ВСЕ заголовки для отладки
             logger.info(f"All headers: {dict(request.META)}")
             
-            # Дополнительная отладка для JWT
+            # Получаем токен из разных источников
+            token = None
+            token_source = None
+            
+            # 1. Из заголовка Authorization
             if auth_header and auth_header.startswith('Bearer '):
                 token = auth_header[7:]  # Убираем "Bearer "
-                logger.info(f"JWT Token: {token[:50]}...")
+                token_source = "Authorization header"
+                logger.info(f"Token found in Authorization header: {token[:50]}...")
+            
+            # 2. Из query параметра 'token'
+            elif 'token' in request.GET:
+                token = request.GET['token']
+                token_source = "query parameter"
+                logger.info(f"Token found in query parameter: {token[:50]}...")
+            
+            # 3. Из query параметра 'access_token'
+            elif 'access_token' in request.GET:
+                token = request.GET['access_token']
+                token_source = "access_token query parameter"
+                logger.info(f"Token found in access_token query parameter: {token[:50]}...")
+            
+            # 4. Из POST данных (для POST запросов)
+            elif request.method == 'POST' and hasattr(request, 'data'):
+                if 'token' in request.data:
+                    token = request.data['token']
+                    token_source = "POST data token"
+                    logger.info(f"Token found in POST data: {token[:50]}...")
+                elif 'access_token' in request.data:
+                    token = request.data['access_token']
+                    token_source = "POST data access_token"
+                    logger.info(f"Token found in POST data access_token: {token[:50]}...")
+            
+            # Обрабатываем найденный токен
+            if token:
+                logger.info(f"Processing token from {token_source}")
                 
                 # Проверяем, что происходит с токеном
                 try:
                     from rest_framework_simplejwt.tokens import AccessToken
+                    from django.conf import settings
+                    
+                    # Логируем настройки JWT
+                    logger.info(f"JWT Settings - SECRET_KEY length: {len(settings.SECRET_KEY) if settings.SECRET_KEY else 0}")
+                    logger.info(f"JWT Settings - SECRET_KEY start: {settings.SECRET_KEY[:10] if settings.SECRET_KEY else 'None'}")
+                    
                     access_token = AccessToken(token)
                     logger.info(f"JWT Token valid: user_id={access_token['user_id']}")
+                    logger.info(f"JWT Token payload: {access_token.payload}")
                     
                     # Пытаемся аутентифицировать пользователя вручную
                     try:
@@ -88,12 +127,16 @@ class AuthDebugMiddleware(MiddlewareMixin):
                         User = get_user_model()
                         user = User.objects.get(id=access_token['user_id'])
                         request.user = user
-                        logger.info(f"User manually authenticated: {user.name} (ID: {user.id})")
+                        logger.info(f"User manually authenticated from {token_source}: {user.name} (ID: {user.id})")
                     except Exception as e:
                         logger.error(f"Error manually authenticating user: {e}")
                         
                 except Exception as e:
                     logger.error(f"JWT Token validation error: {e}")
+                    logger.error(f"JWT Error type: {type(e)}")
+                    logger.error(f"JWT Error details: {str(e)}")
+            else:
+                logger.warning("No token found in any source - this is why JWT auth fails!")
             
         return None
     
