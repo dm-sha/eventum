@@ -78,6 +78,9 @@ CSRF_TRUSTED_ORIGINS = [
 # Дополнительные CORS настройки
 CORS_ALLOW_CREDENTIALS = True
 
+# Разрешаем все заголовки для отладки
+CORS_ALLOW_ALL_HEADERS = True
+
 # В режиме разработки разрешаем все localhost порты
 if DEBUG:
     CORS_ALLOW_ALL_ORIGINS = False

@@ -22,6 +22,15 @@ class AuthDebugMiddleware(MiddlewareMixin):
             origin = request.META.get('HTTP_ORIGIN', '')
             logger.info(f"Origin: {origin}")
             
+            # Специальная обработка для OPTIONS запросов (CORS preflight)
+            if request.method == 'OPTIONS':
+                logger.info("CORS preflight request detected")
+                access_control_request_headers = request.META.get('HTTP_ACCESS_CONTROL_REQUEST_HEADERS', '')
+                logger.info(f"Access-Control-Request-Headers: {access_control_request_headers}")
+            
+            # Логируем все заголовки для отладки
+            logger.info(f"All headers: {dict(request.META)}")
+            
             # Дополнительная отладка для JWT
             if auth_header and auth_header.startswith('Bearer '):
                 token = auth_header[7:]  # Убираем "Bearer "
