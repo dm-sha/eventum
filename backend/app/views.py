@@ -103,11 +103,14 @@ class VKAuthView(TokenObtainPairView):
                 access_token = code
                 
                 # Получаем информацию о пользователе через VK ID API
-                user_info_response = requests.get(
+                user_info_response = requests.post(
                     'https://id.vk.ru/oauth2/user_info',
-                    params={
+                    data={
                         'client_id': settings.VK_APP_ID,
                         'access_token': access_token
+                    },
+                    headers={
+                        'Content-Type': 'application/x-www-form-urlencoded'
                     }
                 )
                 
