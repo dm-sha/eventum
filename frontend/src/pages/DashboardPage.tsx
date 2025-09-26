@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { getUserEvents, createEventWithOrganizer } from '../api/event';
 import type { UserEvent, CreateEventData } from '../types';
 
 const DashboardPage: React.FC = () => {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [events, setEvents] = useState<UserEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -26,8 +28,18 @@ const DashboardPage: React.FC = () => {
         const userEvents = await getUserEvents();
         console.log('Мероприятия загружены:', userEvents);
         setEvents(userEvents);
-      } catch (error) {
+      } catch (error: any) {
         console.error('Ошибка загрузки мероприятий:', error);
+        console.error('Статус ошибки:', error.response?.status);
+        console.error('Данные ошибки:', error.response?.data);
+        
+        // Если получили 403 или 401, перенаправляем на страницу входа
+        if (error.response?.status === 403 || error.response?.status === 401) {
+          console.log('Ошибка аутентификации, перенаправляем на страницу входа');
+          logout();
+          navigate('/login');
+          return;
+        }
       } finally {
         setLoading(false);
       }
@@ -40,7 +52,7 @@ const DashboardPage: React.FC = () => {
     } else {
       console.log('Условие не выполнено. Пользователь:', !!user, 'eventsLoaded:', eventsLoaded);
     }
-  }, [user, eventsLoaded]);
+  }, [user, eventsLoaded, logout, navigate]);
 
   // Обработка создания нового мероприятия
   const handleCreateEvent = async (e: React.FormEvent) => {

@@ -89,8 +89,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     if (savedTokens && savedUser) {
       try {
-        setTokens(JSON.parse(savedTokens));
-        setUser(JSON.parse(savedUser));
+        const parsedTokens = JSON.parse(savedTokens);
+        const parsedUser = JSON.parse(savedUser);
+        
+        // Проверяем, что токены валидны
+        if (parsedTokens.access && parsedUser.id) {
+          setTokens(parsedTokens);
+          setUser(parsedUser);
+        } else {
+          console.log('Invalid tokens or user data, clearing storage');
+          localStorage.removeItem('auth_tokens');
+          localStorage.removeItem('auth_user');
+        }
       } catch (error) {
         console.error('Error parsing saved auth data:', error);
         localStorage.removeItem('auth_tokens');
@@ -115,7 +125,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     localStorage.removeItem('auth_user');
   };
 
-  const isAuthenticated = !!user && !!tokens;
+  const isAuthenticated = !!user && !!tokens && !!tokens.access;
 
   return (
     <AuthContext.Provider value={{
