@@ -141,16 +141,55 @@ class VKAuthView(TokenObtainPairView):
                 access_token = code
                 
                 # Получаем информацию о пользователе через VK ID API
-                user_info_response = requests.post(
-                    'https://id.vk.ru/oauth2/user_info',
-                    data={
-                        'client_id': settings.VK_APP_ID,
-                        'access_token': access_token
-                    },
-                    headers={
-                        'Content-Type': 'application/x-www-form-urlencoded'
-                    }
+                import ssl
+                import urllib3
+                from requests.adapters import HTTPAdapter
+                from urllib3.util.retry import Retry
+                
+                # Настраиваем SSL-контекст для современных сертификатов
+                ssl_context = ssl.create_default_context()
+                ssl_context.check_hostname = True
+                ssl_context.verify_mode = ssl.CERT_REQUIRED
+                
+                # Создаем сессию с retry-логикой
+                session = requests.Session()
+                
+                # Настраиваем retry-стратегию для обработки временных SSL-ошибок
+                retry_strategy = Retry(
+                    total=3,
+                    backoff_factor=1,
+                    status_forcelist=[429, 500, 502, 503, 504],
+                    allowed_methods=["POST"]
                 )
+                
+                adapter = HTTPAdapter(max_retries=retry_strategy)
+                session.mount("https://", adapter)
+                
+                try:
+                    user_info_response = session.post(
+                        'https://id.vk.ru/oauth2/user_info',
+                        data={
+                            'client_id': settings.VK_APP_ID,
+                            'access_token': access_token
+                        },
+                        headers={
+                            'Content-Type': 'application/x-www-form-urlencoded'
+                        },
+                        timeout=30,
+                        verify=True
+                    )
+                except (requests.exceptions.SSLError, urllib3.exceptions.SSLError) as ssl_error:
+                    logger.error(f"SSL Error during VK ID API call: {ssl_error}")
+                    return Response(
+                        {'error': 'SSL connection error with VK ID service'}, 
+                        status=status.HTTP_503_SERVICE_UNAVAILABLE
+                    )
+                except requests.exceptions.RequestException as req_error:
+                    logger.error(f"Request Error during VK ID API call: {req_error}")
+                    return Response(
+                        {'error': 'Failed to connect to VK ID service'}, 
+                        status=status.HTTP_503_SERVICE_UNAVAILABLE
+                    )
                 
                 if user_info_response.status_code != 200:
                     return Response(
@@ -195,10 +234,25 @@ class VKAuthView(TokenObtainPairView):
                 }
                 print(f"VK OAuth token request params: {vk_params}")
                 
-                vk_token_response = requests.get(
-                    'https://oauth.vk.com/access_token',
-                    params=vk_params
-                )
+                try:
+                    vk_token_response = session.get(
+                        'https://oauth.vk.com/access_token',
+                        params=vk_params,
+                        timeout=30,
+                        verify=True
+                    )
+                except (requests.exceptions.SSLError, urllib3.exceptions.SSLError) as ssl_error:
+                    logger.error(f"SSL Error during VK OAuth API call: {ssl_error}")
+                    return Response(
+                        {'error': 'SSL connection error with VK OAuth service'}, 
+                        status=status.HTTP_503_SERVICE_UNAVAILABLE
+                    )
+                except requests.exceptions.RequestException as req_error:
+                    logger.error(f"Request Error during VK OAuth API call: {req_error}")
+                    return Response(
+                        {'error': 'Failed to connect to VK OAuth service'}, 
+                        status=status.HTTP_503_SERVICE_UNAVAILABLE
+                    )
                 
                 print(f"VK token response status: {vk_token_response.status_code}")
                 print(f"VK token response content: {vk_token_response.text}")
@@ -222,15 +276,30 @@ class VKAuthView(TokenObtainPairView):
                 vk_user_id = vk_data['user_id']
                 
                 # Получаем информацию о пользователе от VK
-                user_info_response = requests.get(
-                    'https://api.vk.com/method/users.get',
-                    params={
-                        'user_ids': vk_user_id,
-                        'fields': 'photo_200,email',
-                        'access_token': access_token,
-                        'v': '5.131'
-                    }
-                )
+                try:
+                    user_info_response = session.get(
+                        'https://api.vk.com/method/users.get',
+                        params={
+                            'user_ids': vk_user_id,
+                            'fields': 'photo_200,email',
+                            'access_token': access_token,
+                            'v': '5.131'
+                        },
+                        timeout=30,
+                        verify=True
+                    )
+                except (requests.exceptions.SSLError, urllib3.exceptions.SSLError) as ssl_error:
+                    logger.error(f"SSL Error during VK API call: {ssl_error}")
+                    return Response(
+                        {'error': 'SSL connection error with VK API service'}, 
+                        status=status.HTTP_503_SERVICE_UNAVAILABLE
+                    )
+                except requests.exceptions.RequestException as req_error:
+                    logger.error(f"Request Error during VK API call: {req_error}")
+                    return Response(
+                        {'error': 'Failed to connect to VK API service'}, 
+                        status=status.HTTP_503_SERVICE_UNAVAILABLE
+                    )
                 
                 if user_info_response.status_code != 200:
                     return Response(

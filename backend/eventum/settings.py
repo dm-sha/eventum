@@ -241,6 +241,23 @@ VK_APP_ID = os.getenv('VK_APP_ID')
 VK_APP_SECRET = os.getenv('VK_APP_SECRET')
 VK_REDIRECT_URI = os.getenv('VK_REDIRECT_URI', 'http://localhost:5173/auth/vk/callback')
 
+# Настройки SSL для внешних запросов
+import ssl
+import urllib3
+
+# Отключаем предупреждения urllib3 о небезопасных запросах
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+# Настройки для requests
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
+# Глобальные настройки SSL
+ssl_context = ssl.create_default_context()
+ssl_context.check_hostname = True
+ssl_context.verify_mode = ssl.CERT_REQUIRED
+
 # Настройки логирования
 LOGGING = {
     'version': 1,
@@ -261,6 +278,11 @@ LOGGING = {
             'propagate': True,
         },
         'django.request': {
+            'handlers': ['console', 'file'],
+            'level': 'WARNING',
+            'propagate': True,
+        },
+        'requests.packages.urllib3': {
             'handlers': ['console', 'file'],
             'level': 'WARNING',
             'propagate': True,
