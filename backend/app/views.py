@@ -37,6 +37,11 @@ class EventumScopedViewSet:
     def perform_create(self, serializer):
         eventum = self.get_eventum()
         serializer.save(eventum=eventum)
+    
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['eventum'] = self.get_eventum()
+        return context
 
 class ParticipantViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
     queryset = Participant.objects.all()
@@ -52,6 +57,36 @@ class GroupTagViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
     queryset = GroupTag.objects.all()
     serializer_class = GroupTagSerializer
     permission_classes = [IsEventumOrganizerOrReadOnly]  # Организаторы CRUD, участники только чтение
+
+    @action(detail=True, methods=['get'])
+    def groups(self, request, eventum_slug=None, pk=None):
+        """Получить все группы с данным тегом"""
+        group_tag = self.get_object()
+        groups = group_tag.groups.all()
+        serializer = ParticipantGroupSerializer(groups, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'], url_path='groups/(?P<group_id>[^/.]+)')
+    def add_group(self, request, eventum_slug=None, pk=None, group_id=None):
+        """Привязать группу к тегу"""
+        group_tag = self.get_object()
+        try:
+            group = ParticipantGroup.objects.get(id=group_id, eventum__slug=eventum_slug)
+            group_tag.groups.add(group)
+            return Response({'status': 'success'}, status=status.HTTP_200_OK)
+        except ParticipantGroup.DoesNotExist:
+            return Response({'error': 'Group not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    @action(detail=True, methods=['delete'], url_path='groups/(?P<group_id>[^/.]+)')
+    def remove_group(self, request, eventum_slug=None, pk=None, group_id=None):
+        """Отвязать группу от тега"""
+        group_tag = self.get_object()
+        try:
+            group = ParticipantGroup.objects.get(id=group_id, eventum__slug=eventum_slug)
+            group_tag.groups.remove(group)
+            return Response({'status': 'success'}, status=status.HTTP_200_OK)
+        except ParticipantGroup.DoesNotExist:
+            return Response({'error': 'Group not found'}, status=status.HTTP_404_NOT_FOUND)
 
 class EventTagViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
     queryset = EventTag.objects.all()

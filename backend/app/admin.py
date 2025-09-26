@@ -42,6 +42,13 @@ class ParticipantGroupAdminForm(forms.ModelForm):
         model = ParticipantGroup
         fields = '__all__'
     
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Делаем slug только для чтения, если объект уже существует
+        if self.instance and self.instance.pk:
+            self.fields['slug'].widget.attrs['readonly'] = True
+            self.fields['slug'].help_text = 'Slug автоматически генерируется из названия'
+    
     def clean(self):
         cleaned_data = super().clean()
         participants = cleaned_data.get('participants')
@@ -49,11 +56,12 @@ class ParticipantGroupAdminForm(forms.ModelForm):
         
         # Проверяем, что все участники принадлежат тому же eventum
         if participants and eventum:
-            for participant in participants:
-                if participant.eventum != eventum:
-                    raise ValidationError(
-                        f"Участник '{participant.name}' принадлежит другому мероприятию"
-                    )
+            invalid_participants = [p for p in participants if p.eventum != eventum]
+            if invalid_participants:
+                invalid_names = [p.name for p in invalid_participants]
+                raise ValidationError(
+                    f"Участники {', '.join(invalid_names)} принадлежат другому мероприятию"
+                )
         
         return cleaned_data
 
@@ -132,7 +140,6 @@ class ParticipantGroupAdmin(ImportExportModelAdmin):
     filter_horizontal = ['participants', 'tags']
     # Добавлено для удобства
     prepopulated_fields = {'slug': ('name',)}
-    readonly_fields = ('slug',)
     search_fields = ('name',)
 
 # --- GroupTagAdmin ---
@@ -170,7 +177,6 @@ class EventTagAdmin(ImportExportModelAdmin):
     list_display = ('name', 'slug', 'eventum')
     list_filter = ('eventum',)
     prepopulated_fields = {'slug': ('name',)}
-    readonly_fields = ('slug',)
     # Добавлено для удобства
     search_fields = ('name',)
 

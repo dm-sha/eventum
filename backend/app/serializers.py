@@ -24,19 +24,58 @@ class GroupTagSerializer(serializers.ModelSerializer):
 class ParticipantGroupSerializer(serializers.ModelSerializer):
     participants = serializers.PrimaryKeyRelatedField(
         many=True,
-        queryset=Participant.objects.all()
+        queryset=Participant.objects.all(),
+        required=False
     )
     tags = GroupTagSerializer(many=True, read_only=True)
     tag_ids = serializers.PrimaryKeyRelatedField(
         many=True,
         write_only=True,
         source='tags',
-        queryset=GroupTag.objects.all()
+        queryset=GroupTag.objects.all(),
+        required=False
     )
 
     class Meta:
         model = ParticipantGroup
         fields = ['id', 'name', 'slug', 'participants', 'tags', 'tag_ids']
+    
+    def validate_participants(self, value):
+        """Проверяем, что все участники принадлежат тому же eventum"""
+        if not value:
+            return value
+            
+        # Получаем eventum из контекста
+        eventum = self.context.get('eventum')
+        if not eventum:
+            return value
+            
+        # Проверяем, что все участники принадлежат тому же eventum
+        invalid_participants = [p for p in value if p.eventum != eventum]
+        if invalid_participants:
+            invalid_names = [p.name for p in invalid_participants]
+            raise serializers.ValidationError(
+                f"Участники {', '.join(invalid_names)} принадлежат другому мероприятию"
+            )
+        
+        return value
+    
+    def save(self, **kwargs):
+        """Переопределяем save для правильной обработки ManyToMany полей"""
+        # Извлекаем ManyToMany поля из validated_data
+        participants_data = self.validated_data.pop('participants', [])
+        tags_data = self.validated_data.pop('tags', [])
+        
+        # Создаем объект
+        instance = super().save(**kwargs)
+        
+        # Устанавливаем ManyToMany связи после создания объекта
+        if participants_data:
+            instance.participants.set(participants_data)
+        if tags_data:
+            instance.tags.set(tags_data)
+        
+        return instance
 
 class EventTagSerializer(serializers.ModelSerializer):
     class Meta:

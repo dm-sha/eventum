@@ -38,7 +38,7 @@ class GroupTag(models.Model):
 class ParticipantGroup(models.Model):
     eventum = models.ForeignKey(Eventum, on_delete=models.CASCADE, related_name='participant_groups')
     name = models.CharField(max_length=200)
-    slug = models.SlugField(max_length=200)
+    slug = models.SlugField(max_length=200, blank=True)
     participants = models.ManyToManyField(Participant, related_name='groups')
     tags = models.ManyToManyField(GroupTag, related_name='groups', blank=True)
     
@@ -53,10 +53,13 @@ class ParticipantGroup(models.Model):
     
     def clean(self):
         # Ensure all participants belong to the same eventum
-        for participant in self.participants.all():
-            if participant.eventum != self.eventum:
+        # Only check if we have an eventum and participants
+        if self.eventum_id and self.participants.exists():
+            invalid_participants = self.participants.exclude(eventum=self.eventum)
+            if invalid_participants.exists():
+                invalid_names = list(invalid_participants.values_list('name', flat=True))
                 raise ValidationError(
-                    f"Participant {participant.name} belongs to a different eventum"
+                    f"Participants {', '.join(invalid_names)} belong to different eventums"
                 )
     
     def __str__(self):
