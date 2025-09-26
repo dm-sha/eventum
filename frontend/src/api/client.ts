@@ -42,6 +42,16 @@ apiClient.interceptors.response.use(
     async (error: AxiosError) => {
         const originalRequest = error.config as any;
 
+        // Логируем ошибку для отладки
+        console.error('API Error:', {
+            status: error.response?.status,
+            statusText: error.response?.statusText,
+            url: originalRequest?.url,
+            method: originalRequest?.method,
+            headers: originalRequest?.headers,
+            data: error.response?.data
+        });
+
         if ((error.response?.status === 401 || error.response?.status === 403) && !originalRequest._retry) {
             originalRequest._retry = true;
 
@@ -49,6 +59,8 @@ apiClient.interceptors.response.use(
                 const tokens = localStorage.getItem('auth_tokens');
                 if (tokens) {
                     const { refresh } = JSON.parse(tokens);
+                    
+                    console.log('Пытаемся обновить токен...');
                     
                     // Пытаемся обновить токен
                     const response = await axios.post(`${getApiBaseUrl()}/auth/refresh/`, {
@@ -60,11 +72,16 @@ apiClient.interceptors.response.use(
                     
                     localStorage.setItem('auth_tokens', JSON.stringify(newTokens));
                     
+                    console.log('Токен обновлен, повторяем запрос...');
+                    
                     // Повторяем оригинальный запрос с новым токеном
                     originalRequest.headers.Authorization = `Bearer ${access}`;
                     return apiClient(originalRequest);
+                } else {
+                    console.log('Нет токенов для обновления');
                 }
             } catch (refreshError) {
+                console.error('Ошибка обновления токена:', refreshError);
                 // Если не удалось обновить токен, очищаем данные аутентификации
                 localStorage.removeItem('auth_tokens');
                 localStorage.removeItem('auth_user');

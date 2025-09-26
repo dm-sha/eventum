@@ -27,7 +27,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv('DEBUG', 'False').lower() in ('true', '1', 'yes')
 
 ALLOWED_HOSTS = ['*']
 
@@ -55,6 +55,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'app.middleware.AuthDebugMiddleware',  # Middleware для отладки аутентификации
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -89,6 +90,7 @@ else:
 CORS_ALLOWED_HEADERS = [
     'accept',
     'accept-encoding',
+    'Authorization',
     'authorization',
     'content-type',
     'dnt',
@@ -230,3 +232,30 @@ REST_FRAMEWORK = {
 VK_APP_ID = os.getenv('VK_APP_ID')
 VK_APP_SECRET = os.getenv('VK_APP_SECRET')
 VK_REDIRECT_URI = os.getenv('VK_REDIRECT_URI', 'http://localhost:5173/auth/vk/callback')
+
+# Настройки логирования
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+        'file': {
+            'class': 'logging.FileHandler',
+            'filename': 'auth_debug.log',
+        },
+    },
+    'loggers': {
+        'app.middleware': {
+            'handlers': ['console', 'file'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+        'django.request': {
+            'handlers': ['console', 'file'],
+            'level': 'WARNING',
+            'propagate': True,
+        },
+    },
+}

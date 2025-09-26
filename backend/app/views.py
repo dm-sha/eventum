@@ -267,21 +267,35 @@ def user_roles(request):
 @api_view(['GET'])
 def user_eventums(request):
     """Получение eventum'ов пользователя (где он имеет какую-либо роль)"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"user_eventums called by user: {request.user} (authenticated: {request.user.is_authenticated})")
+    
     if not request.user.is_authenticated:
+        logger.warning("User not authenticated for user_eventums")
         return Response({'error': 'Not authenticated'}, status=status.HTTP_401_UNAUTHORIZED)
     
-    # Получаем все роли пользователя
-    user_roles = UserRole.objects.filter(user=request.user).select_related('eventum')
-    
-    # Создаем список eventum'ов с информацией о роли пользователя
-    eventums_data = []
-    for role in user_roles:
-        eventum_data = EventumSerializer(role.eventum).data
-        eventum_data['user_role'] = role.role
-        eventum_data['role_id'] = role.id
-        eventums_data.append(eventum_data)
-    
-    return Response(eventums_data)
+    try:
+        # Получаем все роли пользователя
+        user_roles = UserRole.objects.filter(user=request.user).select_related('eventum')
+        logger.info(f"Found {user_roles.count()} roles for user {request.user.id}")
+        
+        # Создаем список eventum'ов с информацией о роли пользователя
+        eventums_data = []
+        for role in user_roles:
+            eventum_data = EventumSerializer(role.eventum).data
+            eventum_data['user_role'] = role.role
+            eventum_data['role_id'] = role.id
+            eventums_data.append(eventum_data)
+            logger.info(f"Added eventum {role.eventum.name} with role {role.role}")
+        
+        logger.info(f"Returning {len(eventums_data)} eventums")
+        return Response(eventums_data)
+        
+    except Exception as e:
+        logger.error(f"Error in user_eventums: {str(e)}")
+        return Response({'error': f'Internal server error: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 
