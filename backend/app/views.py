@@ -49,12 +49,15 @@ class ParticipantViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
     permission_classes = [IsEventumOrganizerOrReadOnly]  # Организаторы CRUD, участники только чтение
 
 class ParticipantGroupViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
-    queryset = ParticipantGroup.objects.all()
+    queryset = ParticipantGroup.objects.all().prefetch_related('participants', 'tags')
     serializer_class = ParticipantGroupSerializer
     permission_classes = [IsEventumOrganizerOrReadOnly]  # Организаторы CRUD, участники только чтение
 
 class GroupTagViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
-    queryset = GroupTag.objects.all()
+    queryset = GroupTag.objects.all().prefetch_related(
+        'groups__participants',
+        'groups__tags',
+    )
     serializer_class = GroupTagSerializer
     permission_classes = [IsEventumOrganizerOrReadOnly]  # Организаторы CRUD, участники только чтение
 
@@ -62,7 +65,7 @@ class GroupTagViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
     def groups(self, request, eventum_slug=None, pk=None):
         """Получить все группы с данным тегом"""
         group_tag = self.get_object()
-        groups = group_tag.groups.all()
+        groups = group_tag.groups.all().prefetch_related('participants', 'tags')
         serializer = ParticipantGroupSerializer(groups, many=True)
         return Response(serializer.data)
 
@@ -94,7 +97,13 @@ class EventTagViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
     permission_classes = [IsEventumOrganizerOrReadOnly]  # Организаторы CRUD, участники только чтение
 
 class EventViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
-    queryset = Event.objects.all()
+    queryset = Event.objects.all().select_related('eventum').prefetch_related(
+        'participants',
+        'groups',
+        'groups__participants',
+        'groups__tags',
+        'tags',
+    )
     serializer_class = EventSerializer
     permission_classes = [IsEventumOrganizerOrReadOnly]  # Организаторы CRUD, участники только чтение
 
