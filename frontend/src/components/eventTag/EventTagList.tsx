@@ -107,11 +107,11 @@ const EventTagList: React.FC<EventTagListProps> = ({ eventumSlug }) => {
         </div>
       )}
 
-      <div className="flex justify-between items-center">
-        <h3 className="text-lg font-medium">Теги мероприятий</h3>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h3 className="text-lg font-semibold text-gray-900">Теги мероприятий</h3>
         <button
           onClick={() => setShowCreateForm(true)}
-          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium"
+          className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
         >
           Добавить тег
         </button>
@@ -119,27 +119,27 @@ const EventTagList: React.FC<EventTagListProps> = ({ eventumSlug }) => {
 
       {/* Форма создания */}
       {showCreateForm && (
-        <div className="bg-gray-50 p-4 rounded-lg">
-          <h4 className="font-medium mb-3">Создать новый тег</h4>
-          <form onSubmit={handleCreate} className="flex gap-2">
+        <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
+          <h4 className="text-base font-semibold text-gray-900">Создать новый тег</h4>
+          <form onSubmit={handleCreate} className="mt-4 flex flex-col gap-3 sm:flex-row">
             <input
               type="text"
               value={formData.name}
               onChange={(e) => setFormData({ name: e.target.value })}
               placeholder="Название тега"
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
               required
             />
             <button
               type="submit"
-              className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-md text-sm"
+              className="inline-flex items-center justify-center rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
             >
               Создать
             </button>
             <button
               type="button"
               onClick={cancelCreate}
-              className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-md text-sm"
+              className="inline-flex items-center justify-center rounded-lg bg-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2"
             >
               Отмена
             </button>
@@ -155,48 +155,48 @@ const EventTagList: React.FC<EventTagListProps> = ({ eventumSlug }) => {
           </p>
         ) : (
           tags.map((tag) => (
-            <div key={tag.id} className="bg-white border border-gray-200 rounded-lg p-4">
+            <div key={tag.id} className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
               {editingTag?.id === tag.id ? (
                 /* Форма редактирования */
-                <form onSubmit={handleUpdate} className="flex gap-2">
+                <form onSubmit={handleUpdate} className="flex flex-col gap-3 sm:flex-row">
                   <input
                     type="text"
                     value={formData.name}
                     onChange={(e) => setFormData({ name: e.target.value })}
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
                     required
                   />
                   <button
                     type="submit"
-                    className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-md text-sm"
+                    className="inline-flex items-center justify-center rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
                   >
                     Сохранить
                   </button>
                   <button
                     type="button"
                     onClick={cancelEdit}
-                    className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-md text-sm"
+                    className="inline-flex items-center justify-center rounded-lg bg-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2"
                   >
                     Отмена
                   </button>
                 </form>
               ) : (
                 /* Отображение тега */
-                <div className="flex justify-between items-center">
-                  <div>
-                    <h4 className="font-medium text-gray-900">{tag.name}</h4>
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="space-y-1">
+                    <h4 className="text-base font-semibold text-gray-900">{tag.name}</h4>
                     <p className="text-sm text-gray-500">slug: {tag.slug}</p>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-col gap-2 sm:flex-row">
                     <button
                       onClick={() => startEdit(tag)}
-                      className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                      className="inline-flex items-center justify-center rounded-lg border border-blue-200 px-4 py-2 text-sm font-semibold text-blue-700 transition-colors hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                     >
                       Редактировать
                     </button>
                     <button
                       onClick={() => handleDelete(tag.id)}
-                      className="text-red-600 hover:text-red-800 text-sm font-medium"
+                      className="inline-flex items-center justify-center rounded-lg border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 transition-colors hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
                     >
                       Удалить
                     </button>
