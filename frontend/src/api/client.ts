@@ -21,23 +21,16 @@ const apiClient = axios.create({
 apiClient.interceptors.request.use(
     (config) => {
         const tokens = localStorage.getItem('auth_tokens');
-        console.log('API Request interceptor - tokens from localStorage:', tokens);
         if (tokens) {
             try {
                 const { access } = JSON.parse(tokens);
-                
-                // Передаем токен только через query параметры (работает!)
                 config.params = {
                     ...config.params,
                     access_token: access
                 };
-                console.log('Access token added to query params:', access.substring(0, 20) + '...');
-                
             } catch (error) {
                 console.error('Error parsing auth tokens:', error);
             }
-        } else {
-            console.log('No tokens found in localStorage');
         }
         return config;
     },
@@ -52,15 +45,6 @@ apiClient.interceptors.response.use(
     async (error: AxiosError) => {
         const originalRequest = error.config as any;
 
-        // Логируем ошибку для отладки
-        console.error('API Error:', {
-            status: error.response?.status,
-            statusText: error.response?.statusText,
-            url: originalRequest?.url,
-            method: originalRequest?.method,
-            headers: originalRequest?.headers,
-            data: error.response?.data
-        });
 
         if ((error.response?.status === 401 || error.response?.status === 403) && !originalRequest._retry) {
             originalRequest._retry = true;
@@ -69,8 +53,6 @@ apiClient.interceptors.response.use(
                 const tokens = localStorage.getItem('auth_tokens');
                 if (tokens) {
                     const { refresh } = JSON.parse(tokens);
-                    
-                    console.log('Пытаемся обновить токен...');
                     
                     // Пытаемся обновить токен
                     const response = await axios.post(`${getApiBaseUrl()}/auth/refresh/`, {
@@ -82,16 +64,12 @@ apiClient.interceptors.response.use(
                     
                     localStorage.setItem('auth_tokens', JSON.stringify(newTokens));
                     
-                    console.log('Токен обновлен, повторяем запрос...');
-                    
                     // Повторяем оригинальный запрос с новым токеном через query параметр
                     originalRequest.params = {
                         ...originalRequest.params,
                         access_token: access
                     };
                     return apiClient(originalRequest);
-                } else {
-                    console.log('Нет токенов для обновления');
                 }
             } catch (refreshError) {
                 console.error('Ошибка обновления токена:', refreshError);

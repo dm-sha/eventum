@@ -1,20 +1,15 @@
-import logging
 from django.utils.deprecation import MiddlewareMixin
-from django.http import JsonResponse
 
-logger = logging.getLogger(__name__)
 
 class CORSFixMiddleware(MiddlewareMixin):
     """
-    Middleware для исправления проблем с CORS и заголовком Authorization
+    Middleware для обработки CORS
     """
     
     def process_response(self, request, response):
-        # Добавляем CORS заголовки для всех API запросов
         if request.path.startswith('/api/'):
             origin = request.META.get('HTTP_ORIGIN', '')
             
-            # Разрешаем только определенные домены
             allowed_origins = [
                 'http://localhost:5173',
                 'http://localhost:5174', 
@@ -29,125 +24,7 @@ class CORSFixMiddleware(MiddlewareMixin):
                 response['Access-Control-Allow-Headers'] = 'accept, accept-encoding, content-type, dnt, origin, user-agent, x-csrftoken, x-requested-with'
                 response['Access-Control-Expose-Headers'] = 'Authorization, authorization'
                 
-                # Специальная обработка для preflight запросов
                 if request.method == 'OPTIONS':
                     response.status_code = 200
-                    logger.info(f"CORS preflight response sent for origin: {origin}")
-                
-                logger.info(f"CORS headers added for origin: {origin}")
         
-        return response
-
-class AuthDebugMiddleware(MiddlewareMixin):
-    """
-    Middleware для отладки проблем с аутентификацией в продакшене
-    """
-    
-    def process_request(self, request):
-        # Логируем только API запросы
-        if request.path.startswith('/api/'):
-            auth_header = request.META.get('HTTP_AUTHORIZATION', '')
-            user = getattr(request, 'user', None)
-            
-            logger.info(f"API Request: {request.method} {request.path}")
-            logger.info(f"Auth Header: {auth_header[:50]}..." if auth_header else "No Auth Header")
-            logger.info(f"User: {user} (authenticated: {user.is_authenticated if user else False})")
-            
-            # Логируем заголовки CORS
-            origin = request.META.get('HTTP_ORIGIN', '')
-            logger.info(f"Origin: {origin}")
-            
-            # Специальная обработка для OPTIONS запросов (CORS preflight)
-            if request.method == 'OPTIONS':
-                logger.info("CORS preflight request detected")
-                access_control_request_headers = request.META.get('HTTP_ACCESS_CONTROL_REQUEST_HEADERS', '')
-                access_control_request_method = request.META.get('HTTP_ACCESS_CONTROL_REQUEST_METHOD', '')
-                logger.info(f"Access-Control-Request-Headers: {access_control_request_headers}")
-                logger.info(f"Access-Control-Request-Method: {access_control_request_method}")
-                
-                # Проверяем, запрашивается ли заголовок Authorization
-                if 'authorization' in access_control_request_headers.lower():
-                    logger.info("Authorization header requested in preflight")
-                else:
-                    logger.warning("Authorization header NOT requested in preflight!")
-                    logger.warning("This means the browser is not sending Authorization header!")
-            
-            # Логируем ВСЕ заголовки для отладки
-            logger.info(f"All headers: {dict(request.META)}")
-            
-            # Получаем токен из разных источников (приоритет query параметрам)
-            token = None
-            token_source = None
-            
-            # 1. Из query параметра 'access_token' (ПРИОРИТЕТ - работает!)
-            if 'access_token' in request.GET:
-                token = request.GET['access_token']
-                token_source = "access_token query parameter"
-                logger.info(f"Token found in access_token query parameter: {token[:50]}...")
-            
-            # 2. Из query параметра 'token' (альтернатива)
-            elif 'token' in request.GET:
-                token = request.GET['token']
-                token_source = "query parameter"
-                logger.info(f"Token found in query parameter: {token[:50]}...")
-            
-            # 3. Из заголовка Authorization (резервный способ)
-            elif auth_header and auth_header.startswith('Bearer '):
-                token = auth_header[7:]  # Убираем "Bearer "
-                token_source = "Authorization header"
-                logger.info(f"Token found in Authorization header: {token[:50]}...")
-            
-            # 4. Из POST данных (для POST запросов)
-            elif request.method == 'POST' and hasattr(request, 'data'):
-                if 'access_token' in request.data:
-                    token = request.data['access_token']
-                    token_source = "POST data access_token"
-                    logger.info(f"Token found in POST data access_token: {token[:50]}...")
-                elif 'token' in request.data:
-                    token = request.data['token']
-                    token_source = "POST data token"
-                    logger.info(f"Token found in POST data: {token[:50]}...")
-            
-            # Обрабатываем найденный токен
-            if token:
-                logger.info(f"Processing token from {token_source}")
-                
-                # Проверяем, что происходит с токеном
-                try:
-                    from rest_framework_simplejwt.tokens import AccessToken
-                    from django.conf import settings
-                    
-                    # Логируем настройки JWT
-                    logger.info(f"JWT Settings - SECRET_KEY length: {len(settings.SECRET_KEY) if settings.SECRET_KEY else 0}")
-                    logger.info(f"JWT Settings - SECRET_KEY start: {settings.SECRET_KEY[:10] if settings.SECRET_KEY else 'None'}")
-                    
-                    access_token = AccessToken(token)
-                    logger.info(f"JWT Token valid: user_id={access_token['user_id']}")
-                    logger.info(f"JWT Token payload: {access_token.payload}")
-                    
-                    # Пытаемся аутентифицировать пользователя вручную
-                    try:
-                        from django.contrib.auth import get_user_model
-                        User = get_user_model()
-                        user = User.objects.get(id=access_token['user_id'])
-                        request.user = user
-                        logger.info(f"User manually authenticated from {token_source}: {user.name} (ID: {user.id})")
-                    except Exception as e:
-                        logger.error(f"Error manually authenticating user: {e}")
-                        
-                except Exception as e:
-                    logger.error(f"JWT Token validation error: {e}")
-                    logger.error(f"JWT Error type: {type(e)}")
-                    logger.error(f"JWT Error details: {str(e)}")
-            else:
-                logger.warning("No token found in any source - this is why JWT auth fails!")
-            
-        return None
-    
-    def process_response(self, request, response):
-        # Логируем только API ответы с ошибками
-        if request.path.startswith('/api/') and response.status_code >= 400:
-            logger.warning(f"API Error Response: {response.status_code} for {request.method} {request.path}")
-            logger.warning(f"Response content: {response.content.decode('utf-8')[:200]}...")
-            
         return response

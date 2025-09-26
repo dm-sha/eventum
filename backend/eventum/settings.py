@@ -49,14 +49,13 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',  # Включаем обратно стандартный CORS
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',  # Включаем обратно CSRF
+    'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'app.middleware.AuthDebugMiddleware',  # Middleware для аутентификации - ПОСЛЕ AuthenticationMiddleware
-    'app.middleware.CORSFixMiddleware',  # Middleware для исправления CORS (резервный)
+    'app.middleware.CORSFixMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -76,19 +75,6 @@ CSRF_TRUSTED_ORIGINS = [
     'https://bbapo5ibqs4eg6dail89.containers.yandexcloud.net',
 ]
 
-# Дополнительные CORS настройки
-CORS_ALLOW_CREDENTIALS = True
-
-# Разрешаем все заголовки для отладки
-CORS_ALLOW_ALL_HEADERS = True
-
-# Дополнительные CORS настройки для отладки
-CORS_EXPOSE_HEADERS = [
-    'Authorization',
-    'authorization',
-]
-
-# Разрешаем credentials для CORS
 CORS_ALLOW_CREDENTIALS = True
 
 # В режиме разработки разрешаем все localhost порты

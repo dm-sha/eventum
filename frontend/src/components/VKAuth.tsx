@@ -16,25 +16,21 @@ const VKAuth: React.FC = () => {
   const [error, setError] = React.useState<string | null>(null);
 
   useEffect(() => {
-    const vkidOnSuccess = async (data: any) => {
-      try {
-        setIsLoading(true);
-        setError(null);
-        
-        console.log('VK Auth success, calling backend...', data);
-        const response = await authApi.vkAuth({ code: data.code });
-        console.log('Backend response:', response);
-        
-        login(response, response.user);
-        console.log('User logged in successfully');
-        
-      } catch (err: any) {
-        console.error('VK Auth error:', err);
-        setError(err.response?.data?.error || 'Ошибка авторизации');
-      } finally {
-        setIsLoading(false);
-      }
-    };
+  const vkidOnSuccess = async (data: any) => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      const response = await authApi.vkAuth({ code: data.code });
+      login(response, response.user);
+
+    } catch (err: any) {
+      console.error('VK Auth error:', err);
+      setError(err.response?.data?.error || 'Ошибка авторизации');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
     const vkidOnError = () => {
       setError('Ошибка авторизации через VK');

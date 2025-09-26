@@ -14,51 +14,37 @@ interface UserEventum {
 }
 
 const DashboardPage: React.FC = () => {
-  const { user, tokens, isAuthenticated, logout } = useAuth();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [eventums, setEventums] = useState<UserEventum[]>([]);
   const [loading, setLoading] = useState(true);
   const [eventumsLoaded, setEventumsLoaded] = useState(false);
 
-  // Загружаем eventum'ы пользователя
-  useEffect(() => {
-    const loadEventums = async () => {
-      console.log('Начинаем загрузку eventum\'ов...');
-      console.log('Current user:', user);
-      console.log('Current tokens:', tokens);
-      console.log('isAuthenticated:', isAuthenticated);
-      console.log('localStorage tokens:', localStorage.getItem('auth_tokens'));
-      console.log('localStorage user:', localStorage.getItem('auth_user'));
-      
-      setEventumsLoaded(true);
-      try {
-        const userEventums = await getUserEventums();
-        console.log('Eventum\'ы загружены:', userEventums);
-        setEventums(userEventums);
-      } catch (error: any) {
-        console.error('Ошибка загрузки eventum\'ов:', error);
-        console.error('Статус ошибки:', error.response?.status);
-        console.error('Данные ошибки:', error.response?.data);
-        
-        // Если получили 403 или 401, перенаправляем на страницу входа
-        if (error.response?.status === 403 || error.response?.status === 401) {
-          console.log('Ошибка аутентификации, перенаправляем на страницу входа');
-          logout();
-          return;
-        }
-      } finally {
-        setLoading(false);
-      }
-    };
+        // Загружаем eventum'ы пользователя
+        useEffect(() => {
+            const loadEventums = async () => {
+                setEventumsLoaded(true);
+                try {
+                    const userEventums = await getUserEventums();
+                    setEventums(userEventums);
+                } catch (error: any) {
+                    console.error('Ошибка загрузки eventum\'ов:', error);
 
-    // Загружаем eventum'ы только если пользователь авторизован и eventum'ы еще не загружены
-    if (user && !eventumsLoaded) {
-      console.log('Условие выполнено, загружаем eventum\'ы. Пользователь:', user.name);
-      loadEventums();
-    } else {
-      console.log('Условие не выполнено. Пользователь:', !!user, 'eventumsLoaded:', eventumsLoaded);
-    }
-  }, [user, eventumsLoaded, logout]);
+                    // Если получили 403 или 401, перенаправляем на страницу входа
+                    if (error.response?.status === 403 || error.response?.status === 401) {
+                        logout();
+                        return;
+                    }
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            // Загружаем eventum'ы только если пользователь авторизован и eventum'ы еще не загружены
+            if (user && !eventumsLoaded) {
+                loadEventums();
+            }
+        }, [user, eventumsLoaded, logout]);
 
   return (
     <div className="min-h-screen bg-gray-50">
