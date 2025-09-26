@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { getUserEventums } from '../api/event';
+import Header from '../components/Header';
 
 interface UserEventum {
   id: number;
@@ -49,39 +50,7 @@ const DashboardPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <h1 className="text-xl font-semibold text-gray-900">Eventum</h1>
-            </div>
-            
-            <div className="flex items-center space-x-4">
-              {user && (
-                <div className="flex items-center space-x-3">
-                  {user.avatar_url && (
-                    <img
-                      src={user.avatar_url}
-                      alt={user.name}
-                      className="h-8 w-8 rounded-full"
-                    />
-                  )}
-                  <span className="text-sm font-medium text-gray-700">
-                    {user.name}
-                  </span>
-                </div>
-              )}
-              
-              <button
-                onClick={logout}
-                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
-              >
-                Выйти
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
+      <Header />
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">

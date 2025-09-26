@@ -1,38 +1,127 @@
 import { Link } from "react-router-dom";
+import { useState, useRef, useEffect } from "react";
+import { useAuth } from "../contexts/AuthContext";
+import { IconBars3, IconUser, IconLogout } from "./icons";
 
 interface HeaderProps {
   variant?: 'default' | 'admin';
   className?: string;
+  showUserInfo?: boolean;
 }
 
-const Header = ({ variant = 'default', className = '' }: HeaderProps) => {
+const Header = ({ variant = 'default', className = '', showUserInfo = true }: HeaderProps) => {
+  const { user, logout } = useAuth();
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   const isAdmin = variant === 'admin';
-  
+
+  // Закрытие меню при клике вне его
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setIsMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  const UserMenu = () => {
+    if (!showUserInfo || !user) return null;
+
+    return (
+      <div className="relative" ref={menuRef}>
+        <button
+          onClick={() => setIsMenuOpen(!isMenuOpen)}
+          className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-100 transition-colors"
+        >
+          {user.avatar_url ? (
+            <img
+              src={user.avatar_url}
+              alt={user.name}
+              className="h-8 w-8 rounded-full"
+            />
+          ) : (
+            <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center">
+              <IconUser size={16} className="text-gray-600" />
+            </div>
+          )}
+          <span className="text-sm font-medium text-gray-700 hidden sm:block">
+            {user.name}
+          </span>
+          <IconBars3 size={16} className="text-gray-500" />
+        </button>
+
+        {isMenuOpen && (
+          <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg ring-1 ring-black ring-opacity-5 z-50">
+            <div className="py-1">
+              <div className="px-4 py-2 border-b border-gray-100">
+                <p className="text-sm font-medium text-gray-900">{user.name}</p>
+                <p className="text-xs text-gray-500">{user.email || 'Email не указан'}</p>
+              </div>
+              
+              <Link
+                to="/dashboard"
+                className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                onClick={() => setIsMenuOpen(false)}
+              >
+                <IconUser size={16} className="mr-3 text-gray-400" />
+                Личный кабинет
+              </Link>
+              
+              <button
+                onClick={() => {
+                  setIsMenuOpen(false);
+                  logout();
+                }}
+                className="flex items-center w-full px-4 py-2 text-sm text-red-700 hover:bg-red-50 transition-colors"
+              >
+                <IconLogout size={16} className="mr-3 text-red-400" />
+                Выйти
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   if (isAdmin) {
     return (
       <header className={`h-14 bg-white border-b border-gray-200 sticky top-0 z-40 ${className}`}>
-        <div className="h-full px-6 flex items-center">
+        <div className="h-full px-6 flex items-center justify-between">
           <Link
             to="/"
             className="text-xl font-medium text-gray-900 hover:text-gray-700"
           >
             Eventum
           </Link>
+          
+          <UserMenu />
         </div>
       </header>
     );
   }
 
   return (
-    <header className={`bg-white border-b border-gray-200 ${className}`}>
-      <nav className="px-6 py-4">
-        <Link
-          to="/"
-          className="text-xl font-medium text-gray-900 hover:text-gray-700"
-        >
-          Eventum
-        </Link>
-      </nav>
+    <header className={`bg-white shadow-sm border-b ${className}`}>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between items-center h-16">
+          <div className="flex items-center">
+            <Link
+              to="/"
+              className="text-xl font-semibold text-gray-900 hover:text-gray-700"
+            >
+              Eventum
+            </Link>
+          </div>
+          
+          <UserMenu />
+        </div>
+      </div>
     </header>
   );
 };
