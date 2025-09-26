@@ -93,8 +93,36 @@ const VKAuth: React.FC = () => {
           console.log('Code:', code);
           console.log('Device ID:', deviceId);
 
-          // Отправляем код напрямую на бэкенд для обмена на токены
-          vkidOnSuccess({ code });
+          // Пробуем обменять код на токены на фронтенде
+          console.log('Trying VKID.Auth.exchangeCode...');
+          VKID.Auth.exchangeCode(code, deviceId)
+            .then((result: any) => {
+              console.log('VKID.Auth.exchangeCode SUCCESS:', result);
+              console.log('Result type:', typeof result);
+              console.log('Result keys:', Object.keys(result || {}));
+              
+              // Проверяем разные возможные форматы ответа
+              if (result && typeof result === 'object') {
+                if (result.access_token) {
+                  console.log('Found access_token, sending to backend');
+                  vkidOnSuccess({ code: result.access_token });
+                } else if (result.code) {
+                  console.log('Found code in result, sending to backend');
+                  vkidOnSuccess({ code: result.code });
+                } else {
+                  console.log('No access_token or code found, sending original code');
+                  vkidOnSuccess({ code });
+                }
+              } else {
+                console.log('Result is not an object, sending original code');
+                vkidOnSuccess({ code });
+              }
+            })
+            .catch((error: any) => {
+              console.error('VKID.Auth.exchangeCode ERROR:', error);
+              console.log('Sending original code to backend');
+              vkidOnSuccess({ code });
+            });
         });
       }
     }

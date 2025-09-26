@@ -100,17 +100,18 @@ class VKAuthView(TokenObtainPairView):
             if code.startswith('vk2.a.'):
                 print(f"VK ID code detected: {code[:20]}...")
                 
-                # Обмениваем код на токены через VK ID API
+                # Обмениваем код на токены через стандартный OAuth endpoint
                 vk_params = {
                     'client_id': settings.VK_APP_ID,
                     'client_secret': settings.VK_APP_SECRET,
                     'code': code,
+                    'redirect_uri': settings.VK_REDIRECT_URI,
                 }
                 print(f"VK ID token exchange params: {vk_params}")
                 
-                vk_token_response = requests.post(
-                    'https://id.vk.ru/oauth2/token',
-                    data=vk_params
+                vk_token_response = requests.get(
+                    'https://oauth.vk.com/access_token',
+                    params=vk_params
                 )
                 
                 print(f"VK ID token response status: {vk_token_response.status_code}")
