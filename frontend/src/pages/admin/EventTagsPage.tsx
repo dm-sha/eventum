@@ -13,14 +13,14 @@ const AdminEventTagsPage = () => {
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Теги мероприятий</h2>
-        <p className="text-gray-600">
+    <div className="mx-auto w-full max-w-4xl space-y-6">
+      <header className="space-y-2">
+        <h2 className="text-2xl font-semibold text-gray-900">Теги мероприятий</h2>
+        <p className="text-sm text-gray-500">
           Управляйте тегами для категоризации мероприятий. Теги помогают организовать и фильтровать события.
         </p>
-      </div>
-      
+      </header>
+
       <EventTagList eventumSlug={eventumSlug} />
     </div>
   );
