@@ -43,6 +43,11 @@
 - Добавили специальную обработку для CORS preflight запросов
 - Включили `CORS_ALLOW_ALL_HEADERS = True` для отладки
 
+### 10. Исправление CORS для заголовка Authorization
+- Исправили порядок заголовков в `CORS_ALLOWED_HEADERS` (authorization должен быть первым)
+- Добавили `CORS_EXPOSE_HEADERS` для заголовка Authorization
+- Добавили проверку preflight запросов в middleware
+
 ## Развертывание
 
 ### 1. Обновите переменные окружения в продакшене

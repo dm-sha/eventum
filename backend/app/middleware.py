@@ -1,5 +1,6 @@
 import logging
 from django.utils.deprecation import MiddlewareMixin
+from django.http import JsonResponse
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,12 @@ class AuthDebugMiddleware(MiddlewareMixin):
                 logger.info("CORS preflight request detected")
                 access_control_request_headers = request.META.get('HTTP_ACCESS_CONTROL_REQUEST_HEADERS', '')
                 logger.info(f"Access-Control-Request-Headers: {access_control_request_headers}")
+                
+                # Проверяем, запрашивается ли заголовок Authorization
+                if 'authorization' in access_control_request_headers.lower():
+                    logger.info("Authorization header requested in preflight")
+                else:
+                    logger.warning("Authorization header NOT requested in preflight!")
             
             # Логируем все заголовки для отладки
             logger.info(f"All headers: {dict(request.META)}")

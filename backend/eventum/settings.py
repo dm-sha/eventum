@@ -81,6 +81,15 @@ CORS_ALLOW_CREDENTIALS = True
 # Разрешаем все заголовки для отладки
 CORS_ALLOW_ALL_HEADERS = True
 
+# Дополнительные CORS настройки для отладки
+CORS_EXPOSE_HEADERS = [
+    'Authorization',
+    'authorization',
+]
+
+# Разрешаем credentials для CORS
+CORS_ALLOW_CREDENTIALS = True
+
 # В режиме разработки разрешаем все localhost порты
 if DEBUG:
     CORS_ALLOW_ALL_ORIGINS = False
@@ -93,8 +102,8 @@ else:
 CORS_ALLOWED_HEADERS = [
     'accept',
     'accept-encoding',
-    'Authorization',
     'authorization',
+    'Authorization',
     'content-type',
     'dnt',
     'origin',
