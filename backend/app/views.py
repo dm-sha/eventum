@@ -96,19 +96,34 @@ class VKAuthView(TokenObtainPairView):
         print(f"VK settings - APP_ID: {settings.VK_APP_ID}, REDIRECT_URI: {settings.VK_REDIRECT_URI}")
         
         try:
-            # Получаем access_token от VK
-            vk_params = {
-                'client_id': settings.VK_APP_ID,
-                'client_secret': settings.VK_APP_SECRET,
-                'redirect_uri': settings.VK_REDIRECT_URI,
-                'code': code,
-            }
-            print(f"VK token request params: {vk_params}")
-            
-            vk_token_response = requests.get(
-                'https://oauth.vk.com/access_token',
-                params=vk_params
-            )
+            # VK ID SDK возвращает код, который нужно обменять через другой endpoint
+            if code.startswith('vk2.a.'):
+                # Это код от VK ID SDK, используем специальный endpoint
+                vk_params = {
+                    'client_id': settings.VK_APP_ID,
+                    'client_secret': settings.VK_APP_SECRET,
+                    'code': code,
+                }
+                print(f"VK ID token request params: {vk_params}")
+                
+                vk_token_response = requests.post(
+                    'https://api.vk.com/oauth/vk_id_token',
+                    data=vk_params
+                )
+            else:
+                # Стандартный OAuth код
+                vk_params = {
+                    'client_id': settings.VK_APP_ID,
+                    'client_secret': settings.VK_APP_SECRET,
+                    'redirect_uri': settings.VK_REDIRECT_URI,
+                    'code': code,
+                }
+                print(f"VK OAuth token request params: {vk_params}")
+                
+                vk_token_response = requests.get(
+                    'https://oauth.vk.com/access_token',
+                    params=vk_params
+                )
             
             print(f"VK token response status: {vk_token_response.status_code}")
             print(f"VK token response content: {vk_token_response.text}")
@@ -128,8 +143,15 @@ class VKAuthView(TokenObtainPairView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
-            access_token = vk_data['access_token']
-            vk_user_id = vk_data['user_id']
+            # Обрабатываем ответ в зависимости от типа кода
+            if code.startswith('vk2.a.'):
+                # VK ID API возвращает данные в другом формате
+                access_token = vk_data['access_token']
+                vk_user_id = vk_data['user_id']
+            else:
+                # Стандартный OAuth ответ
+                access_token = vk_data['access_token']
+                vk_user_id = vk_data['user_id']
             
             # Получаем информацию о пользователе от VK
             user_info_response = requests.get(
