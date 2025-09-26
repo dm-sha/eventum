@@ -26,7 +26,7 @@ const VKAuth: React.FC = () => {
       try {
         VKID.Config.init({
           app: 54178494, // Замените на ваш VK App ID
-          redirectUrl: window.location.origin,
+          redirectUrl: 'https://eventum-web-ui.vercel.app',
           responseMode: VKID.ConfigResponseMode.Callback,
           source: VKID.ConfigSource.LOWCODE,
           scope: '',
