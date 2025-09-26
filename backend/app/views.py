@@ -8,6 +8,8 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.conf import settings
+from django.core.cache import cache
+from django.db.models import Prefetch
 import requests
 import json
 from .models import Eventum, Participant, ParticipantGroup, GroupTag, Event, EventTag, UserProfile, UserRole
@@ -49,9 +51,62 @@ class ParticipantViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
     permission_classes = [IsEventumOrganizerOrReadOnly]  # Организаторы CRUD, участники только чтение
 
 class ParticipantGroupViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
-    queryset = ParticipantGroup.objects.all().prefetch_related('participants', 'tags')
+    queryset = ParticipantGroup.objects.all().prefetch_related(
+        'participants',
+        'tags',
+        'participants__eventum'  # Добавляем prefetch для eventum участников
+    )
     serializer_class = ParticipantGroupSerializer
     permission_classes = [IsEventumOrganizerOrReadOnly]  # Организаторы CRUD, участники только чтение
+    
+    def get_queryset(self):
+        """Оптимизированный queryset для списка групп"""
+        eventum = self.get_eventum()
+        return ParticipantGroup.objects.filter(eventum=eventum).prefetch_related(
+            'participants',
+            'tags',
+            'participants__eventum'
+        ).select_related('eventum')  # Добавляем select_related для eventum
+    
+    def list(self, request, *args, **kwargs):
+        """Переопределяем list для добавления кэширования"""
+        eventum_slug = kwargs.get('eventum_slug')
+        cache_key = f"groups_list_{eventum_slug}"
+        
+        # Пытаемся получить данные из кэша
+        cached_data = cache.get(cache_key)
+        if cached_data is not None:
+            return Response(cached_data)
+        
+        # Если данных нет в кэше, выполняем запрос
+        queryset = self.filter_queryset(self.get_queryset())
+        serializer = self.get_serializer(queryset, many=True)
+        
+        # Кэшируем результат на 5 минут
+        cache.set(cache_key, serializer.data, 300)
+        
+        return Response(serializer.data)
+    
+    def perform_create(self, serializer):
+        """Переопределяем для инвалидации кэша при создании"""
+        super().perform_create(serializer)
+        eventum_slug = self.kwargs.get('eventum_slug')
+        cache_key = f"groups_list_{eventum_slug}"
+        cache.delete(cache_key)
+    
+    def perform_update(self, serializer):
+        """Переопределяем для инвалидации кэша при обновлении"""
+        super().perform_update(serializer)
+        eventum_slug = self.kwargs.get('eventum_slug')
+        cache_key = f"groups_list_{eventum_slug}"
+        cache.delete(cache_key)
+    
+    def perform_destroy(self, instance):
+        """Переопределяем для инвалидации кэша при удалении"""
+        super().perform_destroy(instance)
+        eventum_slug = self.kwargs.get('eventum_slug')
+        cache_key = f"groups_list_{eventum_slug}"
+        cache.delete(cache_key)
 
 class GroupTagViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
     queryset = GroupTag.objects.all().prefetch_related(

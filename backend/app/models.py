@@ -66,8 +66,10 @@ class ParticipantGroup(models.Model):
         # Ensure all participants belong to the same eventum
         # Only check if we have an eventum and participants
         if self.eventum_id and self.participants.exists():
-            invalid_participants = self.participants.exclude(eventum=self.eventum)
+            # Оптимизируем запрос - проверяем только участников с другим eventum
+            invalid_participants = self.participants.filter(eventum__isnull=False).exclude(eventum=self.eventum)
             if invalid_participants.exists():
+                # Используем values_list для более эффективного запроса
                 invalid_names = list(invalid_participants.values_list('name', flat=True))
                 raise ValidationError(
                     f"Participants {', '.join(invalid_names)} belong to different eventums"

@@ -35,6 +35,16 @@ class ParticipantGroupSerializer(serializers.ModelSerializer):
         queryset=GroupTag.objects.all(),
         required=False
     )
+    
+    def to_representation(self, instance):
+        """Переопределяем для оптимизации запросов к тегам"""
+        data = super().to_representation(instance)
+        
+        # Если теги уже загружены через prefetch_related, используем их
+        if hasattr(instance, '_prefetched_objects_cache') and 'tags' in instance._prefetched_objects_cache:
+            data['tags'] = GroupTagSerializer(instance.tags.all(), many=True).data
+        
+        return data
 
     class Meta:
         model = ParticipantGroup
