@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "dev:local": "vite --mode development",
+    "dev:no-auth": "VITE_SKIP_AUTH=true vite",
     "build": "tsc -b && vite build",
     "build:prod": "tsc -b && vite build --mode production",
     "lint": "eslint .",

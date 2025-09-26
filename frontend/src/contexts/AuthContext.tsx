@@ -38,12 +38,38 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
+// Проверяем, нужно ли пропускать авторизацию в режиме разработки
+const shouldSkipAuth = import.meta.env.VITE_SKIP_AUTH === 'true' && import.meta.env.DEV;
+
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [tokens, setTokens] = useState<AuthTokens | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    // Если включен режим пропуска авторизации, создаем фиктивного пользователя
+    if (shouldSkipAuth) {
+      const mockUser: User = {
+        id: 1,
+        vk_id: 123456789,
+        name: 'Разработчик (локальный режим)',
+        avatar_url: '',
+        email: 'dev@local.com',
+        date_joined: new Date().toISOString(),
+        last_login: new Date().toISOString(),
+      };
+      
+      const mockTokens: AuthTokens = {
+        access: 'mock_access_token',
+        refresh: 'mock_refresh_token',
+      };
+      
+      setUser(mockUser);
+      setTokens(mockTokens);
+      setIsLoading(false);
+      return;
+    }
+
     // Проверяем, есть ли сохраненные данные аутентификации
     const savedTokens = localStorage.getItem('auth_tokens');
     const savedUser = localStorage.getItem('auth_user');
