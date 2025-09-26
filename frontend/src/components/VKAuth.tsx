@@ -45,12 +45,8 @@ const VKAuth: React.FC = () => {
         })
         .on(VKID.WidgetEvents.ERROR, vkidOnError)
         .on(VKID.OneTapInternalEvents.LOGIN_SUCCESS, function (payload: any) {
-          const code = payload.code;
-          const deviceId = payload.device_id;
-
-          VKID.Auth.exchangeCode(code, deviceId)
-            .then(vkidOnSuccess)
-            .catch(vkidOnError);
+          // Отправляем исходный code на бэкенд (без локального обмена)
+          vkidOnSuccess(payload);
         });
       } catch (err) {
         console.error('VK Auth initialization error:', err);
