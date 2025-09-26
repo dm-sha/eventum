@@ -265,96 +265,27 @@ def user_roles(request):
 
 
 @api_view(['GET'])
-def user_events(request):
-    """Получение мероприятий пользователя (где он организатор или участник)"""
+def user_eventums(request):
+    """Получение eventum'ов пользователя (где он имеет какую-либо роль)"""
     if not request.user.is_authenticated:
         return Response({'error': 'Not authenticated'}, status=status.HTTP_401_UNAUTHORIZED)
     
-    # Получаем все eventum'ы, где пользователь имеет роль
-    user_roles = UserRole.objects.filter(user=request.user)
-    eventum_ids = [role.eventum.id for role in user_roles]
+    # Получаем все роли пользователя
+    user_roles = UserRole.objects.filter(user=request.user).select_related('eventum')
     
-    # Получаем все мероприятия из этих eventum'ов
-    events = Event.objects.filter(eventum_id__in=eventum_ids).order_by('-start_time')
+    # Создаем список eventum'ов с информацией о роли пользователя
+    eventums_data = []
+    for role in user_roles:
+        eventum_data = EventumSerializer(role.eventum).data
+        eventum_data['user_role'] = role.role
+        eventum_data['role_id'] = role.id
+        eventums_data.append(eventum_data)
     
-    # Создаем расширенный сериализатор с информацией о роли пользователя
-    events_data = []
-    for event in events:
-        event_data = EventSerializer(event).data
-        
-        # Находим роль пользователя в этом eventum'е
-        user_role = user_roles.filter(eventum=event.eventum).first()
-        event_data['user_role'] = user_role.role if user_role else None
-        event_data['eventum_name'] = event.eventum.name
-        event_data['eventum_slug'] = event.eventum.slug
-        
-        events_data.append(event_data)
-    
-    return Response(events_data)
+    return Response(eventums_data)
 
 
-@api_view(['POST'])
-def create_event_with_organizer(request):
-    """Создание нового мероприятия с автоматическим назначением пользователя организатором"""
-    if not request.user.is_authenticated:
-        return Response({'error': 'Not authenticated'}, status=status.HTTP_401_UNAUTHORIZED)
-    
-    # Получаем данные из запроса
-    eventum_name = request.data.get('eventum_name')
-    event_name = request.data.get('event_name')
-    event_description = request.data.get('event_description', '')
-    start_time = request.data.get('start_time')
-    end_time = request.data.get('end_time')
-    
-    if not all([eventum_name, event_name, start_time, end_time]):
-        return Response(
-            {'error': 'Missing required fields: eventum_name, event_name, start_time, end_time'}, 
-            status=status.HTTP_400_BAD_REQUEST
-        )
-    
-    try:
-        # Создаем или получаем eventum
-        from django.utils.text import slugify
-        eventum_slug = slugify(eventum_name)
-        eventum, created = Eventum.objects.get_or_create(
-            slug=eventum_slug,
-            defaults={'name': eventum_name}
-        )
-        
-        # Создаем мероприятие
-        event = Event.objects.create(
-            eventum=eventum,
-            name=event_name,
-            description=event_description,
-            start_time=start_time,
-            end_time=end_time
-        )
-        
-        # Назначаем пользователя организатором, если он еще не имеет роли
-        user_role, role_created = UserRole.objects.get_or_create(
-            user=request.user,
-            eventum=eventum,
-            defaults={'role': 'organizer'}
-        )
-        
-        # Если роль уже существовала, но была 'participant', обновляем на 'organizer'
-        if not role_created and user_role.role == 'participant':
-            user_role.role = 'organizer'
-            user_role.save()
-        
-        # Возвращаем данные мероприятия с информацией о роли
-        event_data = EventSerializer(event).data
-        event_data['user_role'] = 'organizer'
-        event_data['eventum_name'] = eventum.name
-        event_data['eventum_slug'] = eventum.slug
-        
-        return Response(event_data, status=status.HTTP_201_CREATED)
-        
-    except Exception as e:
-        return Response(
-            {'error': f'Error creating event: {str(e)}'}, 
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+
+
 
 
 @api_view(['GET'])

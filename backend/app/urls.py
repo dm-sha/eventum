@@ -12,8 +12,7 @@ from .views import (
     CustomTokenRefreshView,
     user_profile,
     user_roles,
-    user_events,
-    create_event_with_organizer,
+    user_eventums,
     dev_user_auth
 )
 
@@ -36,9 +35,7 @@ urlpatterns = [
     path('auth/refresh/', CustomTokenRefreshView.as_view(), name='token_refresh'),
     path('auth/profile/', user_profile, name='user_profile'),
     path('auth/roles/', user_roles, name='user_roles'),
+    path('auth/eventums/', user_eventums, name='user_eventums'),
     
-    # Пользовательские мероприятия
-    path('auth/events/', user_events, name='user_events'),
-    path('auth/create-event/', create_event_with_organizer, name='create_event_with_organizer'),
     path('auth/dev-user/', dev_user_auth, name='dev_user_auth'),
 ]

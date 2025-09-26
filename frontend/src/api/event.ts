@@ -1,5 +1,5 @@
 import apiClient from './client';
-import type { Event, UserEvent, CreateEventData } from '../types';
+import type { Event } from '../types';
 
 // Получить список всех мероприятий для конкретного Eventum.
 export const getEventsForEventum = async (eventumSlug: string): Promise<Event[]> => {
@@ -19,15 +19,10 @@ export const getPastEvents = async (eventumSlug: string): Promise<Event[]> => {
     return response.data;
 };
 
-// Получить мероприятия пользователя (где он организатор или участник)
-export const getUserEvents = async (): Promise<UserEvent[]> => {
-    const response = await apiClient.get('/auth/events/');
-    return response.data;
-};
 
-// Создать новое мероприятие с автоматическим назначением пользователя организатором
-export const createEventWithOrganizer = async (eventData: CreateEventData): Promise<UserEvent> => {
-    const response = await apiClient.post('/auth/create-event/', eventData);
+// Получить eventum'ы пользователя (где он имеет какую-либо роль)
+export const getUserEventums = async (): Promise<any[]> => {
+    const response = await apiClient.get('/auth/eventums/');
     return response.data;
 };
 
