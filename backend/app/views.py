@@ -109,7 +109,7 @@ class VKAuthView(TokenObtainPairView):
                 print(f"VK ID token exchange params: {vk_params}")
                 
                 vk_token_response = requests.post(
-                    'https://api.vk.com/oauth/vk_id_token',
+                    'https://id.vk.ru/oauth2/token',
                     data=vk_params
                 )
                 
