@@ -190,11 +190,14 @@ WHITENOISE_AUTOREFRESH = True
 
 # Отладочная информация для статических файлов
 if DEBUG:
-    print(f"DEBUG: STATIC_URL = {STATIC_URL}")
-    print(f"DEBUG: STATIC_ROOT = {STATIC_ROOT}")
-    print(f"DEBUG: STATIC_ROOT exists = {STATIC_ROOT.exists()}")
-    if STATIC_ROOT.exists():
-        print(f"DEBUG: STATIC_ROOT contents = {list(STATIC_ROOT.iterdir())}")
+    try:
+        print(f"DEBUG: STATIC_URL = {STATIC_URL}")
+        print(f"DEBUG: STATIC_ROOT = {STATIC_ROOT}")
+        print(f"DEBUG: STATIC_ROOT exists = {STATIC_ROOT.exists()}")
+        if STATIC_ROOT.exists():
+            print(f"DEBUG: STATIC_ROOT contents = {list(STATIC_ROOT.iterdir())}")
+    except Exception as e:
+        print(f"DEBUG: Error checking static files: {e}")
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
