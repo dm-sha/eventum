@@ -136,6 +136,9 @@ class VKAuthView(TokenObtainPairView):
                 vk_user_data = user_data.get('user', {})
                 vk_user_id = vk_user_data.get('user_id')
                 
+                print(f"VK user data: {vk_user_data}")
+                print(f"VK user ID: {vk_user_id}")
+                
                 if not vk_user_id:
                     return Response(
                         {'error': 'User ID not found in VK ID response'}, 
@@ -150,6 +153,8 @@ class VKAuthView(TokenObtainPairView):
                     'photo_200': vk_user_data.get('avatar', ''),
                     'email': vk_user_data.get('email', '')
                 }
+                
+                print(f"Formatted VK user: {vk_user}")
                 
             else:
                 # Стандартный OAuth код
@@ -215,22 +220,37 @@ class VKAuthView(TokenObtainPairView):
                 vk_user = user_data['response'][0]
             
             # Создаем или обновляем пользователя
-            user, created = UserProfile.objects.get_or_create(
-                vk_id=vk_user_id,
-                defaults={
-                    'name': f"{vk_user.get('first_name', '')} {vk_user.get('last_name', '')}".strip(),
-                    'avatar_url': vk_user.get('photo_200', ''),
-                    'email': vk_user.get('email', ''),
-                }
-            )
+            print(f"Creating/updating user with vk_id: {vk_user_id}")
+            print(f"User data: {vk_user}")
             
-            if not created:
-                # Обновляем данные существующего пользователя
-                user.name = f"{vk_user.get('first_name', '')} {vk_user.get('last_name', '')}".strip()
-                user.avatar_url = vk_user.get('photo_200', '')
-                if vk_user.get('email'):
-                    user.email = vk_user.get('email', '')
-                user.save()
+            try:
+                user, created = UserProfile.objects.get_or_create(
+                    vk_id=vk_user_id,
+                    defaults={
+                        'name': f"{vk_user.get('first_name', '')} {vk_user.get('last_name', '')}".strip(),
+                        'avatar_url': vk_user.get('photo_200', ''),
+                        'email': vk_user.get('email', ''),
+                    }
+                )
+                
+                print(f"User created: {created}")
+                print(f"User: {user}")
+                
+                if not created:
+                    # Обновляем данные существующего пользователя
+                    user.name = f"{vk_user.get('first_name', '')} {vk_user.get('last_name', '')}".strip()
+                    user.avatar_url = vk_user.get('photo_200', '')
+                    if vk_user.get('email'):
+                        user.email = vk_user.get('email', '')
+                    user.save()
+                    print(f"User updated: {user}")
+                    
+            except Exception as e:
+                print(f"Error creating/updating user: {e}")
+                return Response(
+                    {'error': f'User creation failed: {str(e)}'}, 
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
             
             # Создаем JWT токены
             refresh = RefreshToken.for_user(user)
