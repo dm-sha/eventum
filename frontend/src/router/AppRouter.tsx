@@ -11,6 +11,7 @@ import AdminGroupTagsPage from "../pages/admin/GroupTagsPage";
 import AdminGroupsPage from "../pages/admin/GroupsPage";
 import VKAuth from "../components/VKAuth";
 import DashboardPage from "../pages/DashboardPage";
+import HomePage from "../pages/HomePage";
 import { useAuth } from "../contexts/AuthContext";
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -20,7 +21,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
     return <div>Загрузка...</div>;
   }
   
-  return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />;
+  return isAuthenticated ? <>{children}</> : <Navigate to="/" replace />;
 };
 
 export const AppRouter = () => {
@@ -47,7 +48,7 @@ export const AppRouter = () => {
 
       {/* Public site layout */}
       <Route path="/" element={<Layout />}>
-        <Route index element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <VKAuth />} />
+        <Route index element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <HomePage />} />
         <Route path=":eventumSlug" element={<EventumPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
