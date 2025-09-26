@@ -21,10 +21,15 @@ const VKAuth: React.FC = () => {
         setIsLoading(true);
         setError(null);
         
+        console.log('VK Auth success, calling backend...', data);
         const response = await authApi.vkAuth({ code: data.code });
+        console.log('Backend response:', response);
+        
         login(response, response.user);
+        console.log('User logged in successfully');
         
       } catch (err: any) {
+        console.error('VK Auth error:', err);
         setError(err.response?.data?.error || 'Ошибка авторизации');
       } finally {
         setIsLoading(false);

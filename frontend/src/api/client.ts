@@ -21,13 +21,17 @@ const apiClient = axios.create({
 apiClient.interceptors.request.use(
     (config) => {
         const tokens = localStorage.getItem('auth_tokens');
+        console.log('API Request interceptor - tokens from localStorage:', tokens);
         if (tokens) {
             try {
                 const { access } = JSON.parse(tokens);
                 config.headers.Authorization = `Bearer ${access}`;
+                console.log('Authorization header set:', `Bearer ${access.substring(0, 20)}...`);
             } catch (error) {
                 console.error('Error parsing auth tokens:', error);
             }
+        } else {
+            console.log('No tokens found in localStorage');
         }
         return config;
     },

@@ -24,6 +24,12 @@ const DashboardPage: React.FC = () => {
   useEffect(() => {
     const loadEventums = async () => {
       console.log('Начинаем загрузку eventum\'ов...');
+      console.log('Current user:', user);
+      console.log('Current tokens:', tokens);
+      console.log('isAuthenticated:', isAuthenticated);
+      console.log('localStorage tokens:', localStorage.getItem('auth_tokens'));
+      console.log('localStorage user:', localStorage.getItem('auth_user'));
+      
       setEventumsLoaded(true);
       try {
         const userEventums = await getUserEventums();

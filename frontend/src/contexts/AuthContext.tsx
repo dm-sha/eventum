@@ -112,10 +112,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []);
 
   const login = (newTokens: AuthTokens, newUser: User) => {
+    console.log('Login function called with:', { newTokens, newUser });
     setTokens(newTokens);
     setUser(newUser);
     localStorage.setItem('auth_tokens', JSON.stringify(newTokens));
     localStorage.setItem('auth_user', JSON.stringify(newUser));
+    console.log('Tokens and user saved to localStorage');
   };
 
   const logout = () => {
