@@ -150,8 +150,8 @@ class VKAuthView(TokenObtainPairView):
                     'id': vk_user_id,
                     'first_name': vk_user_data.get('first_name', ''),
                     'last_name': vk_user_data.get('last_name', ''),
-                    'photo_200': vk_user_data.get('avatar', ''),
-                    'email': vk_user_data.get('email', '')
+                    'photo_200': vk_user_data.get('avatar', ''),  # Полный URL без обрезания
+                    'email': ''  # Email не нужен
                 }
                 
                 print(f"Formatted VK user: {vk_user}")
@@ -229,7 +229,7 @@ class VKAuthView(TokenObtainPairView):
                     defaults={
                         'name': f"{vk_user.get('first_name', '')} {vk_user.get('last_name', '')}".strip(),
                         'avatar_url': vk_user.get('photo_200', ''),
-                        'email': vk_user.get('email', ''),
+                        'email': '',  # Email не нужен
                     }
                 )
                 
@@ -240,8 +240,7 @@ class VKAuthView(TokenObtainPairView):
                     # Обновляем данные существующего пользователя
                     user.name = f"{vk_user.get('first_name', '')} {vk_user.get('last_name', '')}".strip()
                     user.avatar_url = vk_user.get('photo_200', '')
-                    if vk_user.get('email'):
-                        user.email = vk_user.get('email', '')
+                    # Email не обновляем, так как не нужен
                     user.save()
                     print(f"User updated: {user}")
                     

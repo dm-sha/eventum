@@ -161,7 +161,7 @@ class UserProfile(AbstractUser):
     """Профиль пользователя с данными из VK"""
     vk_id = models.BigIntegerField(unique=True, null=True, blank=True)
     name = models.CharField(max_length=200, blank=True)
-    avatar_url = models.URLField(blank=True)
+    avatar_url = models.TextField(blank=True)  # Увеличиваем лимит для длинных URL
     email = models.EmailField(blank=True)
     
     # Убираем поле username, так как используем vk_id
