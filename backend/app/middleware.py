@@ -67,9 +67,6 @@ class AuthDebugMiddleware(MiddlewareMixin):
                     logger.warning("Authorization header NOT requested in preflight!")
                     logger.warning("This means the browser is not sending Authorization header!")
             
-            # Логируем все заголовки для отладки
-            logger.info(f"All headers: {dict(request.META)}")
-            
             # Дополнительная отладка для JWT
             if auth_header and auth_header.startswith('Bearer '):
                 token = auth_header[7:]  # Убираем "Bearer "
@@ -80,6 +77,17 @@ class AuthDebugMiddleware(MiddlewareMixin):
                     from rest_framework_simplejwt.tokens import AccessToken
                     access_token = AccessToken(token)
                     logger.info(f"JWT Token valid: user_id={access_token['user_id']}")
+                    
+                    # Пытаемся аутентифицировать пользователя вручную
+                    try:
+                        from django.contrib.auth import get_user_model
+                        User = get_user_model()
+                        user = User.objects.get(id=access_token['user_id'])
+                        request.user = user
+                        logger.info(f"User manually authenticated: {user.name} (ID: {user.id})")
+                    except Exception as e:
+                        logger.error(f"Error manually authenticating user: {e}")
+                        
                 except Exception as e:
                     logger.error(f"JWT Token validation error: {e}")
             
