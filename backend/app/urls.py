@@ -14,7 +14,8 @@ from .views import (
     user_roles,
     user_eventums,
     dev_user_auth,
-    vk_config_check
+    vk_config_check,
+    debug_user_info
 )
 
 router = DefaultRouter()
@@ -40,4 +41,5 @@ urlpatterns = [
     
     path('auth/dev-user/', dev_user_auth, name='dev_user_auth'),
     path('auth/vk-config/', vk_config_check, name='vk_config_check'),
+    path('auth/debug-user/', debug_user_info, name='debug_user_info'),
 ]

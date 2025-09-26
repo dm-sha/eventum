@@ -281,10 +281,18 @@ def user_eventums(request):
     logger = logging.getLogger(__name__)
     
     logger.info(f"user_eventums called by user: {request.user} (authenticated: {request.user.is_authenticated})")
+    logger.info(f"User type: {type(request.user)}")
+    logger.info(f"User ID: {getattr(request.user, 'id', 'No ID')}")
     
+    # Проверяем, что пользователь аутентифицирован
     if not request.user.is_authenticated:
         logger.warning("User not authenticated for user_eventums")
         return Response({'error': 'Not authenticated'}, status=status.HTTP_401_UNAUTHORIZED)
+    
+    # Проверяем, что это наш пользователь
+    if not hasattr(request.user, 'id'):
+        logger.warning("User has no ID attribute")
+        return Response({'error': 'Invalid user'}, status=status.HTTP_401_UNAUTHORIZED)
     
     try:
         # Получаем все роли пользователя
@@ -355,6 +363,24 @@ def vk_config_check(request):
         'VK_REDIRECT_URI': settings.VK_REDIRECT_URI,
         'DEBUG': settings.DEBUG,
         'ALLOWED_HOSTS': settings.ALLOWED_HOSTS,
+    })
+
+
+@api_view(['GET'])
+def debug_user_info(request):
+    """Отладочная информация о текущем пользователе"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"debug_user_info called by user: {request.user} (authenticated: {request.user.is_authenticated})")
+    
+    return Response({
+        'user': str(request.user),
+        'user_type': str(type(request.user)),
+        'is_authenticated': request.user.is_authenticated,
+        'user_id': getattr(request.user, 'id', 'No ID'),
+        'user_name': getattr(request.user, 'name', 'No Name'),
+        'user_vk_id': getattr(request.user, 'vk_id', 'No VK ID'),
     })
 
 

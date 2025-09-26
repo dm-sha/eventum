@@ -22,6 +22,19 @@ class AuthDebugMiddleware(MiddlewareMixin):
             origin = request.META.get('HTTP_ORIGIN', '')
             logger.info(f"Origin: {origin}")
             
+            # Дополнительная отладка для JWT
+            if auth_header and auth_header.startswith('Bearer '):
+                token = auth_header[7:]  # Убираем "Bearer "
+                logger.info(f"JWT Token: {token[:50]}...")
+                
+                # Проверяем, что происходит с токеном
+                try:
+                    from rest_framework_simplejwt.tokens import AccessToken
+                    access_token = AccessToken(token)
+                    logger.info(f"JWT Token valid: user_id={access_token['user_id']}")
+                except Exception as e:
+                    logger.error(f"JWT Token validation error: {e}")
+            
         return None
     
     def process_response(self, request, response):
