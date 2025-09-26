@@ -42,22 +42,34 @@ const EventList = ({ eventumSlug }: EventListProps) => {
   if (error) return <p className="text-center text-red-400">{error}</p>;
 
   return (
-    <div className="mt-6 space-y-4">
+    <div className="space-y-4">
       {events.length > 0 ? (
         events.map((event) => (
-          <div key={event.id} className="p-4 border border-gray-200 rounded-lg">
-            <h3 className="text-lg font-semibold text-gray-800">
-              {event.name}
-            </h3>
-            <p className="text-sm text-gray-600 mt-1">{event.description}</p>
-            <div className="text-sm text-gray-500 mt-2">
-              <span>{formatDateTime(event.start_time)}</span> -{" "}
-              <span>{formatDateTime(event.end_time)}</span>
+          <article
+            key={event.id}
+            className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md sm:p-6"
+          >
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="space-y-2">
+                <h3 className="text-lg font-semibold text-gray-900">{event.name}</h3>
+                {event.description && (
+                  <p className="text-sm leading-6 text-gray-600">{event.description}</p>
+                )}
+              </div>
+              <dl className="rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-800 sm:px-4">
+                <dt className="font-medium uppercase tracking-wide">Период</dt>
+                <dd className="mt-1 space-y-1 text-blue-900">
+                  <p>{formatDateTime(event.start_time)}</p>
+                  <p>{formatDateTime(event.end_time)}</p>
+                </dd>
+              </dl>
             </div>
-          </div>
+          </article>
         ))
       ) : (
-        <p className="text-gray-500">Мероприятия еще не добавлены.</p>
+        <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-8 text-center text-sm text-gray-500">
+          Мероприятия еще не добавлены
+        </div>
       )}
     </div>
   );

@@ -237,11 +237,11 @@ const GroupTagList: React.FC<GroupTagListProps> = ({ eventumSlug }) => {
         </div>
       )}
 
-      <div className="flex justify-between items-center">
-        <h3 className="text-lg font-medium">Теги групп</h3>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h3 className="text-lg font-semibold text-gray-900">Теги групп</h3>
         <button
           onClick={() => setShowCreateForm(true)}
-          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium"
+          className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
         >
           Добавить тег
         </button>
@@ -249,27 +249,27 @@ const GroupTagList: React.FC<GroupTagListProps> = ({ eventumSlug }) => {
 
       {/* Форма создания */}
       {showCreateForm && (
-        <div className="bg-gray-50 p-4 rounded-lg">
-          <h4 className="font-medium mb-3">Создать новый тег</h4>
-          <form onSubmit={handleCreate} className="flex gap-2">
+        <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
+          <h4 className="text-base font-semibold text-gray-900">Создать новый тег</h4>
+          <form onSubmit={handleCreate} className="mt-4 flex flex-col gap-3 sm:flex-row">
             <input
               type="text"
               value={formData.name}
               onChange={(e) => setFormData({ name: e.target.value })}
               placeholder="Название тега"
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
               required
             />
             <button
               type="submit"
-              className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-md text-sm"
+              className="inline-flex items-center justify-center rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
             >
               Создать
             </button>
             <button
               type="button"
               onClick={cancelCreate}
-              className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-md text-sm"
+              className="inline-flex items-center justify-center rounded-lg bg-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2"
             >
               Отмена
             </button>
@@ -292,49 +292,49 @@ const GroupTagList: React.FC<GroupTagListProps> = ({ eventumSlug }) => {
             const displayGroups = isExpanded ? groups : groups.slice(0, GROUPS_PREVIEW_LIMIT);
 
             return (
-              <div key={tag.id} className="bg-white border border-gray-200 rounded-lg p-4">
+              <div key={tag.id} className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
                 {editingTag?.id === tag.id ? (
                   /* Форма редактирования */
-                  <form onSubmit={handleUpdate} className="flex gap-2">
+                  <form onSubmit={handleUpdate} className="flex flex-col gap-3 sm:flex-row">
                     <input
                       type="text"
                       value={formData.name}
                       onChange={(e) => setFormData({ name: e.target.value })}
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
                       required
                     />
                     <button
                       type="submit"
-                      className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-md text-sm"
+                      className="inline-flex items-center justify-center rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
                     >
                       Сохранить
                     </button>
                     <button
                       type="button"
                       onClick={cancelEdit}
-                      className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-md text-sm"
+                      className="inline-flex items-center justify-center rounded-lg bg-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2"
                     >
                       Отмена
                     </button>
                   </form>
                 ) : (
                   /* Отображение тега */
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <h4 className="font-medium text-gray-900">{tag.name}</h4>
+                <div className="space-y-3">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="space-y-1">
+                        <h4 className="text-base font-semibold text-gray-900">{tag.name}</h4>
                         <p className="text-sm text-gray-500">slug: {tag.slug}</p>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex flex-col gap-2 sm:flex-row">
                         <button
                           onClick={() => startEdit(tag)}
-                          className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                          className="inline-flex items-center justify-center rounded-lg border border-blue-200 px-4 py-2 text-sm font-semibold text-blue-700 transition-colors hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                         >
                           Редактировать
                         </button>
                         <button
                           onClick={() => handleDelete(tag.id)}
-                          className="text-red-600 hover:text-red-800 text-sm font-medium"
+                          className="inline-flex items-center justify-center rounded-lg border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 transition-colors hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
                         >
                           Удалить
                         </button>
@@ -343,14 +343,14 @@ const GroupTagList: React.FC<GroupTagListProps> = ({ eventumSlug }) => {
 
                     {/* Группы под тегом */}
                     <div className="border-t pt-3">
-                      <div className="flex items-center justify-between mb-2">
+                      <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                         <h5 className="text-sm font-medium text-gray-700">
                           Группы ({groups.length})
                         </h5>
-                        <div className="flex gap-2">
+                        <div className="flex flex-col gap-2 sm:flex-row">
                           <button
                             onClick={() => setShowAddGroupModal(tag.id)}
-                            className="text-green-600 hover:text-green-800 text-sm font-medium"
+                            className="inline-flex items-center justify-center rounded-lg border border-green-200 px-3 py-2 text-xs font-semibold text-green-700 transition-colors hover:bg-green-50 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
                             title="Добавить группу к тегу"
                           >
                             + Добавить
@@ -359,7 +359,7 @@ const GroupTagList: React.FC<GroupTagListProps> = ({ eventumSlug }) => {
                             <button
                               onClick={() => toggleGroupsExpansion(tag.id)}
                               disabled={isLoadingGroups}
-                              className="text-blue-600 hover:text-blue-800 text-sm font-medium disabled:opacity-50"
+                              className="inline-flex items-center justify-center rounded-lg border border-blue-200 px-3 py-2 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
                             >
                               {isLoadingGroups ? 'Загрузка...' : isExpanded ? 'Свернуть' : 'Показать все'}
                             </button>
@@ -368,17 +368,24 @@ const GroupTagList: React.FC<GroupTagListProps> = ({ eventumSlug }) => {
                       </div>
 
                       {isLoadingGroups ? (
-                        <div className="text-sm text-gray-500">Загрузка групп...</div>
+                        <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-3 py-4 text-sm text-gray-500">
+                          Загрузка групп...
+                        </div>
                       ) : groups.length === 0 ? (
-                        <div className="text-sm text-gray-500">Нет групп с этим тегом</div>
+                        <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-3 py-4 text-sm text-gray-500">
+                          Нет групп с этим тегом
+                        </div>
                       ) : (
                         <div className="space-y-1">
                           {displayGroups.map((group) => (
-                            <div key={group.id} className="flex items-center justify-between text-sm text-gray-600 bg-gray-50 px-2 py-1 rounded">
-                              <span>{group.name}</span>
+                            <div
+                              key={group.id}
+                              className="flex flex-col gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600 sm:flex-row sm:items-center sm:justify-between"
+                            >
+                              <span className="font-medium text-gray-800">{group.name}</span>
                               <button
                                 onClick={() => handleRemoveGroupFromTag(tag.id, group.id)}
-                                className="text-red-500 hover:text-red-700 text-xs ml-2"
+                                className="inline-flex items-center justify-center rounded-md border border-red-200 px-3 py-1 text-xs font-semibold text-red-600 transition-colors hover:bg-red-50"
                                 title="Отвязать группу от тега"
                               >
                                 ✕
@@ -386,7 +393,7 @@ const GroupTagList: React.FC<GroupTagListProps> = ({ eventumSlug }) => {
                             </div>
                           ))}
                           {hasMoreGroups && !isExpanded && (
-                            <div className="text-sm text-gray-500 italic">
+                            <div className="text-sm italic text-gray-500">
                               и еще {groups.length - GROUPS_PREVIEW_LIMIT} групп...
                             </div>
                           )}
@@ -403,28 +410,30 @@ const GroupTagList: React.FC<GroupTagListProps> = ({ eventumSlug }) => {
 
       {/* Модальное окно для добавления группы к тегу */}
       {showAddGroupModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-medium mb-4">Добавить группу к тегу</h3>
-            <div className="space-y-2 max-h-60 overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-semibold text-gray-900">Добавить группу к тегу</h3>
+            <div className="mt-4 space-y-2 max-h-60 overflow-y-auto">
               {getAvailableGroupsForTag(showAddGroupModal).length === 0 ? (
-                <p className="text-gray-500 text-sm">Все группы уже привязаны к этому тегу</p>
+                <p className="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-4 py-6 text-sm text-gray-500">
+                  Все группы уже привязаны к этому тегу
+                </p>
               ) : (
                 getAvailableGroupsForTag(showAddGroupModal).map((group) => (
                   <button
                     key={group.id}
                     onClick={() => handleAddGroupToTag(showAddGroupModal, group.id)}
-                    className="w-full text-left px-3 py-2 text-sm bg-gray-50 hover:bg-gray-100 rounded border"
+                    className="w-full rounded-lg border border-gray-200 bg-gray-50 px-4 py-2 text-left text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     {group.name}
                   </button>
                 ))
               )}
             </div>
-            <div className="flex justify-end mt-4">
+            <div className="mt-6 flex justify-end">
               <button
                 onClick={() => setShowAddGroupModal(null)}
-                className="px-4 py-2 text-sm bg-gray-500 hover:bg-gray-600 text-white rounded"
+                className="inline-flex items-center justify-center rounded-lg bg-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2"
               >
                 Отмена
               </button>

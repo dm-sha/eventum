@@ -19,22 +19,37 @@ const AdminParticipantsPage = () => {
   );
 
   return (
-    <div>
-      <h2 className="text-xl font-semibold mb-4">Участники</h2>
-      <div className="mb-4 flex gap-4 flex-wrap">
+    <div className="space-y-6">
+      <header className="space-y-2">
+        <h2 className="text-2xl font-semibold text-gray-900">Участники</h2>
+        <p className="text-sm text-gray-500">
+          Найдите участника по имени и управляйте списком участников группы.
+        </p>
+      </header>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <input
           placeholder="Фильтр по имени"
           value={nameFilter}
           onChange={(e) => setNameFilter(e.target.value)}
-          className="border border-gray-300 rounded px-2 py-1"
+          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 sm:w-auto"
         />
+        <span className="text-xs text-gray-500">Всего: {filtered.length}</span>
       </div>
-      <ul className="space-y-2">
+      <ul className="space-y-3">
         {filtered.map((p) => (
-          <li key={p.id} className="p-2 border border-gray-200 rounded bg-white">
-            {p.name}
+          <li
+            key={p.id}
+            className="flex flex-col gap-1 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between"
+          >
+            <span className="text-sm font-medium text-gray-900">{p.name}</span>
+            <span className="text-xs text-gray-500">ID: {p.id}</span>
           </li>
         ))}
+        {filtered.length === 0 && (
+          <li className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-10 text-center text-sm text-gray-500">
+            Подходящих участников не найдено
+          </li>
+        )}
       </ul>
     </div>
   );

@@ -119,16 +119,18 @@ const VKAuth: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50">
-      <div className="max-w-md w-full bg-white rounded-lg shadow-md p-8">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Eventum</h1>
-          <p className="text-gray-600">Войдите через VK для продолжения</p>
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 px-4 py-8 sm:py-12">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-6 sm:p-8">
+        <div className="text-center mb-8 space-y-2">
+          <h1 className="text-3xl font-bold text-gray-900">Eventum</h1>
+          <p className="text-gray-600 text-sm sm:text-base">
+            Войдите через VK для продолжения
+          </p>
         </div>
 
         {error && (
-          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-md">
-            <p className="text-red-600 text-sm">{error}</p>
+          <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3">
+            <p className="text-sm text-red-600">{error}</p>
           </div>
         )}
 

@@ -49,129 +49,149 @@ const DashboardPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <Header />
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        <div className="px-4 py-6 sm:px-0">
-          <div className="bg-white overflow-hidden shadow rounded-lg">
-            <div className="px-4 py-5 sm:p-6">
-              <div className="mb-6">
-                <h2 className="text-2xl font-bold text-gray-900">
-                  Панель управления
-                </h2>
-              </div>
-              
-              {user && (
-                <div className="space-y-6">
-                  {/* User Info */}
-                  <div className="bg-gray-50 rounded-lg p-6">
-                    <h3 className="text-lg font-medium text-gray-900 mb-4">
+      <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8 lg:py-10">
+        <section className="rounded-2xl bg-white shadow-sm ring-1 ring-gray-100">
+          <div className="space-y-8 px-4 py-6 sm:px-8 sm:py-8">
+            <header className="space-y-2">
+              <p className="text-sm font-medium uppercase tracking-wide text-blue-600">
+                Личный кабинет
+              </p>
+              <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">
+                Панель управления
+              </h1>
+            </header>
+
+            {user && (
+              <div className="space-y-10">
+                <section className="space-y-4">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <h2 className="text-lg font-semibold text-gray-900">
                       Информация о пользователе
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700">
-                          Имя
-                        </label>
-                        <p className="mt-1 text-sm text-gray-900">{user.name}</p>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700">
-                          VK ID
-                        </label>
-                        <p className="mt-1 text-sm text-gray-900">{user.vk_id}</p>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700">
-                          Email
-                        </label>
-                        <p className="mt-1 text-sm text-gray-900">
-                          {user.email || 'Не указан'}
-                        </p>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700">
-                          Дата регистрации
-                        </label>
-                        <p className="mt-1 text-sm text-gray-900">
-                          {new Date(user.date_joined).toLocaleDateString('ru-RU')}
-                        </p>
-                      </div>
+                    </h2>
+                    <p className="text-sm text-gray-500">
+                      Проверьте актуальность данных профиля
+                    </p>
+                  </div>
+                  <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                      <dt className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                        Имя
+                      </dt>
+                      <dd className="mt-1 text-sm text-gray-900">{user.name}</dd>
+                    </div>
+                    <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                      <dt className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                        VK ID
+                      </dt>
+                      <dd className="mt-1 text-sm text-gray-900">{user.vk_id}</dd>
+                    </div>
+                    <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                      <dt className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                        Email
+                      </dt>
+                      <dd className="mt-1 text-sm text-gray-900">
+                        {user.email || 'Не указан'}
+                      </dd>
+                    </div>
+                    <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                      <dt className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                        Дата регистрации
+                      </dt>
+                      <dd className="mt-1 text-sm text-gray-900">
+                        {new Date(user.date_joined).toLocaleDateString('ru-RU')}
+                      </dd>
+                    </div>
+                  </dl>
+                </section>
+
+                <section className="space-y-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <h2 className="text-lg font-semibold text-gray-900">
+                        Мои группы мероприятий
+                      </h2>
+                      <p className="text-sm text-gray-500">
+                        Всего: {eventums.length}
+                      </p>
                     </div>
                   </div>
 
-                  {/* Eventums List */}
-                  <div className="space-y-4">
-                    <h3 className="text-lg font-medium text-gray-900">
-                      Мои группы мероприятий ({eventums.length})
-                    </h3>
-                    
-                    {loading ? (
-                      <div className="text-center py-8">
-                        <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                        <p className="mt-2 text-gray-600">Загрузка групп мероприятий...</p>
-                      </div>
-                    ) : eventums.length === 0 ? (
-                      <div className="text-center py-8 bg-gray-50 rounded-lg">
-                        <p className="text-gray-600">У вас пока нет групп мероприятий</p>
-                        <p className="text-sm text-gray-500 mt-1">Обратитесь к администратору для добавления в группу</p>
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        {eventums.map((eventum) => (
-                          <div key={eventum.id} className="border rounded-lg p-4 bg-white hover:bg-gray-50 transition-colors">
-                            <div className="flex justify-between items-start">
-                              <div className="flex-1">
-                                <div className="flex items-center space-x-3 mb-2">
-                                  <h4 className="text-lg font-medium text-gray-900">
-                                    {eventum.name}
-                                  </h4>
-                                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                    eventum.user_role === 'organizer' 
-                                      ? 'bg-purple-100 text-purple-800' 
+                  {loading ? (
+                    <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-10 text-center">
+                      <div className="inline-block h-10 w-10 animate-spin rounded-full border-2 border-blue-600 border-t-transparent"></div>
+                      <p className="text-sm font-medium text-gray-700">Загрузка групп мероприятий…</p>
+                      <p className="text-xs text-gray-500">Это может занять несколько секунд</p>
+                    </div>
+                  ) : eventums.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-10 text-center">
+                      <p className="text-base font-medium text-gray-700">
+                        У вас пока нет групп мероприятий
+                      </p>
+                      <p className="mt-2 text-sm text-gray-500">
+                        Обратитесь к администратору, чтобы получить доступ к нужной группе
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {eventums.map((eventum) => (
+                        <article
+                          key={eventum.id}
+                          className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md sm:p-6"
+                        >
+                          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                            <div className="space-y-3">
+                              <div className="flex flex-wrap items-center gap-3">
+                                <h3 className="text-xl font-semibold text-gray-900">
+                                  {eventum.name}
+                                </h3>
+                                <span
+                                  className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${
+                                    eventum.user_role === 'organizer'
+                                      ? 'bg-purple-100 text-purple-800'
                                       : 'bg-green-100 text-green-800'
-                                  }`}>
-                                    {eventum.user_role === 'organizer' ? 'Организатор' : 'Участник'}
-                                  </span>
-                                </div>
-                                {eventum.description && (
-                                  <p className="text-sm text-gray-700 mb-2">
-                                    {eventum.description}
-                                  </p>
-                                )}
-                                <div className="text-sm text-gray-500">
-                                  <p>Создано: {new Date(eventum.created_at).toLocaleDateString('ru-RU')}</p>
-                                </div>
-                              </div>
-                              <div className="flex space-x-2 ml-4">
-                                <button
-                                  onClick={() => navigate(`/${eventum.slug}`)}
-                                  className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm transition-colors"
+                                  }`}
                                 >
-                                  Перейти к группе
-                                </button>
-                                {eventum.user_role === 'organizer' && (
-                                  <button
-                                    onClick={() => navigate(`/${eventum.slug}/admin`)}
-                                    className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded text-sm transition-colors"
-                                  >
-                                    Админка
-                                  </button>
-                                )}
+                                  {eventum.user_role === 'organizer' ? 'Организатор' : 'Участник'}
+                                </span>
                               </div>
+                              {eventum.description && (
+                                <p className="text-sm leading-6 text-gray-600">
+                                  {eventum.description}
+                                </p>
+                              )}
+                              <p className="text-xs uppercase tracking-wide text-gray-500">
+                                Создано {new Date(eventum.created_at).toLocaleDateString('ru-RU')}
+                              </p>
+                            </div>
+
+                            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
+                              <button
+                                onClick={() => navigate(`/${eventum.slug}`)}
+                                className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                              >
+                                Перейти к группе
+                              </button>
+                              {eventum.user_role === 'organizer' && (
+                                <button
+                                  onClick={() => navigate(`/${eventum.slug}/admin`)}
+                                  className="inline-flex items-center justify-center rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2"
+                                >
+                                  Админка
+                                </button>
+                              )}
                             </div>
                           </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
+                        </article>
+                      ))}
+                    </div>
+                  )}
+                </section>
+              </div>
+            )}
           </div>
-        </div>
+        </section>
       </main>
     </div>
   );
