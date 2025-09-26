@@ -1,5 +1,10 @@
 import { apiClient } from './client';
-import type { User, AuthTokens } from '../contexts/AuthContext';
+import type { User } from '../contexts/AuthContext';
+
+export interface AuthTokens {
+  access: string;
+  refresh: string;
+}
 
 export interface VKAuthRequest {
   code: string;
