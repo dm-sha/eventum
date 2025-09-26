@@ -90,9 +90,19 @@ const VKAuth: React.FC = () => {
           const code = payload.code;
           const deviceId = payload.device_id;
 
+          console.log('VK ID payload:', payload);
+          console.log('Code:', code);
+          console.log('Device ID:', deviceId);
+
           VKID.Auth.exchangeCode(code, deviceId)
-            .then(vkidOnSuccess)
-            .catch(vkidOnError);
+            .then((result: any) => {
+              console.log('VKID.Auth.exchangeCode result:', result);
+              vkidOnSuccess(result);
+            })
+            .catch((error: any) => {
+              console.error('VKID.Auth.exchangeCode error:', error);
+              vkidOnError(error);
+            });
         });
       }
     }

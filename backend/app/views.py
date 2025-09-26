@@ -97,7 +97,7 @@ class VKAuthView(TokenObtainPairView):
         
         try:
             # VK ID SDK с exchangeCode возвращает уже готовый access_token
-            # Проверяем, является ли code уже access_token
+            # Проверяем, является ли code уже access_token (длинный токен, не начинающийся с vk2.a.)
             if len(code) > 50 and not code.startswith('vk2.a.'):
                 # Это уже access_token от VKID.Auth.exchangeCode()
                 access_token = code
@@ -145,6 +145,14 @@ class VKAuthView(TokenObtainPairView):
                     'photo_200': user_data.get('picture', ''),
                     'email': user_data.get('email', '')
                 }
+                
+            elif code.startswith('vk2.a.'):
+                # Это код от VK ID SDK, который нужно обменять на токены
+                print(f"VK ID code detected: {code[:20]}...")
+                return Response(
+                    {'error': 'VK ID code should be exchanged on frontend first'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
                 
             else:
                 # Стандартный OAuth код
