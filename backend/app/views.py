@@ -264,4 +264,131 @@ def user_roles(request):
     return Response(serializer.data)
 
 
+@api_view(['GET'])
+def user_events(request):
+    """Получение мероприятий пользователя (где он организатор или участник)"""
+    if not request.user.is_authenticated:
+        return Response({'error': 'Not authenticated'}, status=status.HTTP_401_UNAUTHORIZED)
+    
+    # Получаем все eventum'ы, где пользователь имеет роль
+    user_roles = UserRole.objects.filter(user=request.user)
+    eventum_ids = [role.eventum.id for role in user_roles]
+    
+    # Получаем все мероприятия из этих eventum'ов
+    events = Event.objects.filter(eventum_id__in=eventum_ids).order_by('-start_time')
+    
+    # Создаем расширенный сериализатор с информацией о роли пользователя
+    events_data = []
+    for event in events:
+        event_data = EventSerializer(event).data
+        
+        # Находим роль пользователя в этом eventum'е
+        user_role = user_roles.filter(eventum=event.eventum).first()
+        event_data['user_role'] = user_role.role if user_role else None
+        event_data['eventum_name'] = event.eventum.name
+        event_data['eventum_slug'] = event.eventum.slug
+        
+        events_data.append(event_data)
+    
+    return Response(events_data)
+
+
+@api_view(['POST'])
+def create_event_with_organizer(request):
+    """Создание нового мероприятия с автоматическим назначением пользователя организатором"""
+    if not request.user.is_authenticated:
+        return Response({'error': 'Not authenticated'}, status=status.HTTP_401_UNAUTHORIZED)
+    
+    # Получаем данные из запроса
+    eventum_name = request.data.get('eventum_name')
+    event_name = request.data.get('event_name')
+    event_description = request.data.get('event_description', '')
+    start_time = request.data.get('start_time')
+    end_time = request.data.get('end_time')
+    
+    if not all([eventum_name, event_name, start_time, end_time]):
+        return Response(
+            {'error': 'Missing required fields: eventum_name, event_name, start_time, end_time'}, 
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    try:
+        # Создаем или получаем eventum
+        from django.utils.text import slugify
+        eventum_slug = slugify(eventum_name)
+        eventum, created = Eventum.objects.get_or_create(
+            slug=eventum_slug,
+            defaults={'name': eventum_name}
+        )
+        
+        # Создаем мероприятие
+        event = Event.objects.create(
+            eventum=eventum,
+            name=event_name,
+            description=event_description,
+            start_time=start_time,
+            end_time=end_time
+        )
+        
+        # Назначаем пользователя организатором, если он еще не имеет роли
+        user_role, role_created = UserRole.objects.get_or_create(
+            user=request.user,
+            eventum=eventum,
+            defaults={'role': 'organizer'}
+        )
+        
+        # Если роль уже существовала, но была 'participant', обновляем на 'organizer'
+        if not role_created and user_role.role == 'participant':
+            user_role.role = 'organizer'
+            user_role.save()
+        
+        # Возвращаем данные мероприятия с информацией о роли
+        event_data = EventSerializer(event).data
+        event_data['user_role'] = 'organizer'
+        event_data['eventum_name'] = eventum.name
+        event_data['eventum_slug'] = eventum.slug
+        
+        return Response(event_data, status=status.HTTP_201_CREATED)
+        
+    except Exception as e:
+        return Response(
+            {'error': f'Error creating event: {str(e)}'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def dev_user_auth(request):
+    """Получение пользователя разработчика для локального режима"""
+    # Проверяем, что это локальный режим разработки
+    if not settings.DEBUG:
+        return Response({'error': 'This endpoint is only available in development mode'}, status=status.HTTP_403_FORBIDDEN)
+    
+    try:
+        # Ищем пользователя разработчика по vk_id
+        dev_user = UserProfile.objects.get(vk_id=999999999)
+        
+        # Создаем JWT токены для пользователя разработчика
+        from rest_framework_simplejwt.tokens import RefreshToken
+        refresh = RefreshToken.for_user(dev_user)
+        
+        return Response({
+            'access': str(refresh.access_token),
+            'refresh': str(refresh),
+            'user': UserProfileSerializer(dev_user).data
+        })
+        
+    except UserProfile.DoesNotExist:
+        return Response(
+            {'error': 'Development user not found. Please create a user with vk_id=999999999'}, 
+            status=status.HTTP_404_NOT_FOUND
+        )
+    except Exception as e:
+        return Response(
+            {'error': f'Error authenticating dev user: {str(e)}'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
 

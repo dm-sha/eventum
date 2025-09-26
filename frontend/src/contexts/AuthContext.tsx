@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import { getDevUser } from '../api/event';
 
 export interface User {
   id: number;
@@ -47,26 +48,38 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Если включен режим пропуска авторизации, создаем фиктивного пользователя
+    // Если включен режим пропуска авторизации, получаем пользователя разработчика из базы
     if (shouldSkipAuth) {
-      const mockUser: User = {
-        id: 1,
-        vk_id: 123456789,
-        name: 'Разработчик (локальный режим)',
-        avatar_url: '',
-        email: 'dev@local.com',
-        date_joined: new Date().toISOString(),
-        last_login: new Date().toISOString(),
+      const setupDevAuth = async () => {
+        try {
+          // Получаем реального пользователя разработчика из базы данных
+          const devAuth = await getDevUser();
+          
+          const tokens = {
+            access: devAuth.access,
+            refresh: devAuth.refresh
+          };
+          
+          setUser(devAuth.user);
+          setTokens(tokens);
+          
+          // Сохраняем токены в localStorage для API клиента
+          localStorage.setItem('auth_tokens', JSON.stringify(tokens));
+          localStorage.setItem('auth_user', JSON.stringify(devAuth.user));
+          
+          console.log('Авторизация пользователя разработчика успешна:', devAuth.user.name);
+          
+          // Небольшая задержка, чтобы дать время API клиенту обновиться
+          await new Promise(resolve => setTimeout(resolve, 100));
+        } catch (error) {
+          console.error('Ошибка авторизации пользователя разработчика:', error);
+          alert('Ошибка авторизации пользователя разработчика. Убедитесь, что пользователь с vk_id=999999999 создан в базе данных.');
+        } finally {
+          setIsLoading(false);
+        }
       };
       
-      const mockTokens: AuthTokens = {
-        access: 'mock_access_token',
-        refresh: 'mock_refresh_token',
-      };
-      
-      setUser(mockUser);
-      setTokens(mockTokens);
-      setIsLoading(false);
+      setupDevAuth();
       return;
     }
 

@@ -43,3 +43,17 @@ export interface Event {
   groups: number[];
   tags: number[];
 }
+
+export interface UserEvent extends Event {
+  user_role: 'organizer' | 'participant' | null;
+  eventum_name: string;
+  eventum_slug: string;
+}
+
+export interface CreateEventData {
+  eventum_name: string;
+  event_name: string;
+  event_description?: string;
+  start_time: string;
+  end_time: string;
+}
