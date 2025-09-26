@@ -19,3 +19,22 @@ export const createGroup = async (
   return response.data;
 };
 
+export const updateGroup = async (
+  eventumSlug: string,
+  groupId: number,
+  data: { name?: string; participants?: number[]; tag_ids?: number[] }
+): Promise<ParticipantGroup> => {
+  const response = await apiClient.patch(
+    `/eventums/${eventumSlug}/groups/${groupId}/`,
+    data
+  );
+  return response.data;
+};
+
+export const deleteGroup = async (
+  eventumSlug: string,
+  groupId: number
+): Promise<void> => {
+  await apiClient.delete(`/eventums/${eventumSlug}/groups/${groupId}/`);
+};
+
