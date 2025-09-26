@@ -96,71 +96,57 @@ class VKAuthView(TokenObtainPairView):
         print(f"VK settings - APP_ID: {settings.VK_APP_ID}, REDIRECT_URI: {settings.VK_REDIRECT_URI}")
         
         try:
-            # Всегда считаем, что у нас код vk2.a. от VK ID SDK
+            # Проверяем, что пришло от фронтенда
             if code.startswith('vk2.a.'):
-                print(f"VK ID code detected: {code[:20]}...")
+                # Это access_token от VK ID SDK (уже обмененный на фронтенде)
+                print(f"VK ID access_token detected: {code[:20]}...")
+                access_token = code
                 
-                # Обмениваем код на токены через стандартный OAuth endpoint
-                vk_params = {
-                    'client_id': settings.VK_APP_ID,
-                    'client_secret': settings.VK_APP_SECRET,
-                    'code': code,
-                    'redirect_uri': settings.VK_REDIRECT_URI,
-                }
-                print(f"VK ID token exchange params: {vk_params}")
-                
-                vk_token_response = requests.get(
-                    'https://oauth.vk.com/access_token',
-                    params=vk_params
-                )
-                
-                print(f"VK ID token response status: {vk_token_response.status_code}")
-                print(f"VK ID token response content: {vk_token_response.text}")
-                
-                if vk_token_response.status_code != 200:
-                    return Response(
-                        {'error': f'VK ID token exchange failed: {vk_token_response.status_code} - {vk_token_response.text}'}, 
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
-                
-                vk_data = vk_token_response.json()
-                print(f"VK ID token response data: {vk_data}")
-                
-                if 'error' in vk_data:
-                    return Response(
-                        {'error': f"VK ID error: {vk_data.get('error_description', vk_data.get('error', 'Unknown VK ID error'))}"}, 
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
-                
-                access_token = vk_data['access_token']
-                vk_user_id = vk_data['user_id']
-                
-                # Получаем информацию о пользователе от VK
+                # Получаем информацию о пользователе через VK ID API
                 user_info_response = requests.get(
-                    'https://api.vk.com/method/users.get',
+                    'https://id.vk.ru/oauth2/user_info',
                     params={
-                        'user_ids': vk_user_id,
-                        'fields': 'photo_200,email',
-                        'access_token': access_token,
-                        'v': '5.131'
+                        'client_id': settings.VK_APP_ID,
+                        'access_token': access_token
                     }
                 )
                 
+                print(f"VK ID user_info response status: {user_info_response.status_code}")
+                print(f"VK ID user_info response content: {user_info_response.text}")
+                
                 if user_info_response.status_code != 200:
                     return Response(
-                        {'error': 'Failed to get user info from VK'}, 
+                        {'error': f'Failed to get user info from VK ID: {user_info_response.status_code}'}, 
                         status=status.HTTP_400_BAD_REQUEST
                     )
                 
                 user_data = user_info_response.json()
+                print(f"VK ID user_info data: {user_data}")
                 
                 if 'error' in user_data:
                     return Response(
-                        {'error': user_data['error']['error_msg']}, 
+                        {'error': f"VK ID error: {user_data.get('error_description', user_data.get('error', 'Unknown VK ID error'))}"}, 
                         status=status.HTTP_400_BAD_REQUEST
                     )
                 
-                vk_user = user_data['response'][0]
+                # VK ID API возвращает данные в формате {user: {...}}
+                vk_user_data = user_data.get('user', {})
+                vk_user_id = vk_user_data.get('user_id')
+                
+                if not vk_user_id:
+                    return Response(
+                        {'error': 'User ID not found in VK ID response'}, 
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                
+                # Формируем данные пользователя в нужном формате
+                vk_user = {
+                    'id': vk_user_id,
+                    'first_name': vk_user_data.get('first_name', ''),
+                    'last_name': vk_user_data.get('last_name', ''),
+                    'photo_200': vk_user_data.get('avatar', ''),
+                    'email': vk_user_data.get('email', '')
+                }
                 
             else:
                 # Стандартный OAuth код
