@@ -26,10 +26,11 @@ class CORSFixMiddleware(MiddlewareMixin):
                 response['Access-Control-Allow-Origin'] = origin
                 response['Access-Control-Allow-Credentials'] = 'true'
                 response['Access-Control-Allow-Methods'] = 'GET, POST, PUT, PATCH, DELETE, OPTIONS'
-                response['Access-Control-Allow-Headers'] = 'accept, accept-encoding, authorization, Authorization, content-type, dnt, origin, user-agent, x-csrftoken, x-requested-with'
-                response['Access-Control-Expose-Headers'] = 'Authorization, authorization'
+                response['Access-Control-Allow-Headers'] = '*'  # Разрешаем ВСЕ заголовки
+                response['Access-Control-Expose-Headers'] = '*'
                 
                 logger.info(f"CORS headers added for origin: {origin}")
+                logger.info(f"CORS Allow-Headers: * (ALL HEADERS ALLOWED)")
         
         return response
 
@@ -66,6 +67,9 @@ class AuthDebugMiddleware(MiddlewareMixin):
                 else:
                     logger.warning("Authorization header NOT requested in preflight!")
                     logger.warning("This means the browser is not sending Authorization header!")
+            
+            # Логируем ВСЕ заголовки для отладки
+            logger.info(f"All headers: {dict(request.META)}")
             
             # Дополнительная отладка для JWT
             if auth_header and auth_header.startswith('Bearer '):

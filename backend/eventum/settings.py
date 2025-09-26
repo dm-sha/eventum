@@ -53,7 +53,7 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
+    # 'django.middleware.csrf.CsrfViewMiddleware',  # Временно отключаем CSRF для отладки
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'app.middleware.CORSFixMiddleware',  # Middleware для исправления CORS
     'app.middleware.AuthDebugMiddleware',  # Middleware для отладки аутентификации
