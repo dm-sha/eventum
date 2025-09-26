@@ -26,9 +26,8 @@ const VKAuth: React.FC = () => {
         console.log('Refresh token:', data.refresh_token);
         console.log('ID token:', data.id_token);
         
-        // Согласно инструкции, VKID.Auth.exchangeCode() возвращает access_token, refresh_token, id_token
-        // Отправляем access_token на бэкенд
-        const response = await authApi.vkAuth({ code: data.access_token });
+        // Отправляем код на бэкенд для обмена на токены
+        const response = await authApi.vkAuth({ code: data.code });
         console.log('Backend response:', response);
         login(response, response.user);
         
