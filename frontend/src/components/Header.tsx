@@ -1,15 +1,25 @@
 import { Link } from "react-router-dom";
 import { useState, useRef, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
-import { IconBars3, IconUser, IconLogout } from "./icons";
+import { IconBars3, IconUser, IconLogout, IconX } from "./icons";
 
 interface HeaderProps {
   variant?: 'default' | 'admin';
   className?: string;
   showUserInfo?: boolean;
+  onMenuToggle?: () => void;
+  isMenuOpen?: boolean;
+  showMenuToggle?: boolean;
 }
 
-const Header = ({ variant = 'default', className = '', showUserInfo = true }: HeaderProps) => {
+const Header = ({
+  variant = 'default',
+  className = '',
+  showUserInfo = true,
+  onMenuToggle,
+  isMenuOpen = false,
+  showMenuToggle = false,
+}: HeaderProps) => {
   const { user, logout } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -90,16 +100,29 @@ const Header = ({ variant = 'default', className = '', showUserInfo = true }: He
   };
 
   if (isAdmin) {
+    const shouldRenderToggle = showMenuToggle && typeof onMenuToggle === 'function';
     return (
       <header className={`h-14 bg-white border-b border-gray-200 sticky top-0 z-40 ${className}`}>
-        <div className="h-full px-6 flex items-center justify-between">
-          <Link
-            to="/"
-            className="text-xl font-medium text-gray-900 hover:text-gray-700"
-          >
-            Eventum
-          </Link>
-          
+        <div className="h-full px-4 sm:px-6 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            {shouldRenderToggle && (
+              <button
+                type="button"
+                onClick={onMenuToggle}
+                className="inline-flex items-center justify-center rounded-md border border-gray-200 bg-white p-2 text-gray-600 transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 lg:hidden"
+                aria-label={isMenuOpen ? 'Скрыть меню' : 'Открыть меню'}
+              >
+                {isMenuOpen ? <IconX size={18} /> : <IconBars3 size={18} />}
+              </button>
+            )}
+            <Link
+              to="/"
+              className="text-lg font-semibold text-gray-900 hover:text-gray-700 sm:text-xl"
+            >
+              Eventum
+            </Link>
+          </div>
+
           <UserMenu />
         </div>
       </header>

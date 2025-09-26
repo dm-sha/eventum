@@ -33,17 +33,20 @@ const ParticipantList = ({ eventumSlug }: ParticipantListProps) => {
   if (error) return <p className="text-center text-red-400">{error}</p>;
 
   return (
-    <div className="mt-6">
+    <div className="mt-2 space-y-4">
       {participants.length > 0 ? (
-        <ul className="divide-y divide-gray-200">
+        <ul className="divide-y divide-gray-100 overflow-hidden rounded-2xl border border-gray-200 bg-gray-50">
           {participants.map((participant) => (
-            <li key={participant.id} className="py-3">
-              <p className="text-md text-gray-800">{participant.name}</p>
+            <li key={participant.id} className="flex flex-col gap-1 px-4 py-3 sm:px-6">
+              <span className="text-sm font-medium text-gray-900">{participant.name}</span>
+              <span className="text-xs text-gray-500">ID: {participant.id}</span>
             </li>
           ))}
         </ul>
       ) : (
-        <p className="text-gray-500">Участники еще не добавлены.</p>
+        <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-8 text-center text-sm text-gray-500">
+          Участники еще не добавлены
+        </div>
       )}
     </div>
   );
