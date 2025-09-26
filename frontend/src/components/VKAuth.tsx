@@ -94,15 +94,8 @@ const VKAuth: React.FC = () => {
           console.log('Code:', code);
           console.log('Device ID:', deviceId);
 
-          VKID.Auth.exchangeCode(code, deviceId)
-            .then((result: any) => {
-              console.log('VKID.Auth.exchangeCode result:', result);
-              vkidOnSuccess(result);
-            })
-            .catch((error: any) => {
-              console.error('VKID.Auth.exchangeCode error:', error);
-              vkidOnError(error);
-            });
+          // Отправляем код напрямую на бэкенд для обмена на токены
+          vkidOnSuccess({ code });
         });
       }
     }
