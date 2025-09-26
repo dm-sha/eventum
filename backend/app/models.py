@@ -22,7 +22,7 @@ class Participant(models.Model):
 class GroupTag(models.Model):
     eventum = models.ForeignKey(Eventum, on_delete=models.CASCADE, related_name='group_tags')
     name = models.CharField(max_length=100)
-    slug = models.SlugField(max_length=100)
+    slug = models.SlugField(max_length=100, blank=True)
     
     class Meta:
         unique_together = ('eventum', 'slug')
@@ -79,7 +79,7 @@ class ParticipantGroup(models.Model):
 class EventTag(models.Model):
     eventum = models.ForeignKey(Eventum, on_delete=models.CASCADE, related_name='event_tags')
     name = models.CharField(max_length=100)
-    slug = models.SlugField(max_length=100)
+    slug = models.SlugField(max_length=100, blank=True)
 
     class Meta:
         unique_together = ('eventum', 'slug')
