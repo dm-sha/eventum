@@ -52,7 +52,7 @@ const DashboardPage: React.FC = () => {
     } else {
       console.log('Условие не выполнено. Пользователь:', !!user, 'eventsLoaded:', eventsLoaded);
     }
-  }, [user, eventsLoaded, logout, navigate]);
+  }, [user, eventsLoaded]);
 
   // Обработка создания нового мероприятия
   const handleCreateEvent = async (e: React.FormEvent) => {
