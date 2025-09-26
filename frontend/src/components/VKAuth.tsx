@@ -16,53 +16,19 @@ const VKAuth: React.FC = () => {
   const [error, setError] = React.useState<string | null>(null);
 
   useEffect(() => {
-    const initVKAuth = () => {
-      if (!window.VKIDSDK || !containerRef.current) {
-        return;
-      }
-
-      const VKID = window.VKIDSDK;
-
-      try {
-        VKID.Config.init({
-          app: 54178494, // Замените на ваш VK App ID
-          redirectUrl: 'https://eventum-web-ui.vercel.app',
-          responseMode: VKID.ConfigResponseMode.Callback,
-          source: VKID.ConfigSource.LOWCODE,
-          scope: '',
-        });
-
-        // Очищаем контейнер
-        if (containerRef.current) {
-          containerRef.current.innerHTML = '';
-        }
-
-        const oneTap = new VKID.OneTap();
-
-        oneTap.render({
-          container: containerRef.current,
-          showAlternativeLogin: true
-        })
-        .on(VKID.WidgetEvents.ERROR, vkidOnError)
-        .on(VKID.OneTapInternalEvents.LOGIN_SUCCESS, function (payload: any) {
-          // Отправляем исходный code на бэкенд (без локального обмена)
-          vkidOnSuccess(payload);
-        });
-      } catch (err) {
-        console.error('VK Auth initialization error:', err);
-        setError('Ошибка инициализации VK авторизации');
-      }
-    };
-
     const vkidOnSuccess = async (data: any) => {
       try {
         setIsLoading(true);
         setError(null);
         
         console.log('VK Auth success data:', data);
-        console.log('Sending code to backend:', data.code);
+        console.log('Access token:', data.access_token);
+        console.log('Refresh token:', data.refresh_token);
+        console.log('ID token:', data.id_token);
         
-        const response = await authApi.vkAuth({ code: data.code });
+        // Согласно инструкции, VKID.Auth.exchangeCode() возвращает access_token, refresh_token, id_token
+        // Отправляем access_token на бэкенд
+        const response = await authApi.vkAuth({ code: data.access_token });
         console.log('Backend response:', response);
         login(response, response.user);
         
@@ -89,12 +55,47 @@ const VKAuth: React.FC = () => {
 
     // Загружаем VK SDK
     const script = document.createElement('script');
-    script.src = 'https://unpkg.com/@vkid/sdk@3.0.0/dist-sdk/umd/index.js';
+    script.src = 'https://unpkg.com/@vkid/sdk@<3.0.0/dist-sdk/umd/index.js';
     script.onload = initVKAuth;
     script.onerror = () => {
       setError('Не удалось загрузить VK SDK');
     };
     document.head.appendChild(script);
+
+    function initVKAuth() {
+      if ('VKIDSDK' in window) {
+        const VKID = window.VKIDSDK;
+
+        VKID.Config.init({
+          app: 54178494,
+          redirectUrl: 'https://eventum-web-ui.vercel.app',
+          responseMode: VKID.ConfigResponseMode.Callback,
+          source: VKID.ConfigSource.LOWCODE,
+          scope: '',
+        });
+
+        // Очищаем контейнер
+        if (containerRef.current) {
+          containerRef.current.innerHTML = '';
+        }
+
+        const oneTap = new VKID.OneTap();
+
+        oneTap.render({
+          container: containerRef.current,
+          showAlternativeLogin: true
+        })
+        .on(VKID.WidgetEvents.ERROR, vkidOnError)
+        .on(VKID.OneTapInternalEvents.LOGIN_SUCCESS, function (payload: any) {
+          const code = payload.code;
+          const deviceId = payload.device_id;
+
+          VKID.Auth.exchangeCode(code, deviceId)
+            .then(vkidOnSuccess)
+            .catch(vkidOnError);
+        });
+      }
+    }
 
     return () => {
       if (containerRef.current) {
