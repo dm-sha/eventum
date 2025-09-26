@@ -14,7 +14,7 @@ interface UserEventum {
 }
 
 const DashboardPage: React.FC = () => {
-  const { user, logout } = useAuth();
+  const { user, tokens, isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
   const [eventums, setEventums] = useState<UserEventum[]>([]);
   const [loading, setLoading] = useState(true);
