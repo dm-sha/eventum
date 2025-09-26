@@ -4,7 +4,7 @@ import { getUserEvents, createEventWithOrganizer } from '../api/event';
 import type { UserEvent, CreateEventData } from '../types';
 
 const DashboardPage: React.FC = () => {
-  const { user, logout, isLoading: authLoading } = useAuth();
+  const { user, logout } = useAuth();
   const [events, setEvents] = useState<UserEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
