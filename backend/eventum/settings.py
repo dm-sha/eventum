@@ -139,7 +139,8 @@ DATABASES = {
         'PASSWORD': os.getenv('DB_PASSWORD'),
         'HOST': os.getenv('DB_HOST'),
         'PORT': '6432',
-        'CONN_MAX_AGE': 300,
+        'CONN_MAX_AGE': 600,  # Увеличиваем время жизни соединения для сессионного режима
+        'DISABLE_SERVER_SIDE_CURSORS': False,  # Включаем серверные курсоры для сессионного режима
         'OPTIONS': {
             'sslmode': 'require',
             'connect_timeout': 30,
@@ -147,6 +148,12 @@ DATABASES = {
         },
         'CONN_HEALTH_CHECKS': True,
     }
+}
+
+# Настройки для работы с Odyssey в сессионном режиме
+DATABASE_CONNECTION_POOLING = {
+    'MAX_CONNS': 30,  # Увеличиваем для сессионного режима
+    'MIN_CONNS': 10,  # Увеличиваем для сессионного режима
 }
 
 
@@ -273,6 +280,14 @@ SESSION_COOKIE_SAMESITE = 'Lax'
 SESSION_SAVE_EVERY_REQUEST = False
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 SESSION_SERIALIZER = 'django.contrib.sessions.serializers.JSONSerializer'
+
+# Настройки для стабильной работы с большими наборами данных
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 10000  # Увеличиваем лимит полей для админки
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10MB для больших форм
+
+# Настройки для оптимизации запросов
+USE_TZ = True
+TIME_ZONE = 'UTC'
 
 # Настройки логирования
 LOGGING = {
