@@ -34,9 +34,10 @@ class EventumViewSet(viewsets.ModelViewSet):
 
 class EventumScopedViewSet:
     def get_eventum(self):
-        eventum_slug = self.kwargs.get('eventum_slug')
-        eventum = get_object_or_404(Eventum, slug=eventum_slug)
-        return eventum
+        if not hasattr(self, '_cached_eventum'):
+            eventum_slug = self.kwargs.get('eventum_slug')
+            self._cached_eventum = get_object_or_404(Eventum, slug=eventum_slug)
+        return self._cached_eventum
     
     def get_queryset(self):
         eventum = self.get_eventum()
@@ -361,7 +362,7 @@ class EventTagViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
     permission_classes = [IsEventumOrganizerOrReadOnly]  # Организаторы CRUD, участники только чтение
 
 class EventViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
-    queryset = Event.objects.all().select_related('eventum').prefetch_related(
+    queryset = Event.objects.all().select_related('eventum', 'location').prefetch_related(
         'participants',
         'participants__user',  # Добавляем prefetch для пользователей участников
         'groups',
@@ -375,17 +376,19 @@ class EventViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def upcoming(self, request, eventum_slug=None):
-        eventum = self.get_eventum()
         now = timezone.now()
-        events = Event.objects.filter(eventum=eventum, start_time__gte=now).order_by('start_time')
+        events = self.filter_queryset(
+            self.get_queryset().filter(start_time__gte=now)
+        ).order_by('start_time')
         serializer = self.get_serializer(events, many=True)
         return Response(serializer.data)
 
     @action(detail=False, methods=['get'])
     def past(self, request, eventum_slug=None):
-        eventum = self.get_eventum()
         now = timezone.now()
-        events = Event.objects.filter(eventum=eventum, end_time__lt=now).order_by('-start_time')
+        events = self.filter_queryset(
+            self.get_queryset().filter(end_time__lt=now)
+        ).order_by('-start_time')
         serializer = self.get_serializer(events, many=True)
         return Response(serializer.data)
 
@@ -394,32 +397,55 @@ class LocationViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
     queryset = Location.objects.all().select_related('eventum', 'parent').prefetch_related('children')
     serializer_class = LocationSerializer
     permission_classes = [IsEventumOrganizerOrReadOnly]  # Организаторы CRUD, участники только чтение
-    
+
     def get_queryset(self):
         """Оптимизированный queryset для списка локаций"""
         eventum = self.get_eventum()
         return Location.objects.filter(eventum=eventum).select_related(
             'eventum', 'parent'
         ).prefetch_related('children')
-    
+
+    def list(self, request, *args, **kwargs):
+        eventum = self.get_eventum()
+        queryset = self.filter_queryset(self.get_queryset())
+        children_map = self._build_children_map(eventum)
+
+        page = self.paginate_queryset(queryset)
+        context = {**self.get_serializer_context(), 'children_map': children_map}
+        if page is not None:
+            serializer = self.get_serializer(page, many=True, context=context)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(queryset, many=True, context=context)
+        return Response(serializer.data)
+
+    def retrieve(self, request, *args, **kwargs):
+        eventum = self.get_eventum()
+        instance = self.get_object()
+        children_map = self._build_children_map(eventum)
+        context = {**self.get_serializer_context(), 'children_map': children_map}
+        serializer = self.get_serializer(instance, context=context)
+        return Response(serializer.data)
+
     @action(detail=False, methods=['get'])
     def tree(self, request, eventum_slug=None):
         """Получить дерево локаций (только корневые элементы с детьми)"""
         eventum = self.get_eventum()
-        root_locations = Location.objects.filter(
-            eventum=eventum, 
-            parent__isnull=True
-        ).select_related('eventum').prefetch_related('children')
-        
-        serializer = self.get_serializer(root_locations, many=True)
+        children_map = self._build_children_map(eventum)
+        root_locations = children_map.get(None, [])
+        context = {**self.get_serializer_context(), 'children_map': children_map}
+        serializer = self.get_serializer(root_locations, many=True, context=context)
         return Response(serializer.data)
-    
+
     @action(detail=True, methods=['get'])
     def children(self, request, eventum_slug=None, pk=None):
         """Получить дочерние локации"""
+        eventum = self.get_eventum()
         location = self.get_object()
-        children = location.children.all()
-        serializer = self.get_serializer(children, many=True)
+        children_map = self._build_children_map(eventum)
+        children = children_map.get(location.id, [])
+        context = {**self.get_serializer_context(), 'children_map': children_map}
+        serializer = self.get_serializer(children, many=True, context=context)
         return Response(serializer.data)
     
     @action(detail=False, methods=['get'])
@@ -481,12 +507,29 @@ class LocationViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
         """Рекурсивно получает всех потомков локации"""
         descendants = []
         children = location.children.all()
-        
+
         for child in children:
             descendants.append(child.id)
             descendants.extend(self._get_descendants(child))
-        
+
         return descendants
+
+    def _build_children_map(self, eventum):
+        """Строит карту дочерних элементов для всех локаций eventum."""
+        locations = list(
+            Location.objects.filter(eventum=eventum)
+            .select_related('parent')
+            .order_by('id')
+        )
+
+        children_map = {}
+        for location in locations:
+            children_map.setdefault(location.parent_id, []).append(location)
+
+        for location_list in children_map.values():
+            location_list.sort(key=lambda item: item.name.lower())
+
+        return children_map
 
 
 # Аутентификация через VK
@@ -747,7 +790,7 @@ def user_roles(request):
     if not request.user.is_authenticated:
         return Response({'error': 'Not authenticated'}, status=status.HTTP_401_UNAUTHORIZED)
     
-    roles = UserRole.objects.filter(user=request.user)
+    roles = UserRole.objects.filter(user=request.user).select_related('eventum', 'user')
     serializer = UserRoleSerializer(roles, many=True)
     return Response(serializer.data)
 
