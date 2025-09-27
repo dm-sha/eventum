@@ -321,7 +321,21 @@ const AdminGroupsPage = () => {
                     className="flex-1 rounded-lg border border-gray-300 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                   />
                 ) : (
-                  <h3 className="text-lg font-semibold text-gray-900">{group.name}</h3>
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold text-gray-900">{group.name}</h3>
+                    {group.tags && group.tags.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {group.tags.map((tag) => (
+                          <span
+                            key={tag.id}
+                            className="inline-flex items-center rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-800"
+                          >
+                            {tag.name}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 )}
                   {isEditing ? (
                     <button
