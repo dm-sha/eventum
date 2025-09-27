@@ -385,3 +385,126 @@ class PerformanceQueryTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 6)  # 5 new + 1 from setUp
+
+    def test_group_creation_bulk_related_fields(self):
+        participants = [
+            Participant.objects.create(eventum=self.eventum, name=f"Member {idx}")
+            for idx in range(5)
+        ]
+        tags = [
+            GroupTag.objects.create(eventum=self.eventum, name=f"Tag {idx}")
+            for idx in range(3)
+        ]
+
+        url = reverse('participantgroup-list', kwargs={'eventum_slug': self.eventum.slug})
+        payload = {
+            'name': 'Bulk Group',
+            'participants': [p.id for p in participants],
+            'tag_ids': [tag.id for tag in tags],
+        }
+
+        with self.assertNumQueries(8):
+            response = self.client.post(url, payload, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_group_update_bulk_related_fields(self):
+        participants = [
+            Participant.objects.create(eventum=self.eventum, name=f"Member {idx}")
+            for idx in range(6)
+        ]
+        tags = [
+            GroupTag.objects.create(eventum=self.eventum, name=f"Tag {idx}")
+            for idx in range(4)
+        ]
+
+        group = ParticipantGroup.objects.create(eventum=self.eventum, name="Original Group")
+        group.participants.set(participants[:3])
+        group.tags.set(tags[:2])
+
+        url = reverse('participantgroup-detail', kwargs={'eventum_slug': self.eventum.slug, 'pk': group.id})
+        payload = {
+            'name': 'Updated Group',
+            'participants': [p.id for p in participants[2:]],
+            'tag_ids': [tag.id for tag in tags[1:]],
+        }
+
+        with self.assertNumQueries(15):
+            response = self.client.put(url, payload, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_event_creation_bulk_related_fields(self):
+        participants = [
+            Participant.objects.create(eventum=self.eventum, name=f"Participant {idx}")
+            for idx in range(5)
+        ]
+        groups = [
+            ParticipantGroup.objects.create(eventum=self.eventum, name=f"Group {idx}")
+            for idx in range(2)
+        ]
+        for group in groups:
+            group.participants.set(participants)
+
+        tags = [
+            EventTag.objects.create(eventum=self.eventum, name=f"Tag {idx}")
+            for idx in range(3)
+        ]
+
+        url = reverse('event-list', kwargs={'eventum_slug': self.eventum.slug})
+        now = timezone.now()
+        payload = {
+            'name': 'Bulk Event',
+            'start_time': (now + timedelta(hours=1)).isoformat(),
+            'end_time': (now + timedelta(hours=2)).isoformat(),
+            'participants': [p.id for p in participants],
+            'groups': [group.id for group in groups],
+            'tag_ids': [tag.id for tag in tags],
+        }
+
+        with self.assertNumQueries(11):
+            response = self.client.post(url, payload, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_event_update_bulk_related_fields(self):
+        participants = [
+            Participant.objects.create(eventum=self.eventum, name=f"Participant {idx}")
+            for idx in range(4)
+        ]
+        groups = [
+            ParticipantGroup.objects.create(eventum=self.eventum, name=f"Group {idx}")
+            for idx in range(2)
+        ]
+        for group in groups:
+            group.participants.set(participants)
+
+        tags = [
+            EventTag.objects.create(eventum=self.eventum, name=f"Tag {idx}")
+            for idx in range(2)
+        ]
+
+        event = Event.objects.create(
+            eventum=self.eventum,
+            name='Existing Event',
+            start_time=timezone.now() + timedelta(hours=1),
+            end_time=timezone.now() + timedelta(hours=2),
+        )
+        event.participants.set(participants[:2])
+        event.groups.set(groups[:1])
+        event.tags.set(tags[:1])
+
+        url = reverse('event-detail', kwargs={'eventum_slug': self.eventum.slug, 'pk': event.id})
+        payload = {
+            'name': 'Existing Event',
+            'start_time': (timezone.now() + timedelta(hours=3)).isoformat(),
+            'end_time': (timezone.now() + timedelta(hours=4)).isoformat(),
+            'participants': [p.id for p in participants],
+            'groups': [group.id for group in groups],
+            'tag_ids': [tag.id for tag in tags],
+        }
+
+        with self.assertNumQueries(22):
+            response = self.client.put(url, payload, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
