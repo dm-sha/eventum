@@ -103,7 +103,6 @@ export interface Location {
     slug: string;
     kind: string;
   } | null;
-  parent_id?: number | null;
   children?: Location[];
 }
 

@@ -67,7 +67,7 @@ export const LocationForm: React.FC<LocationFormProps> = ({
           address: location.address || '',
           floor: location.floor || '',
           notes: location.notes || '',
-          parent_id: location.parent_id || null
+          parent_id: location.parent?.id || null
         });
       } else {
         // Создание новой локации
@@ -117,8 +117,39 @@ export const LocationForm: React.FC<LocationFormProps> = ({
     }
   };
 
+  // Функция для определения допустимых типов родительских локаций (как в бэкенде)
+  const getValidParentKinds = (childKind: string): string[] => {
+    const validParentKinds = {
+      'venue': [],  // venue не может иметь родителя
+      'building': ['venue'],
+      'room': ['building'],
+      'area': ['venue', 'building'],
+      'other': ['venue', 'building', 'room', 'area']  // other может быть дочерним для всех типов
+    };
+    return validParentKinds[childKind as keyof typeof validParentKinds] || [];
+  };
+
   const handleKindChange = (kind: string) => {
-    setFormData(prev => ({ ...prev, kind: kind as any, parent_id: null }));
+    setFormData(prev => {
+      const newData = { ...prev, kind: kind as any };
+      
+      // Проверяем, остается ли текущий parent валидным для нового типа
+      if (prev.parent_id && location?.parent) {
+        const allowedParentKinds = getValidParentKinds(kind);
+        const currentParentKind = location.parent.kind;
+        
+        if (!allowedParentKinds.includes(currentParentKind)) {
+          // Если текущий parent не валиден для нового типа, сбрасываем его
+          newData.parent_id = null;
+        }
+        // Если parent остается валидным, сохраняем его
+      } else if (!prev.parent_id) {
+        // Если нет текущего parent, оставляем null
+        newData.parent_id = null;
+      }
+      
+      return newData;
+    });
     setValidParents([]);
   };
 
