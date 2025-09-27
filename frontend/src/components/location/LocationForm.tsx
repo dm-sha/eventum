@@ -15,8 +15,8 @@ interface LocationFormProps {
 const KIND_OPTIONS = [
   { value: 'venue', label: 'Площадка/Территория' },
   { value: 'building', label: 'Здание/Корпус' },
-  { value: 'room', label: 'Аудитория/Кабинет/Зал' },
-  { value: 'area', label: 'Зона/Фойе/Outdoor' },
+  { value: 'room', label: 'Аудитория/Кабинет' },
+  { value: 'area', label: 'Зона/Outdoor' },
   { value: 'other', label: 'Другое' }
 ] as const;
 
