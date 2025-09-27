@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <style>
+      .frame { fill: none; stroke: #2A94B8; stroke-width: 18; stroke-linecap: round; stroke-linejoin: round; }
+      .tabs, .lines { fill: #1F3C74; }
+      .pin { fill: #9B7BFF; }
+      .hole { fill: #FFFFFF; }
+    </style>
+  </defs>
+
+  <!-- Рамка календаря -->
+  <rect x="16" y="28" width="224" height="212" rx="28" class="frame"/>
+
+  <!-- Крепления (ушки) -->
+  <rect x="56"  y="16" width="32" height="44" rx="16" class="tabs"/>
+  <rect x="168" y="16" width="32" height="44" rx="16" class="tabs"/>
+
+  <!-- Три строки расписания (сделаны толще и длиннее) -->
+  <rect x="52" y="148" width="152" height="16" rx="8" class="lines"/>
+  <rect x="52" y="176" width="152" height="16" rx="8" class="lines"/>
+  <rect x="52" y="204" width="152" height="16" rx="8" class="lines"/>
+
+  <!-- Геометка (увеличенная) -->
+  <path class="pin" d="M128 76c-28 0-50 22-50 50 0 32 50 78 50 78s50-46 50-78c0-28-22-50-50-50z"/>
+  <circle cx="128" cy="126" r="20" class="hole"/>
+</svg>

@@ -100,7 +100,7 @@ Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...
         },
         "eventum": {
             "id": 1,
-            "name": "Мой Eventum",
+            "name": "Мой Merup",
             "slug": "my-eventum"
         },
         "role": "organizer",
@@ -109,9 +109,9 @@ Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...
 ]
 ```
 
-## Управление Eventum'ами
+## Управление Merup'ами
 
-### 1. Список Eventum'ов (только чтение)
+### 1. Список Merup'ов (только чтение)
 
 **GET** `/api/eventums/`
 
@@ -120,7 +120,7 @@ Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...
 Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...
 ```
 
-### 2. Создание Eventum'а (только для организаторов)
+### 2. Создание Merup'а (только для организаторов)
 
 **POST** `/api/eventums/`
 
@@ -131,7 +131,7 @@ Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...
 
 ```json
 {
-    "name": "Новый Eventum"
+    "name": "Новый Merup"
 }
 ```
 

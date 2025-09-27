@@ -289,6 +289,11 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10MB для больших ф�
 USE_TZ = True
 TIME_ZONE = 'UTC'
 
+# Настройки админки Django
+ADMIN_SITE_HEADER = "Merup"
+ADMIN_SITE_TITLE = "Merup"
+ADMIN_INDEX_TITLE = "Администрирование Merup"
+
 # Настройки логирования
 LOGGING = {
     'version': 1,

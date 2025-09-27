@@ -115,7 +115,7 @@ const Header = ({
               to="/"
               className="text-lg font-semibold text-gray-900 hover:text-gray-700 sm:text-xl"
             >
-              Eventum
+              Merup
             </Link>
           </div>
 
@@ -134,7 +134,7 @@ const Header = ({
               to="/"
               className="text-xl font-semibold text-gray-900 hover:text-gray-700"
             >
-              Eventum
+              Merup
             </Link>
           </div>
           
