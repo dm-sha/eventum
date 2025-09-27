@@ -65,13 +65,6 @@ def generate_unique_slug(instance, value, *, slug_field: str = "slug", scope_fie
     return slug
 
 
-def csrf_exempt_api(view_func):
-    """
-    Декоратор для отключения CSRF защиты для API endpoints
-    """
-    return csrf_exempt(view_func)
-
-
 def csrf_exempt_class_api(view_class):
     """
     Декоратор класса для отключения CSRF защиты для API ViewSets
