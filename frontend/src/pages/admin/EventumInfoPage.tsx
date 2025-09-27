@@ -188,19 +188,15 @@ const EventumInfoPage = () => {
     <div className="space-y-6">
       {/* Заголовок с названием мероприятия */}
       <header className="space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex-1">
             {isEditingName ? (
-              <div className="flex items-center gap-3 min-w-0 flex-1">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
                 <input
                   type="text"
                   value={tempName}
                   onChange={(e) => setTempName(e.target.value)}
-                  className="text-3xl font-bold text-gray-900 bg-transparent border-b-2 border-blue-500 focus:outline-none focus:border-blue-600 min-w-0 flex-1"
-                  style={{ 
-                    minWidth: `${Math.max(tempName.length * 20, 300)}px`,
-                    width: 'auto'
-                  }}
+                  className="w-full rounded-lg border border-blue-300 bg-white px-3 py-2 text-2xl font-semibold text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
                   autoFocus
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
@@ -210,30 +206,32 @@ const EventumInfoPage = () => {
                     }
                   }}
                 />
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <button
                     onClick={handleSaveName}
-                    className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                    className="inline-flex items-center justify-center rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-1"
                   >
                     Сохранить
                   </button>
                   <button
                     onClick={handleCancelNameEdit}
-                    className="px-3 py-1.5 text-sm bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+                    className="inline-flex items-center justify-center rounded-lg bg-gray-500 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-1"
                   >
                     Отменить
                   </button>
                 </div>
               </div>
             ) : (
-              <div className="flex items-center gap-3">
-                <h1 className="text-3xl font-bold text-gray-900">{eventum.name}</h1>
+              <div className="flex flex-wrap items-center gap-3">
+                <h1 className="text-balance text-3xl font-bold text-gray-900 sm:text-4xl">
+                  {eventum.name}
+                </h1>
                 <button
                   onClick={() => setIsEditingName(true)}
-                  className="p-1 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+                  className="rounded-full p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
                   title="Редактировать название"
                 >
-                  <IconPencil size={20} />
+                  <IconPencil size={18} />
                 </button>
               </div>
             )}
@@ -243,24 +241,26 @@ const EventumInfoPage = () => {
 
       {/* Описание мероприятия */}
       <section className="space-y-3">
-        <div className="flex items-center justify-end">
-          <button
-            onClick={() => setIsEditingDescription(true)}
-            className="p-1 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
-            title="Редактировать описание"
-          >
-            <IconPencil size={16} />
-          </button>
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-gray-900">Описание</h2>
+          {!isEditingDescription && (
+            <button
+              onClick={() => setIsEditingDescription(true)}
+              className="inline-flex items-center gap-2 rounded-full border border-gray-200 px-3 py-1.5 text-sm text-gray-500 transition-colors hover:border-gray-300 hover:text-gray-700"
+            >
+              <IconPencil size={14} />
+              Редактировать
+            </button>
+          )}
         </div>
-        
-        <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+
+        <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
           {isEditingDescription ? (
-            <div className="space-y-3">
+            <div className="space-y-4">
               <textarea
                 value={tempDescription}
                 onChange={(e) => setTempDescription(e.target.value)}
-                className="w-full bg-transparent border-none focus:outline-none resize-none"
-                rows={4}
+                className="h-40 w-full resize-none rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm text-gray-800 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100 sm:text-base"
                 placeholder="Введите описание мероприятия..."
                 autoFocus
                 onKeyDown={(e) => {
@@ -271,30 +271,32 @@ const EventumInfoPage = () => {
                   }
                 }}
               />
-              <div className="flex items-center justify-end gap-2">
+              <div className="flex flex-wrap items-center justify-end gap-2">
                 <button
                   onClick={handleSaveDescription}
-                  className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                  className="inline-flex items-center justify-center rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-1"
                 >
                   Сохранить
                 </button>
                 <button
                   onClick={handleCancelDescriptionEdit}
-                  className="px-3 py-1.5 text-sm bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+                  className="inline-flex items-center justify-center rounded-lg bg-gray-500 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-1"
                 >
                   Отменить
                 </button>
               </div>
             </div>
           ) : (
-            <p className="text-gray-700 whitespace-pre-wrap">
+            <p className="whitespace-pre-wrap text-sm leading-relaxed text-gray-700 sm:text-base">
               {eventum.description || (
-                <span 
-                  className="text-gray-400 cursor-pointer hover:text-gray-500 transition-colors"
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-2 text-left text-gray-400 transition-colors hover:text-gray-500"
                   onClick={() => setIsEditingDescription(true)}
                 >
+                  <IconPencil size={14} />
                   Описание мероприятия не указано
-                </span>
+                </button>
               )}
             </p>
           )}
@@ -340,49 +342,55 @@ const EventumInfoPage = () => {
         </div>
         
         <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-md font-medium text-gray-900">Организаторы</h3>
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <h3 className="text-base font-semibold text-gray-900">Организаторы</h3>
             <button
               onClick={handleAddOrganizer}
-              className="flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
             >
               <IconPlus size={14} />
-              Добавить
+              Добавить организатора
             </button>
           </div>
-          
+
           {eventum.organizers && eventum.organizers.length > 0 ? (
-            <div className="space-y-2">
+            <div className="space-y-3">
               {eventum.organizers.map((organizerRole) => (
                 <div
                   key={organizerRole.id}
-                  className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                  className="rounded-xl border border-gray-200 bg-gray-50 p-3 sm:p-4"
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
-                      <span className="text-white text-sm font-medium">
-                        {organizerRole.user.name.charAt(0).toUpperCase()}
-                      </span>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-500 text-white">
+                        <span className="text-base font-semibold">
+                          {organizerRole.user.name.charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-gray-900 sm:text-base">
+                          {organizerRole.user.name}
+                        </p>
+                        <p className="truncate text-xs text-gray-500 sm:text-sm">
+                          {organizerRole.user.email}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-medium text-gray-900">{organizerRole.user.name}</p>
-                      <p className="text-sm text-gray-500">{organizerRole.user.email}</p>
-                    </div>
+                    {organizerRole.user.id !== user?.id && (
+                      <button
+                        onClick={() => handleRemoveOrganizer(organizerRole.id, organizerRole.user.id)}
+                        className="inline-flex items-center justify-center rounded-full p-2 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                        title="Удалить организатора"
+                      >
+                        <IconTrash size={16} />
+                      </button>
+                    )}
                   </div>
-                  {organizerRole.user.id !== user?.id && (
-                    <button
-                      onClick={() => handleRemoveOrganizer(organizerRole.id, organizerRole.user.id)}
-                      className="p-1 rounded text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                      title="Удалить организатора"
-                    >
-                      <IconTrash size={16} />
-                    </button>
-                  )}
                 </div>
               ))}
             </div>
           ) : (
-            <div className="text-center py-6 text-gray-500">
+            <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-8 text-center text-sm text-gray-500">
               <p>Организаторы не назначены</p>
             </div>
           )}
@@ -390,20 +398,28 @@ const EventumInfoPage = () => {
       </section>
 
       {/* Модальное окно добавления организатора */}
-      {isAddOrganizerModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Добавить организатора</h3>
-              <button
-                onClick={closeAddOrganizerModal}
-                className="p-1 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
-              >
-                <IconX size={20} />
-              </button>
-            </div>
-            
-            <div className="space-y-4">
+        {isAddOrganizerModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 py-6">
+            <div
+              className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="add-organizer-title"
+            >
+              <div className="mb-4 flex items-center justify-between">
+                <h3 id="add-organizer-title" className="text-lg font-semibold text-gray-900">
+                  Добавить организатора
+                </h3>
+                <button
+                  onClick={closeAddOrganizerModal}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+                  aria-label="Закрыть"
+                >
+                  <IconX size={20} />
+                </button>
+              </div>
+
+              <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Поиск пользователей
@@ -427,31 +443,31 @@ const EventumInfoPage = () => {
                 </div>
               )}
               
-              {searchResults.length > 0 && (
-                <div className="max-h-60 overflow-y-auto">
-                  <div className="space-y-2">
-                    {searchResults.map((user) => (
-                      <div
-                        key={user.id}
-                        className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
-                            <span className="text-white text-sm font-medium">
-                              {user.name.charAt(0).toUpperCase()}
-                            </span>
-                          </div>
-                          <div>
-                            <p className="font-medium text-gray-900">{user.name}</p>
-                            <p className="text-sm text-gray-500">{user.email}</p>
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => handleAddUserAsOrganizer(user.id)}
-                          className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                {searchResults.length > 0 && (
+                  <div className="max-h-60 overflow-y-auto pr-1">
+                    <div className="space-y-2">
+                      {searchResults.map((user) => (
+                        <div
+                          key={user.id}
+                          className="flex flex-col gap-3 rounded-lg border border-gray-200 p-3 transition-colors hover:bg-gray-50 sm:flex-row sm:items-center sm:justify-between"
                         >
-                          Добавить
-                        </button>
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-500 text-white">
+                              <span className="text-sm font-semibold">
+                                {user.name.charAt(0).toUpperCase()}
+                              </span>
+                            </div>
+                            <div>
+                              <p className="text-sm font-semibold text-gray-900">{user.name}</p>
+                              <p className="text-xs text-gray-500 sm:text-sm">{user.email}</p>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => handleAddUserAsOrganizer(user.id)}
+                            className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+                          >
+                            Добавить
+                          </button>
                       </div>
                     ))}
                   </div>
@@ -465,13 +481,13 @@ const EventumInfoPage = () => {
               )}
             </div>
             
-            <div className="flex items-center justify-end gap-2 mt-6">
-              <button
-                onClick={closeAddOrganizerModal}
-                className="px-4 py-2 text-sm bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
-              >
-                Отменить
-              </button>
+              <div className="mt-6 flex items-center justify-end gap-2">
+                <button
+                  onClick={closeAddOrganizerModal}
+                  className="inline-flex items-center justify-center rounded-lg bg-gray-500 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-1"
+                >
+                  Отменить
+                </button>
             </div>
           </div>
         </div>
