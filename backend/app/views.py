@@ -615,3 +615,227 @@ def check_slug_availability(request, slug):
         )
 
 
+@api_view(['GET'])
+def eventum_details(request, slug):
+    """Получение детальной информации о eventum"""
+    if not request.user.is_authenticated:
+        return Response({'error': 'Not authenticated'}, status=status.HTTP_401_UNAUTHORIZED)
+    
+    try:
+        eventum = get_object_or_404(Eventum, slug=slug)
+        
+        # Проверяем, что пользователь является организатором
+        is_organizer = UserRole.objects.filter(
+            user=request.user, 
+            eventum=eventum, 
+            role='organizer'
+        ).exists()
+        
+        if not is_organizer:
+            return Response({'error': 'Access denied'}, status=status.HTTP_403_FORBIDDEN)
+        
+        # Получаем статистику
+        participants_count = Participant.objects.filter(eventum=eventum).count()
+        events_count = Event.objects.filter(eventum=eventum).count()
+        
+        # Получаем организаторов
+        organizer_roles = UserRole.objects.filter(
+            eventum=eventum, 
+            role='organizer'
+        ).select_related('user')
+        
+        organizers_data = []
+        for role in organizer_roles:
+            organizers_data.append({
+                'id': role.id,
+                'user': UserProfileSerializer(role.user).data,
+                'eventum': eventum.id,
+                'role': role.role,
+                'created_at': role.created_at.isoformat()
+            })
+        
+        eventum_data = EventumSerializer(eventum).data
+        eventum_data.update({
+            'participants_count': participants_count,
+            'events_count': events_count,
+            'organizers': organizers_data
+        })
+        
+        return Response(eventum_data)
+        
+    except Exception as e:
+        return Response(
+            {'error': f'Error getting eventum details: {str(e)}'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['GET'])
+def eventum_organizers(request, slug):
+    """Получение списка организаторов eventum"""
+    if not request.user.is_authenticated:
+        return Response({'error': 'Not authenticated'}, status=status.HTTP_401_UNAUTHORIZED)
+    
+    try:
+        eventum = get_object_or_404(Eventum, slug=slug)
+        
+        # Проверяем, что пользователь является организатором
+        is_organizer = UserRole.objects.filter(
+            user=request.user, 
+            eventum=eventum, 
+            role='organizer'
+        ).exists()
+        
+        if not is_organizer:
+            return Response({'error': 'Access denied'}, status=status.HTTP_403_FORBIDDEN)
+        
+        organizer_roles = UserRole.objects.filter(
+            eventum=eventum, 
+            role='organizer'
+        ).select_related('user')
+        
+        organizers_data = []
+        for role in organizer_roles:
+            organizers_data.append({
+                'id': role.id,
+                'user': UserProfileSerializer(role.user).data,
+                'eventum': eventum.id,
+                'role': role.role,
+                'created_at': role.created_at.isoformat()
+            })
+        
+        return Response(organizers_data)
+        
+    except Exception as e:
+        return Response(
+            {'error': f'Error getting organizers: {str(e)}'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['POST'])
+def add_eventum_organizer(request, slug):
+    """Добавление организатора в eventum"""
+    if not request.user.is_authenticated:
+        return Response({'error': 'Not authenticated'}, status=status.HTTP_401_UNAUTHORIZED)
+    
+    try:
+        eventum = get_object_or_404(Eventum, slug=slug)
+        
+        # Проверяем, что пользователь является организатором
+        is_organizer = UserRole.objects.filter(
+            user=request.user, 
+            eventum=eventum, 
+            role='organizer'
+        ).exists()
+        
+        if not is_organizer:
+            return Response({'error': 'Access denied'}, status=status.HTTP_403_FORBIDDEN)
+        
+        user_id = request.data.get('user_id')
+        if not user_id:
+            return Response({'error': 'user_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            user = UserProfile.objects.get(id=user_id)
+        except UserProfile.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Проверяем, не является ли пользователь уже организатором
+        existing_role = UserRole.objects.filter(
+            user=user, 
+            eventum=eventum, 
+            role='organizer'
+        ).first()
+        
+        if existing_role:
+            return Response({'error': 'User is already an organizer'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Создаем роль организатора
+        role = UserRole.objects.create(
+            user=user,
+            eventum=eventum,
+            role='organizer'
+        )
+        
+        role_data = {
+            'id': role.id,
+            'user': UserProfileSerializer(user).data,
+            'eventum': eventum.id,
+            'role': role.role,
+            'created_at': role.created_at.isoformat()
+        }
+        
+        return Response(role_data, status=status.HTTP_201_CREATED)
+        
+    except Exception as e:
+        return Response(
+            {'error': f'Error adding organizer: {str(e)}'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['DELETE'])
+def remove_eventum_organizer(request, slug, role_id):
+    """Удаление организатора из eventum"""
+    if not request.user.is_authenticated:
+        return Response({'error': 'Not authenticated'}, status=status.HTTP_401_UNAUTHORIZED)
+    
+    try:
+        eventum = get_object_or_404(Eventum, slug=slug)
+        
+        # Проверяем, что пользователь является организатором
+        is_organizer = UserRole.objects.filter(
+            user=request.user, 
+            eventum=eventum, 
+            role='organizer'
+        ).exists()
+        
+        if not is_organizer:
+            return Response({'error': 'Access denied'}, status=status.HTTP_403_FORBIDDEN)
+        
+        try:
+            role = UserRole.objects.get(id=role_id, eventum=eventum, role='organizer')
+        except UserRole.DoesNotExist:
+            return Response({'error': 'Organizer role not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Проверяем, что не удаляем последнего организатора
+        organizers_count = UserRole.objects.filter(eventum=eventum, role='organizer').count()
+        if organizers_count <= 1:
+            return Response({'error': 'Cannot remove the last organizer'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        role.delete()
+        return Response({'status': 'success'}, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        return Response(
+            {'error': f'Error removing organizer: {str(e)}'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['GET'])
+def search_users(request):
+    """Поиск пользователей для добавления в организаторы"""
+    if not request.user.is_authenticated:
+        return Response({'error': 'Not authenticated'}, status=status.HTTP_401_UNAUTHORIZED)
+    
+    query = request.GET.get('q', '').strip()
+    if len(query) < 2:
+        return Response({'error': 'Query must be at least 2 characters'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        users = UserProfile.objects.filter(
+            name__icontains=query
+        )[:10]  # Ограничиваем до 10 результатов
+        
+        users_data = [UserProfileSerializer(user).data for user in users]
+        return Response(users_data)
+        
+    except Exception as e:
+        return Response(
+            {'error': f'Error searching users: {str(e)}'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+

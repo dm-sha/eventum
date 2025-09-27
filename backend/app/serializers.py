@@ -8,7 +8,7 @@ from .models import (
 class EventumSerializer(serializers.ModelSerializer):
     class Meta:
         model = Eventum
-        fields = ['id', 'name', 'slug']
+        fields = ['id', 'name', 'slug', 'description']
         read_only_fields = ['slug']
     
     def create(self, validated_data):

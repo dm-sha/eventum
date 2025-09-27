@@ -2,6 +2,7 @@ export interface Eventum {
     id: number;
     name: string;
     slug: string;
+    description?: string;
     // password_hash мы не получаем на фронтенде, поэтому его здесь нет
 }
 
@@ -68,4 +69,18 @@ export interface CreateEventData {
   event_description?: string;
   start_time: string;
   end_time: string;
+}
+
+export interface UserRole {
+  id: number;
+  user: User;
+  eventum: number;
+  role: 'organizer' | 'participant';
+  created_at: string;
+}
+
+export interface EventumDetails extends Eventum {
+  participants_count: number;
+  events_count: number;
+  organizers: UserRole[];
 }

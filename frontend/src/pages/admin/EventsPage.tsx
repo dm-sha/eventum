@@ -185,7 +185,7 @@ const AdminEventsPage = () => {
           <div className="group relative">
             <IconInformationCircle size={20} className="text-gray-400 cursor-help" />
             <div className="absolute top-full left-0 mt-2 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-normal w-80 z-50">
-              Отфильтруйте список по названию или тегу и добавьте новые активности.
+              Тут будет полезная подсказка.
             </div>
           </div>
         </div>

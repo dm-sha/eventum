@@ -1,5 +1,5 @@
 import apiClient from './client';
-import type { Eventum } from '../types';
+import type { Eventum, EventumDetails } from '../types';
 
 // Функция для получения списка всех Eventum
 export const getAllEventums = async (): Promise<Eventum[]> => {
@@ -28,4 +28,22 @@ export const checkSlugAvailability = async (slug: string): Promise<boolean> => {
         console.error('Ошибка проверки slug:', error);
         throw error;
     }
+};
+
+// Функция для получения детальной информации о eventum
+export const getEventumDetails = async (slug: string): Promise<EventumDetails> => {
+    const response = await apiClient.get<EventumDetails>(`/eventums/${slug}/details/`);
+    return response.data;
+};
+
+// Функция для обновления названия eventum
+export const updateEventumName = async (slug: string, name: string): Promise<Eventum> => {
+    const response = await apiClient.patch<Eventum>(`/eventums/${slug}/`, { name });
+    return response.data;
+};
+
+// Функция для обновления описания eventum
+export const updateEventumDescription = async (slug: string, description: string): Promise<Eventum> => {
+    const response = await apiClient.patch<Eventum>(`/eventums/${slug}/`, { description });
+    return response.data;
 };

@@ -3,7 +3,7 @@ import Layout from "../components/Layout";
 import EventumPage from "../pages/EventumPage";
 import NotFoundPage from "../pages/NotFoundPage";
 import AdminLayout from "../components/AdminLayout";
-import AdminInfoPage from "../pages/admin/InfoPage";
+import EventumInfoPage from "../pages/admin/EventumInfoPage";
 import AdminEventsPage from "../pages/admin/EventsPage";
 import AdminParticipantsPage from "../pages/admin/ParticipantsPage";
 import AdminEventTagsPage from "../pages/admin/EventTagsPage";
@@ -55,7 +55,7 @@ export const AppRouter = () => {
 
       {/* Admin layout is full-width and handles its own sidebar/header */}
       <Route path="/:eventumSlug/admin" element={<AdminLayout />}>
-        <Route index element={<AdminInfoPage />} />
+        <Route index element={<EventumInfoPage />} />
         <Route path="events" element={<AdminEventsPage />} />
         <Route path="participants" element={<AdminParticipantsPage />} />
         <Route path="event-tags" element={<AdminEventTagsPage />} />
