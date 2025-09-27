@@ -1,0 +1,284 @@
+import { useState, useRef, useEffect } from "react";
+import type { Event, EventTag } from "../../types";
+
+interface EventEditModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (eventData: {
+    name: string;
+    description: string;
+    start_time: string;
+    end_time: string;
+    tags: number[];
+  }) => Promise<void>;
+  event?: Event | null;
+  eventTags: EventTag[];
+  title?: string;
+}
+
+const EventEditModal = ({ 
+  isOpen, 
+  onClose, 
+  onSave, 
+  event, 
+  eventTags, 
+  title 
+}: EventEditModalProps) => {
+  const [eventForm, setEventForm] = useState({
+    name: "",
+    description: "",
+    start_time: "",
+    end_time: "",
+    tags: [] as number[]
+  });
+  const [tagSearchQuery, setTagSearchQuery] = useState("");
+  const [showTagSuggestions, setShowTagSuggestions] = useState(false);
+  const tagInputRef = useRef<HTMLDivElement>(null);
+
+  // Обработка кликов вне области ввода тегов
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (tagInputRef.current && !tagInputRef.current.contains(event.target as Node)) {
+        setShowTagSuggestions(false);
+      }
+    };
+
+    if (showTagSuggestions) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showTagSuggestions]);
+
+  // Инициализация формы при открытии
+  useEffect(() => {
+    if (isOpen) {
+      if (event) {
+        setEventForm({
+          name: event.name,
+          description: event.description,
+          start_time: formatDateTimeForInput(event.start_time),
+          end_time: formatDateTimeForInput(event.end_time),
+          tags: event.tags
+        });
+      } else {
+        setEventForm({
+          name: "",
+          description: "",
+          start_time: "",
+          end_time: "",
+          tags: []
+        });
+      }
+      setTagSearchQuery("");
+      setShowTagSuggestions(false);
+    }
+  }, [isOpen, event]);
+
+  const formatDateTimeForInput = (dateTime: string) => {
+    if (!dateTime) return "";
+    const date = new Date(dateTime);
+    // Конвертируем в формат YYYY-MM-DDTHH:MM для datetime-local
+    return date.toISOString().slice(0, 16);
+  };
+
+  const addTagToForm = (tag: EventTag) => {
+    if (!eventForm.tags.includes(tag.id)) {
+      setEventForm(prev => ({
+        ...prev,
+        tags: [...prev.tags, tag.id]
+      }));
+    }
+    setTagSearchQuery("");
+    setShowTagSuggestions(false);
+  };
+
+  const removeTagFromForm = (tagId: number) => {
+    setEventForm(prev => ({
+      ...prev,
+      tags: prev.tags.filter(id => id !== tagId)
+    }));
+  };
+
+  const getTagSuggestions = () => {
+    const filteredTags = eventTags.filter(tag => 
+      !eventForm.tags.includes(tag.id) &&
+      (!tagSearchQuery.trim() || tag.name.toLowerCase().includes(tagSearchQuery.toLowerCase()))
+    );
+    
+    return filteredTags.slice(0, 5);
+  };
+
+  const handleSave = async () => {
+    if (!eventForm.name.trim() || !eventForm.start_time || !eventForm.end_time) return;
+    
+    try {
+      await onSave(eventForm);
+      onClose();
+    } catch (error) {
+      console.error('Ошибка сохранения мероприятия:', error);
+    }
+  };
+
+  const isFormValid = eventForm.name.trim() && eventForm.start_time && eventForm.end_time;
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: 'rgba(0, 0, 0, 0.4)' }}>
+      <div className="w-full max-w-md mx-4 bg-white rounded-xl shadow-lg pointer-events-auto">
+        <div className="p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">
+            {title || (event ? 'Редактировать мероприятие' : 'Добавить мероприятие')}
+          </h3>
+          
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Название *
+              </label>
+              <input
+                type="text"
+                value={eventForm.name}
+                onChange={(e) => setEventForm(prev => ({ ...prev, name: e.target.value }))}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                placeholder="Введите название мероприятия"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Описание
+              </label>
+              <textarea
+                value={eventForm.description}
+                onChange={(e) => setEventForm(prev => ({ ...prev, description: e.target.value }))}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                rows={3}
+                placeholder="Введите описание мероприятия"
+              />
+            </div>
+            
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Начало *
+                </label>
+                <input
+                  type="datetime-local"
+                  value={eventForm.start_time}
+                  onChange={(e) => setEventForm(prev => ({ ...prev, start_time: e.target.value }))}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Конец *
+                </label>
+                <input
+                  type="datetime-local"
+                  value={eventForm.end_time}
+                  onChange={(e) => setEventForm(prev => ({ ...prev, end_time: e.target.value }))}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                />
+              </div>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Теги
+              </label>
+              
+              {/* Поиск тегов с саджестами */}
+              <div ref={tagInputRef} className="relative mb-3">
+                <input
+                  type="text"
+                  value={tagSearchQuery}
+                  onChange={(e) => setTagSearchQuery(e.target.value)}
+                  onFocus={() => setShowTagSuggestions(true)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') {
+                      setShowTagSuggestions(false);
+                    }
+                  }}
+                  placeholder="Добавить тег..."
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                />
+                
+                {/* Саджесты */}
+                {showTagSuggestions && getTagSuggestions().length > 0 && (
+                  <div className="absolute z-10 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg max-h-32 overflow-y-auto">
+                    {getTagSuggestions().map((tag) => (
+                      <button
+                        key={tag.id}
+                        type="button"
+                        onClick={() => addTagToForm(tag)}
+                        className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50"
+                      >
+                        {tag.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                
+                {showTagSuggestions && tagSearchQuery.trim() && getTagSuggestions().length === 0 && (
+                  <div className="absolute z-10 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg">
+                    <div className="px-3 py-2 text-sm text-gray-500">
+                      Теги не найдены
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              {/* Показать выбранные теги */}
+              {eventForm.tags.length > 0 && (
+                <div>
+                  <div className="flex flex-wrap gap-1">
+                    {eventForm.tags.map(tagId => {
+                      const tag = eventTags.find(t => t.id === tagId);
+                      return tag ? (
+                        <span
+                          key={tagId}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                        >
+                          {tag.name}
+                          <button
+                            type="button"
+                            onClick={() => removeTagFromForm(tagId)}
+                            className="ml-1 text-blue-600 hover:text-blue-800"
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ) : null;
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+          
+          <div className="flex gap-3 mt-6">
+            <button
+              onClick={handleSave}
+              disabled={!isFormValid}
+              className="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:bg-gray-300"
+            >
+              Сохранить
+            </button>
+            <button
+              onClick={onClose}
+              className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            >
+              Отмена
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default EventEditModal;

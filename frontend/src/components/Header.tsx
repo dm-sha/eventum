@@ -67,7 +67,6 @@ const Header = ({
             <div className="py-1">
               <div className="px-4 py-2 border-b border-gray-100">
                 <p className="text-sm font-medium text-gray-900">{user.name}</p>
-                <p className="text-xs text-gray-500">{user.email || 'Email не указан'}</p>
               </div>
 
               <Link
