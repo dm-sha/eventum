@@ -37,6 +37,10 @@ class IsEventumOrganizerOrReadOnlyForList(permissions.BasePermission):
         if view.action == 'list':
             return request.method in permissions.SAFE_METHODS
         
+        # Для создания eventum'а разрешаем всем аутентифицированным пользователям
+        if view.action == 'create':
+            return True
+        
         # Для конкретного eventum'а проверяем права организатора
         eventum_slug = view.kwargs.get('slug')
         if not eventum_slug:

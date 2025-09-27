@@ -13,4 +13,19 @@ export const getEventumBySlug = async (slug: string): Promise<Eventum> => {
     return response.data;
 };
 
-// Функция проверки пароля удалена - больше не нужна
+// Функция для создания нового Eventum
+export const createEventum = async (data: { name: string; slug: string }): Promise<Eventum> => {
+    const response = await apiClient.post<Eventum>('/eventums/', data);
+    return response.data;
+};
+
+// Функция для проверки доступности slug
+export const checkSlugAvailability = async (slug: string): Promise<boolean> => {
+    try {
+        const response = await apiClient.get(`/eventums/check-slug/${slug}/`);
+        return response.data.available;
+    } catch (error: any) {
+        console.error('Ошибка проверки slug:', error);
+        throw error;
+    }
+};

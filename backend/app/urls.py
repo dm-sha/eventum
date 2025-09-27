@@ -13,7 +13,8 @@ from .views import (
     user_profile,
     user_roles,
     user_eventums,
-    dev_user_auth
+    dev_user_auth,
+    check_slug_availability
 )
 
 router = DefaultRouter()
@@ -38,4 +39,7 @@ urlpatterns = [
     path('auth/eventums/', user_eventums, name='user_eventums'),
     
     path('auth/dev-user/', dev_user_auth, name='dev_user_auth'),
+    
+    # Проверка доступности slug
+    path('eventums/check-slug/<slug:slug>/', check_slug_availability, name='check_slug_availability'),
 ]

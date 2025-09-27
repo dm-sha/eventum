@@ -10,6 +10,20 @@ class EventumSerializer(serializers.ModelSerializer):
         model = Eventum
         fields = ['id', 'name', 'slug']
         read_only_fields = ['slug']
+    
+    def create(self, validated_data):
+        # Создаем eventum
+        eventum = super().create(validated_data)
+        
+        # Назначаем создателя организатором
+        user = self.context['request'].user
+        UserRole.objects.create(
+            user=user,
+            eventum=eventum,
+            role='organizer'
+        )
+        
+        return eventum
 
 class ParticipantSerializer(serializers.ModelSerializer):
     user = serializers.SerializerMethodField(read_only=True)

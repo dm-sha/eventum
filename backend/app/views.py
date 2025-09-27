@@ -595,4 +595,23 @@ def dev_user_auth(request):
         )
 
 
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def check_slug_availability(request, slug):
+    """Проверка доступности slug для eventum"""
+    try:
+        # Проверяем, существует ли eventum с таким slug
+        eventum_exists = Eventum.objects.filter(slug=slug).exists()
+        
+        return Response({
+            'available': not eventum_exists,
+            'slug': slug
+        })
+        
+    except Exception as e:
+        return Response(
+            {'error': f'Error checking slug availability: {str(e)}'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
 
