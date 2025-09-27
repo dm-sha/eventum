@@ -1,5 +1,5 @@
 from rest_framework import permissions
-from .models import UserRole
+from .models import UserRole, Participant
 
 
 class IsEventumOrganizer(permissions.BasePermission):
@@ -63,12 +63,20 @@ class IsEventumParticipant(permissions.BasePermission):
         if not eventum_slug:
             return False
         
-        # Проверяем, является ли пользователь участником или организатором этого eventum'а
-        return UserRole.objects.filter(
+        # Проверяем, является ли пользователь организатором
+        is_organizer = UserRole.objects.filter(
             user=request.user,
             eventum__slug=eventum_slug,
-            role__in=['organizer', 'participant']
+            role='organizer'
         ).exists()
+        
+        # Проверяем, является ли пользователь участником (через модель Participant)
+        is_participant = Participant.objects.filter(
+            user=request.user,
+            eventum__slug=eventum_slug
+        ).exists()
+        
+        return is_organizer or is_participant
 
 
 class IsEventumOrganizerOrReadOnly(permissions.BasePermission):
@@ -85,21 +93,25 @@ class IsEventumOrganizerOrReadOnly(permissions.BasePermission):
         if not eventum_slug:
             return False
         
-        # Проверяем, есть ли у пользователя роль в этом eventum'е
-        user_role = UserRole.objects.filter(
+        # Проверяем, является ли пользователь организатором
+        is_organizer = UserRole.objects.filter(
             user=request.user,
-            eventum__slug=eventum_slug
-        ).first()
-        
-        if not user_role:
-            return False
+            eventum__slug=eventum_slug,
+            role='organizer'
+        ).exists()
         
         # Если пользователь организатор - разрешаем все
-        if user_role.role == 'organizer':
+        if is_organizer:
             return True
         
+        # Проверяем, является ли пользователь участником (через модель Participant)
+        is_participant = Participant.objects.filter(
+            user=request.user,
+            eventum__slug=eventum_slug
+        ).exists()
+        
         # Если пользователь участник - разрешаем только чтение
-        if user_role.role == 'participant':
+        if is_participant:
             return request.method in permissions.SAFE_METHODS
         
         return False

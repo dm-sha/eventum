@@ -46,13 +46,67 @@ class EventumScopedViewSet:
         return context
 
 class ParticipantViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
-    queryset = Participant.objects.all()
+    queryset = Participant.objects.select_related('user', 'eventum').all()
     serializer_class = ParticipantSerializer
     permission_classes = [IsEventumOrganizerOrReadOnly]  # Организаторы CRUD, участники только чтение
+    
+    @action(detail=False, methods=['get'])
+    def me(self, request, eventum_slug=None):
+        """Получить участника для текущего пользователя в данном eventum"""
+        if not request.user.is_authenticated:
+            return Response({'error': 'Not authenticated'}, status=status.HTTP_401_UNAUTHORIZED)
+        
+        eventum = self.get_eventum()
+        try:
+            participant = Participant.objects.get(user=request.user, eventum=eventum)
+            serializer = self.get_serializer(participant)
+            return Response(serializer.data)
+        except Participant.DoesNotExist:
+            return Response({'error': 'User is not a participant in this eventum'}, status=status.HTTP_404_NOT_FOUND)
+    
+    @action(detail=False, methods=['post'])
+    def join(self, request, eventum_slug=None):
+        """Присоединиться к eventum как участник"""
+        if not request.user.is_authenticated:
+            return Response({'error': 'Not authenticated'}, status=status.HTTP_401_UNAUTHORIZED)
+        
+        eventum = self.get_eventum()
+        
+        # Проверяем, не является ли пользователь уже участником
+        if Participant.objects.filter(user=request.user, eventum=eventum).exists():
+            return Response({'error': 'User is already a participant in this eventum'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Создаем участника
+        participant_data = {
+            'user_id': request.user.id,
+            'name': request.user.name,
+            'eventum': eventum
+        }
+        
+        serializer = self.get_serializer(data=participant_data)
+        if serializer.is_valid():
+            participant = serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    @action(detail=False, methods=['delete'])
+    def leave(self, request, eventum_slug=None):
+        """Покинуть eventum"""
+        if not request.user.is_authenticated:
+            return Response({'error': 'Not authenticated'}, status=status.HTTP_401_UNAUTHORIZED)
+        
+        eventum = self.get_eventum()
+        try:
+            participant = Participant.objects.get(user=request.user, eventum=eventum)
+            participant.delete()
+            return Response({'status': 'success'}, status=status.HTTP_200_OK)
+        except Participant.DoesNotExist:
+            return Response({'error': 'User is not a participant in this eventum'}, status=status.HTTP_404_NOT_FOUND)
 
 class ParticipantGroupViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
     queryset = ParticipantGroup.objects.all().prefetch_related(
         'participants',
+        'participants__user',  # Добавляем prefetch для пользователей участников
         'tags',
         'participants__eventum'  # Добавляем prefetch для eventum участников
     )
@@ -64,6 +118,7 @@ class ParticipantGroupViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
         eventum = self.get_eventum()
         return ParticipantGroup.objects.filter(eventum=eventum).prefetch_related(
             'participants',
+            'participants__user',  # Добавляем prefetch для пользователей участников
             'tags',
             'participants__eventum'
         ).select_related('eventum')  # Добавляем select_related для eventum
@@ -154,8 +209,10 @@ class EventTagViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
 class EventViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
     queryset = Event.objects.all().select_related('eventum').prefetch_related(
         'participants',
+        'participants__user',  # Добавляем prefetch для пользователей участников
         'groups',
         'groups__participants',
+        'groups__participants__user',  # Добавляем prefetch для пользователей участников в группах
         'groups__tags',
         'tags',
     )
@@ -463,18 +520,34 @@ def user_eventums(request):
         return Response({'error': 'Invalid user'}, status=status.HTTP_401_UNAUTHORIZED)
     
     try:
-        # Получаем все роли пользователя
-        user_roles = UserRole.objects.filter(user=request.user).select_related('eventum')
-        logger.info(f"Found {user_roles.count()} roles for user {request.user.id}")
+        # Получаем все роли организатора пользователя
+        organizer_roles = UserRole.objects.filter(user=request.user, role='organizer').select_related('eventum')
+        logger.info(f"Found {organizer_roles.count()} organizer roles for user {request.user.id}")
+        
+        # Получаем все участия пользователя как участника
+        participant_eventums = Participant.objects.filter(user=request.user).select_related('eventum')
+        logger.info(f"Found {participant_eventums.count()} participant roles for user {request.user.id}")
         
         # Создаем список eventum'ов с информацией о роли пользователя
         eventums_data = []
-        for role in user_roles:
+        
+        # Добавляем eventum'ы где пользователь организатор
+        for role in organizer_roles:
             eventum_data = EventumSerializer(role.eventum).data
-            eventum_data['user_role'] = role.role
+            eventum_data['user_role'] = 'organizer'
             eventum_data['role_id'] = role.id
             eventums_data.append(eventum_data)
-            logger.info(f"Added eventum {role.eventum.name} with role {role.role}")
+            logger.info(f"Added eventum {role.eventum.name} with role organizer")
+        
+        # Добавляем eventum'ы где пользователь участник
+        for participant in participant_eventums:
+            # Проверяем, не добавлен ли уже этот eventum как организатор
+            if not any(e['id'] == participant.eventum.id for e in eventums_data):
+                eventum_data = EventumSerializer(participant.eventum).data
+                eventum_data['user_role'] = 'participant'
+                eventum_data['role_id'] = participant.id
+                eventums_data.append(eventum_data)
+                logger.info(f"Added eventum {participant.eventum.name} with role participant")
         
         logger.info(f"Returning {len(eventums_data)} eventums")
         return Response(eventums_data)

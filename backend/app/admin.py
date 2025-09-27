@@ -23,6 +23,19 @@ from .resources import (
 class ParticipantInline(admin.TabularInline):
     model = Participant
     extra = 1
+    fields = ['user', 'name']
+    autocomplete_fields = ['user']
+
+class UserParticipantInline(admin.TabularInline):
+    model = Participant
+    extra = 0
+    fields = ['eventum', 'name']
+    readonly_fields = ['name']
+    fk_name = 'user'
+    
+    def has_add_permission(self, request, obj=None):
+        # Не разрешаем добавлять участников через профиль пользователя
+        return False
 
 class EventInline(admin.TabularInline):
     model = Event
@@ -35,6 +48,11 @@ class EventInline(admin.TabularInline):
 class EventumAdminForm(forms.ModelForm):
     class Meta:
         model = Eventum
+        fields = '__all__'
+
+class ParticipantAdminForm(forms.ModelForm):
+    class Meta:
+        model = Participant
         fields = '__all__'
 
 class ParticipantGroupAdminForm(forms.ModelForm):
@@ -118,15 +136,13 @@ class EventumAdmin(admin.ModelAdmin):
     search_fields = ('name', 'slug')
 
 # --- ParticipantAdmin ---
-# Наследуемся от ImportExportModelAdmin и добавляем resource_class
 @admin.register(Participant)
 class ParticipantAdmin(ImportExportModelAdmin):
     resource_class = ParticipantResource
-    # Ваша логика отображения сохранена
-    list_display = ('name', 'eventum')
+    list_display = ('name', 'user', 'eventum')
     list_filter = ('eventum',)
-    # Добавлено для удобства
-    search_fields = ('name',)
+    search_fields = ('name', 'user__name', 'user__vk_id')
+    autocomplete_fields = ('user',)
 
 # --- ParticipantGroupAdmin ---
 # Наследуемся от ImportExportModelAdmin и добавляем resource_class
@@ -188,15 +204,7 @@ class UserProfileAdmin(admin.ModelAdmin):
     list_filter = ('date_joined', 'last_login')
     search_fields = ('vk_id', 'name', 'email')
     readonly_fields = ('vk_id', 'date_joined', 'last_login')
-    fieldsets = (
-        ('Основная информация', {
-            'fields': ('vk_id', 'name', 'email', 'avatar_url')
-        }),
-        ('Системная информация', {
-            'fields': ('date_joined', 'last_login', 'is_active', 'is_staff', 'is_superuser'),
-            'classes': ('collapse',)
-        }),
-    )
+    inlines = [UserParticipantInline]
 
 
 # --- UserRoleAdmin ---

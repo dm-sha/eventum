@@ -14,9 +14,30 @@ class Eventum(models.Model):
 
 class Participant(models.Model):
     eventum = models.ForeignKey(Eventum, on_delete=models.CASCADE, related_name='participants')
+    user = models.ForeignKey('UserProfile', on_delete=models.CASCADE, related_name='participants', null=True, blank=True)
     name = models.CharField(max_length=200)
     
+    class Meta:
+        unique_together = ('user', 'eventum')
+        constraints = [
+            models.UniqueConstraint(
+                fields=['user', 'eventum'],
+                name='unique_user_per_eventum'
+            )
+        ]
+    
+    def clean(self):
+        # Валидация: если указан пользователь, то имя должно соответствовать имени пользователя
+        if self.user and self.name != self.user.name:
+            self.name = self.user.name
+    
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+    
     def __str__(self):
+        if self.user:
+            return f"{self.user.name} ({self.eventum.name})"
         return f"{self.name} ({self.eventum.name})"
 
 class GroupTag(models.Model):

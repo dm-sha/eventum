@@ -12,9 +12,52 @@ class EventumSerializer(serializers.ModelSerializer):
         read_only_fields = ['slug']
 
 class ParticipantSerializer(serializers.ModelSerializer):
+    user = serializers.SerializerMethodField(read_only=True)
+    user_id = serializers.IntegerField(write_only=True, required=False, allow_null=True)
+    
     class Meta:
         model = Participant
-        fields = ['id', 'name']
+        fields = ['id', 'name', 'user', 'user_id']
+    
+    def get_user(self, obj):
+        """Возвращает информацию о пользователе"""
+        if obj.user:
+            return {
+                'id': obj.user.id,
+                'vk_id': obj.user.vk_id,
+                'name': obj.user.name,
+                'avatar_url': obj.user.avatar_url,
+                'email': obj.user.email,
+                'date_joined': obj.user.date_joined,
+                'last_login': obj.user.last_login
+            }
+        return None
+    
+    def create(self, validated_data):
+        """Переопределяем create для автоматического заполнения имени из пользователя"""
+        user_id = validated_data.pop('user_id', None)
+        if user_id:
+            try:
+                user = UserProfile.objects.get(id=user_id)
+                validated_data['user'] = user
+                validated_data['name'] = user.name  # Автоматически заполняем имя
+            except UserProfile.DoesNotExist:
+                raise serializers.ValidationError(f"Пользователь с ID {user_id} не найден")
+        
+        return super().create(validated_data)
+    
+    def update(self, instance, validated_data):
+        """Переопределяем update для автоматического заполнения имени из пользователя"""
+        user_id = validated_data.pop('user_id', None)
+        if user_id:
+            try:
+                user = UserProfile.objects.get(id=user_id)
+                validated_data['user'] = user
+                validated_data['name'] = user.name  # Автоматически заполняем имя
+            except UserProfile.DoesNotExist:
+                raise serializers.ValidationError(f"Пользователь с ID {user_id} не найден")
+        
+        return super().update(instance, validated_data)
 
 class GroupTagSerializer(serializers.ModelSerializer):
     class Meta:

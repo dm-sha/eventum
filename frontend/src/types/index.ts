@@ -5,9 +5,21 @@ export interface Eventum {
     // password_hash мы не получаем на фронтенде, поэтому его здесь нет
 }
 
+export interface User {
+  id: number;
+  vk_id: number;
+  name: string;
+  avatar_url: string;
+  email: string;
+  date_joined: string;
+  last_login: string;
+}
+
 export interface Participant {
   id: number;
   name: string;
+  user?: User;
+  user_id?: number;
   eventum: number; // ID of the eventum
 }
 
