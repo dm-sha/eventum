@@ -23,6 +23,8 @@ const AdminEventTagsPage = () => {
   const [tagName, setTagName] = useState('');
   const [eventQuery, setEventQuery] = useState('');
   const [selectedEvents, setSelectedEvents] = useState<Event[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
 
   useEffect(() => {
     if (!eventumSlug) return;
@@ -86,43 +88,51 @@ const AdminEventTagsPage = () => {
 
   const handleSave = async () => {
     if (!eventumSlug || !tagName.trim()) return;
-    const data = {
-      name: tagName,
-    };
-    const created = await eventTagApi.createEventTag(eventumSlug, data);
-    setTags([...tags, created]);
     
-    // Обновляем мероприятия, добавляя к ним новый тег
-    if (editingEvents.length > 0) {
-      for (const event of editingEvents) {
-        const currentTagIds = event.tags.map(t => t.id);
-        const updatedTagIds = [...currentTagIds, created.id];
+    setIsSaving(true);
+    try {
+      const data = {
+        name: tagName,
+      };
+      const created = await eventTagApi.createEventTag(eventumSlug, data);
+      setTags([...tags, created]);
+      
+      // Обновляем мероприятия, добавляя к ним новый тег
+      if (editingEvents.length > 0) {
+        for (const event of editingEvents) {
+          const currentTagIds = event.tags.map(t => t.id);
+          const updatedTagIds = [...currentTagIds, created.id];
+          
+          await updateEvent(eventumSlug, event.id, {
+            name: event.name,
+            description: event.description,
+            start_time: event.start_time,
+            end_time: event.end_time,
+            tag_ids: updatedTagIds,
+            location_id: event.location_id,
+          });
+        }
         
-        await updateEvent(eventumSlug, event.id, {
-          name: event.name,
-          description: event.description,
-          start_time: event.start_time,
-          end_time: event.end_time,
-          tag_ids: updatedTagIds,
-          location_id: event.location_id,
-        });
+        // Обновляем локальное состояние мероприятий
+        setEvents(events.map(event => {
+          if (editingEvents.some(e => e.id === event.id)) {
+            return {
+              ...event,
+              tags: [...event.tags, created]
+            };
+          }
+          return event;
+        }));
       }
       
-      // Обновляем локальное состояние мероприятий
-      setEvents(events.map(event => {
-        if (editingEvents.some(e => e.id === event.id)) {
-          return {
-            ...event,
-            tags: [...event.tags, created]
-          };
-        }
-        return event;
-      }));
+      setIsCreatingTag(false);
+      setTagName('');
+      setEditingEvents([]);
+    } catch (error) {
+      console.error('Ошибка создания тега:', error);
+    } finally {
+      setIsSaving(false);
     }
-    
-    setIsCreatingTag(false);
-    setTagName('');
-    setEditingEvents([]);
   };
 
   const handleCreateTag = () => {
@@ -143,73 +153,81 @@ const AdminEventTagsPage = () => {
 
   const handleUpdateTag = async (tagId: number) => {
     if (!eventumSlug || !tagName.trim()) return;
-    const data = {
-      name: tagName,
-    };
-    const updated = await eventTagApi.updateEventTag(eventumSlug, tagId, data);
-    setTags(tags.map(t => t.id === tagId ? updated : t));
     
-    // Обновляем связи тега с мероприятиями
-    const originalTagEvents = events.filter(e => e.tags.some(t => t.id === tagId));
-    
-    // Удаляем тег из мероприятий, которые больше не должны его иметь
-    for (const event of originalTagEvents) {
-      if (!editingEvents.some(e => e.id === event.id)) {
-        const currentTagIds = event.tags.map(t => t.id);
-        const updatedTagIds = currentTagIds.filter(id => id !== tagId);
-        
-        await updateEvent(eventumSlug, event.id, {
-          name: event.name,
-          description: event.description,
-          start_time: event.start_time,
-          end_time: event.end_time,
-          tag_ids: updatedTagIds,
-          location_id: event.location_id,
-        });
-      }
-    }
-    
-    // Добавляем тег к новым мероприятиям
-    for (const event of editingEvents) {
-      if (!originalTagEvents.some(e => e.id === event.id)) {
-        const currentTagIds = event.tags.map(t => t.id);
-        const updatedTagIds = [...currentTagIds, tagId];
-        
-        await updateEvent(eventumSlug, event.id, {
-          name: event.name,
-          description: event.description,
-          start_time: event.start_time,
-          end_time: event.end_time,
-          tag_ids: updatedTagIds,
-          location_id: event.location_id,
-        });
-      }
-    }
-    
-    // Обновляем локальное состояние мероприятий
-    setEvents(events.map(event => {
-      const shouldHaveTag = editingEvents.some(e => e.id === event.id);
-      const currentlyHasTag = event.tags.some(t => t.id === tagId);
+    setIsUpdating(true);
+    try {
+      const data = {
+        name: tagName,
+      };
+      const updated = await eventTagApi.updateEventTag(eventumSlug, tagId, data);
+      setTags(tags.map(t => t.id === tagId ? updated : t));
       
-      if (shouldHaveTag && !currentlyHasTag) {
-        // Добавляем тег
-        return {
-          ...event,
-          tags: [...event.tags, updated]
-        };
-      } else if (!shouldHaveTag && currentlyHasTag) {
-        // Удаляем тег
-        return {
-          ...event,
-          tags: event.tags.filter(t => t.id !== tagId)
-        };
+      // Обновляем связи тега с мероприятиями
+      const originalTagEvents = events.filter(e => e.tags.some(t => t.id === tagId));
+      
+      // Удаляем тег из мероприятий, которые больше не должны его иметь
+      for (const event of originalTagEvents) {
+        if (!editingEvents.some(e => e.id === event.id)) {
+          const currentTagIds = event.tags.map(t => t.id);
+          const updatedTagIds = currentTagIds.filter(id => id !== tagId);
+          
+          await updateEvent(eventumSlug, event.id, {
+            name: event.name,
+            description: event.description,
+            start_time: event.start_time,
+            end_time: event.end_time,
+            tag_ids: updatedTagIds,
+            location_id: event.location_id,
+          });
+        }
       }
-      return event;
-    }));
-    
-    setEditingTag(null);
-    setTagName('');
-    setEditingEvents([]);
+      
+      // Добавляем тег к новым мероприятиям
+      for (const event of editingEvents) {
+        if (!originalTagEvents.some(e => e.id === event.id)) {
+          const currentTagIds = event.tags.map(t => t.id);
+          const updatedTagIds = [...currentTagIds, tagId];
+          
+          await updateEvent(eventumSlug, event.id, {
+            name: event.name,
+            description: event.description,
+            start_time: event.start_time,
+            end_time: event.end_time,
+            tag_ids: updatedTagIds,
+            location_id: event.location_id,
+          });
+        }
+      }
+      
+      // Обновляем локальное состояние мероприятий
+      setEvents(events.map(event => {
+        const shouldHaveTag = editingEvents.some(e => e.id === event.id);
+        const currentlyHasTag = event.tags.some(t => t.id === tagId);
+        
+        if (shouldHaveTag && !currentlyHasTag) {
+          // Добавляем тег
+          return {
+            ...event,
+            tags: [...event.tags, updated]
+          };
+        } else if (!shouldHaveTag && currentlyHasTag) {
+          // Удаляем тег
+          return {
+            ...event,
+            tags: event.tags.filter(t => t.id !== tagId)
+          };
+        }
+        return event;
+      }));
+      
+      setEditingTag(null);
+      setTagName('');
+      setEditingEvents([]);
+    } catch (error) {
+      console.error('Ошибка обновления тега:', error);
+    } finally {
+      setIsUpdating(false);
+    }
   };
 
   const handleCancel = () => {
@@ -359,14 +377,15 @@ const AdminEventTagsPage = () => {
                 <div className="flex gap-2 pt-2">
                   <button
                     onClick={handleSave}
-                    disabled={!tagName.trim()}
-                    className="rounded-lg bg-blue-600 px-3 py-1 text-xs font-semibold text-white hover:bg-blue-700 disabled:bg-gray-300"
+                    disabled={!tagName.trim() || isSaving}
+                    className="rounded-lg bg-blue-600 px-3 py-1 text-xs font-semibold text-white hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
                   >
-                    Создать
+                    {isSaving ? 'Создание...' : 'Создать'}
                   </button>
                   <button
                     onClick={handleCancel}
-                    className="rounded-lg border border-gray-300 px-3 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                    disabled={isSaving}
+                    className="rounded-lg border border-gray-300 px-3 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Отмена
                   </button>
@@ -477,13 +496,15 @@ const AdminEventTagsPage = () => {
                     <div className="flex gap-2 pt-2">
                       <button
                         onClick={() => handleUpdateTag(tag.id)}
-                        className="rounded-lg bg-blue-600 px-3 py-1 text-xs font-semibold text-white hover:bg-blue-700"
+                        disabled={!tagName.trim() || isUpdating}
+                        className="rounded-lg bg-blue-600 px-3 py-1 text-xs font-semibold text-white hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
                       >
-                        Сохранить
+                        {isUpdating ? 'Сохранение...' : 'Сохранить'}
                       </button>
                       <button
                         onClick={handleCancel}
-                        className="rounded-lg border border-gray-300 px-3 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                        disabled={isUpdating}
+                        className="rounded-lg border border-gray-300 px-3 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         Отмена
                       </button>

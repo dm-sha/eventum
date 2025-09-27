@@ -23,6 +23,8 @@ const AdminGroupTagsPage = () => {
   const [tagName, setTagName] = useState('');
   const [groupQuery, setGroupQuery] = useState('');
   const [selectedGroups, setSelectedGroups] = useState<ParticipantGroup[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
 
   useEffect(() => {
     if (!eventumSlug) return;
@@ -86,40 +88,48 @@ const AdminGroupTagsPage = () => {
 
   const handleSave = async () => {
     if (!eventumSlug || !tagName.trim()) return;
-    const data = {
-      name: tagName,
-    };
-    const created = await groupTagApi.createGroupTag(eventumSlug, data);
-    setTags([...tags, created]);
     
-    // Обновляем группы, добавляя к ним новый тег
-    if (editingGroups.length > 0) {
-      for (const group of editingGroups) {
-        const currentTagIds = group.tags?.map(t => t.id) || [];
-        const updatedTagIds = [...currentTagIds, created.id];
+    setIsSaving(true);
+    try {
+      const data = {
+        name: tagName,
+      };
+      const created = await groupTagApi.createGroupTag(eventumSlug, data);
+      setTags([...tags, created]);
+      
+      // Обновляем группы, добавляя к ним новый тег
+      if (editingGroups.length > 0) {
+        for (const group of editingGroups) {
+          const currentTagIds = group.tags?.map(t => t.id) || [];
+          const updatedTagIds = [...currentTagIds, created.id];
+          
+          await updateGroup(eventumSlug, group.id, {
+            name: group.name,
+            participants: group.participants,
+            tag_ids: updatedTagIds,
+          });
+        }
         
-        await updateGroup(eventumSlug, group.id, {
-          name: group.name,
-          participants: group.participants,
-          tag_ids: updatedTagIds,
-        });
+        // Обновляем локальное состояние групп
+        setGroups(groups.map(group => {
+          if (editingGroups.some(g => g.id === group.id)) {
+            return {
+              ...group,
+              tags: [...(group.tags || []), created]
+            };
+          }
+          return group;
+        }));
       }
       
-      // Обновляем локальное состояние групп
-      setGroups(groups.map(group => {
-        if (editingGroups.some(g => g.id === group.id)) {
-          return {
-            ...group,
-            tags: [...(group.tags || []), created]
-          };
-        }
-        return group;
-      }));
+      setIsCreatingTag(false);
+      setTagName('');
+      setEditingGroups([]);
+    } catch (error) {
+      console.error('Ошибка создания тега:', error);
+    } finally {
+      setIsSaving(false);
     }
-    
-    setIsCreatingTag(false);
-    setTagName('');
-    setEditingGroups([]);
   };
 
   const handleCreateTag = () => {
@@ -140,67 +150,75 @@ const AdminGroupTagsPage = () => {
 
   const handleUpdateTag = async (tagId: number) => {
     if (!eventumSlug || !tagName.trim()) return;
-    const data = {
-      name: tagName,
-    };
-    const updated = await groupTagApi.updateGroupTag(eventumSlug, tagId, data);
-    setTags(tags.map(t => t.id === tagId ? updated : t));
     
-    // Обновляем связи тега с группами
-    const originalTagGroups = groups.filter(g => g.tags?.some(t => t.id === tagId));
-    
-    // Удаляем тег из групп, которые больше не должны его иметь
-    for (const group of originalTagGroups) {
-      if (!editingGroups.some(g => g.id === group.id)) {
-        const currentTagIds = group.tags?.map(t => t.id) || [];
-        const updatedTagIds = currentTagIds.filter(id => id !== tagId);
-        
-        await updateGroup(eventumSlug, group.id, {
-          name: group.name,
-          participants: group.participants,
-          tag_ids: updatedTagIds,
-        });
-      }
-    }
-    
-    // Добавляем тег к новым группам
-    for (const group of editingGroups) {
-      if (!originalTagGroups.some(g => g.id === group.id)) {
-        const currentTagIds = group.tags?.map(t => t.id) || [];
-        const updatedTagIds = [...currentTagIds, tagId];
-        
-        await updateGroup(eventumSlug, group.id, {
-          name: group.name,
-          participants: group.participants,
-          tag_ids: updatedTagIds,
-        });
-      }
-    }
-    
-    // Обновляем локальное состояние групп
-    setGroups(groups.map(group => {
-      const shouldHaveTag = editingGroups.some(g => g.id === group.id);
-      const currentlyHasTag = group.tags?.some(t => t.id === tagId);
+    setIsUpdating(true);
+    try {
+      const data = {
+        name: tagName,
+      };
+      const updated = await groupTagApi.updateGroupTag(eventumSlug, tagId, data);
+      setTags(tags.map(t => t.id === tagId ? updated : t));
       
-      if (shouldHaveTag && !currentlyHasTag) {
-        // Добавляем тег
-        return {
-          ...group,
-          tags: [...(group.tags || []), updated]
-        };
-      } else if (!shouldHaveTag && currentlyHasTag) {
-        // Удаляем тег
-        return {
-          ...group,
-          tags: group.tags?.filter(t => t.id !== tagId) || []
-        };
+      // Обновляем связи тега с группами
+      const originalTagGroups = groups.filter(g => g.tags?.some(t => t.id === tagId));
+      
+      // Удаляем тег из групп, которые больше не должны его иметь
+      for (const group of originalTagGroups) {
+        if (!editingGroups.some(g => g.id === group.id)) {
+          const currentTagIds = group.tags?.map(t => t.id) || [];
+          const updatedTagIds = currentTagIds.filter(id => id !== tagId);
+          
+          await updateGroup(eventumSlug, group.id, {
+            name: group.name,
+            participants: group.participants,
+            tag_ids: updatedTagIds,
+          });
+        }
       }
-      return group;
-    }));
-    
-    setEditingTag(null);
-    setTagName('');
-    setEditingGroups([]);
+      
+      // Добавляем тег к новым группам
+      for (const group of editingGroups) {
+        if (!originalTagGroups.some(g => g.id === group.id)) {
+          const currentTagIds = group.tags?.map(t => t.id) || [];
+          const updatedTagIds = [...currentTagIds, tagId];
+          
+          await updateGroup(eventumSlug, group.id, {
+            name: group.name,
+            participants: group.participants,
+            tag_ids: updatedTagIds,
+          });
+        }
+      }
+      
+      // Обновляем локальное состояние групп
+      setGroups(groups.map(group => {
+        const shouldHaveTag = editingGroups.some(g => g.id === group.id);
+        const currentlyHasTag = group.tags?.some(t => t.id === tagId);
+        
+        if (shouldHaveTag && !currentlyHasTag) {
+          // Добавляем тег
+          return {
+            ...group,
+            tags: [...(group.tags || []), updated]
+          };
+        } else if (!shouldHaveTag && currentlyHasTag) {
+          // Удаляем тег
+          return {
+            ...group,
+            tags: group.tags?.filter(t => t.id !== tagId) || []
+          };
+        }
+        return group;
+      }));
+      
+      setEditingTag(null);
+      setTagName('');
+      setEditingGroups([]);
+    } catch (error) {
+      console.error('Ошибка обновления тега:', error);
+    } finally {
+      setIsUpdating(false);
+    }
   };
 
   const handleCancel = () => {
@@ -350,14 +368,15 @@ const AdminGroupTagsPage = () => {
                 <div className="flex gap-2 pt-2">
                   <button
                     onClick={handleSave}
-                    disabled={!tagName.trim()}
-                    className="rounded-lg bg-blue-600 px-3 py-1 text-xs font-semibold text-white hover:bg-blue-700 disabled:bg-gray-300"
+                    disabled={!tagName.trim() || isSaving}
+                    className="rounded-lg bg-blue-600 px-3 py-1 text-xs font-semibold text-white hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
                   >
-                    Создать
+                    {isSaving ? 'Создание...' : 'Создать'}
                   </button>
                   <button
                     onClick={handleCancel}
-                    className="rounded-lg border border-gray-300 px-3 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                    disabled={isSaving}
+                    className="rounded-lg border border-gray-300 px-3 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Отмена
                   </button>
@@ -468,13 +487,15 @@ const AdminGroupTagsPage = () => {
                     <div className="flex gap-2 pt-2">
                       <button
                         onClick={() => handleUpdateTag(tag.id)}
-                        className="rounded-lg bg-blue-600 px-3 py-1 text-xs font-semibold text-white hover:bg-blue-700"
+                        disabled={!tagName.trim() || isUpdating}
+                        className="rounded-lg bg-blue-600 px-3 py-1 text-xs font-semibold text-white hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
                       >
-                        Сохранить
+                        {isUpdating ? 'Сохранение...' : 'Сохранить'}
                       </button>
                       <button
                         onClick={handleCancel}
-                        className="rounded-lg border border-gray-300 px-3 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                        disabled={isUpdating}
+                        className="rounded-lg border border-gray-300 px-3 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         Отмена
                       </button>

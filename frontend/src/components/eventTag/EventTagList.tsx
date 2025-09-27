@@ -14,6 +14,8 @@ const EventTagList: React.FC<EventTagListProps> = ({ eventumSlug }) => {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingTag, setEditingTag] = useState<EventTag | null>(null);
   const [formData, setFormData] = useState({ name: '' });
+  const [isCreating, setIsCreating] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
 
   useEffect(() => {
     loadTags();
@@ -37,6 +39,7 @@ const EventTagList: React.FC<EventTagListProps> = ({ eventumSlug }) => {
     e.preventDefault();
     if (!formData.name.trim()) return;
 
+    setIsCreating(true);
     try {
       const newTag = await eventTagApi.createEventTag(eventumSlug, { name: formData.name });
       setTags([...tags, newTag]);
@@ -45,6 +48,8 @@ const EventTagList: React.FC<EventTagListProps> = ({ eventumSlug }) => {
     } catch (err) {
       setError('Ошибка при создании тега');
       console.error('Error creating event tag:', err);
+    } finally {
+      setIsCreating(false);
     }
   };
 
@@ -52,6 +57,7 @@ const EventTagList: React.FC<EventTagListProps> = ({ eventumSlug }) => {
     e.preventDefault();
     if (!formData.name.trim() || !editingTag) return;
 
+    setIsUpdating(true);
     try {
       const updatedTag = await eventTagApi.updateEventTag(
         eventumSlug, 
@@ -64,6 +70,8 @@ const EventTagList: React.FC<EventTagListProps> = ({ eventumSlug }) => {
     } catch (err) {
       setError('Ошибка при обновлении тега');
       console.error('Error updating event tag:', err);
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -132,9 +140,10 @@ const EventTagList: React.FC<EventTagListProps> = ({ eventumSlug }) => {
             />
             <button
               type="submit"
-              className="inline-flex items-center justify-center rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+              disabled={isCreating}
+              className="inline-flex items-center justify-center rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Создать
+              {isCreating ? 'Создание...' : 'Создать'}
             </button>
             <button
               type="button"
@@ -168,9 +177,10 @@ const EventTagList: React.FC<EventTagListProps> = ({ eventumSlug }) => {
                   />
                   <button
                     type="submit"
-                    className="inline-flex items-center justify-center rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+                    disabled={isUpdating}
+                    className="inline-flex items-center justify-center rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Сохранить
+                    {isUpdating ? 'Сохранение...' : 'Сохранить'}
                   </button>
                   <button
                     type="button"

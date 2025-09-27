@@ -19,6 +19,8 @@ const GroupTagList: React.FC<GroupTagListProps> = ({ eventumSlug }) => {
   const [loadingGroups, setLoadingGroups] = useState<Set<number>>(new Set());
   const [allGroups, setAllGroups] = useState<ParticipantGroup[]>([]);
   const [showAddGroupModal, setShowAddGroupModal] = useState<number | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
 
   const GROUPS_PREVIEW_LIMIT = 3;
 
@@ -82,6 +84,7 @@ const GroupTagList: React.FC<GroupTagListProps> = ({ eventumSlug }) => {
     e.preventDefault();
     if (!formData.name.trim()) return;
 
+    setIsCreating(true);
     try {
       const newTag = await groupTagApi.createGroupTag(eventumSlug, { name: formData.name });
       setTags([...tags, newTag]);
@@ -90,6 +93,8 @@ const GroupTagList: React.FC<GroupTagListProps> = ({ eventumSlug }) => {
     } catch (err) {
       setError('Ошибка при создании тега');
       console.error('Error creating group tag:', err);
+    } finally {
+      setIsCreating(false);
     }
   };
 
@@ -97,6 +102,7 @@ const GroupTagList: React.FC<GroupTagListProps> = ({ eventumSlug }) => {
     e.preventDefault();
     if (!formData.name.trim() || !editingTag) return;
 
+    setIsUpdating(true);
     try {
       const updatedTag = await groupTagApi.updateGroupTag(
         eventumSlug, 
@@ -109,6 +115,8 @@ const GroupTagList: React.FC<GroupTagListProps> = ({ eventumSlug }) => {
     } catch (err) {
       setError('Ошибка при обновлении тега');
       console.error('Error updating group tag:', err);
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -262,9 +270,10 @@ const GroupTagList: React.FC<GroupTagListProps> = ({ eventumSlug }) => {
             />
             <button
               type="submit"
-              className="inline-flex items-center justify-center rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+              disabled={isCreating}
+              className="inline-flex items-center justify-center rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Создать
+              {isCreating ? 'Создание...' : 'Создать'}
             </button>
             <button
               type="button"
@@ -305,9 +314,10 @@ const GroupTagList: React.FC<GroupTagListProps> = ({ eventumSlug }) => {
                     />
                     <button
                       type="submit"
-                      className="inline-flex items-center justify-center rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+                      disabled={isUpdating}
+                      className="inline-flex items-center justify-center rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      Сохранить
+                      {isUpdating ? 'Сохранение...' : 'Сохранить'}
                     </button>
                     <button
                       type="button"

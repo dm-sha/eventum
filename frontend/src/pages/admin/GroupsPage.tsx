@@ -24,6 +24,8 @@ const AdminGroupsPage = () => {
   const [groupName, setGroupName] = useState('');
   const [participantQuery, setParticipantQuery] = useState('');
   const [selectedParticipants, setSelectedParticipants] = useState<Participant[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
 
   useEffect(() => {
     if (!eventumSlug) return;
@@ -87,15 +89,23 @@ const AdminGroupsPage = () => {
 
   const handleSave = async () => {
     if (!eventumSlug || !groupName.trim()) return;
-    const data = {
-      name: groupName,
-      participants: editingParticipants.map((p) => p.id),
-    };
-    const created = await createGroup(eventumSlug, data);
-    setGroups([...groups, created]);
-    setIsCreatingGroup(false);
-    setGroupName('');
-    setEditingParticipants([]);
+    
+    setIsSaving(true);
+    try {
+      const data = {
+        name: groupName,
+        participants: editingParticipants.map((p) => p.id),
+      };
+      const created = await createGroup(eventumSlug, data);
+      setGroups([...groups, created]);
+      setIsCreatingGroup(false);
+      setGroupName('');
+      setEditingParticipants([]);
+    } catch (error) {
+      console.error('Ошибка создания группы:', error);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleCreateGroup = () => {
@@ -117,15 +127,23 @@ const AdminGroupsPage = () => {
 
   const handleUpdateGroup = async (groupId: number) => {
     if (!eventumSlug || !groupName.trim()) return;
-    const data = {
-      name: groupName,
-      participants: editingParticipants.map((p) => p.id),
-    };
-    const updated = await updateGroup(eventumSlug, groupId, data);
-    setGroups(groups.map(g => g.id === groupId ? updated : g));
-    setEditingGroup(null);
-    setGroupName('');
-    setEditingParticipants([]);
+    
+    setIsUpdating(true);
+    try {
+      const data = {
+        name: groupName,
+        participants: editingParticipants.map((p) => p.id),
+      };
+      const updated = await updateGroup(eventumSlug, groupId, data);
+      setGroups(groups.map(g => g.id === groupId ? updated : g));
+      setEditingGroup(null);
+      setGroupName('');
+      setEditingParticipants([]);
+    } catch (error) {
+      console.error('Ошибка обновления группы:', error);
+    } finally {
+      setIsUpdating(false);
+    }
   };
 
   const handleCancel = () => {
@@ -263,14 +281,15 @@ const AdminGroupsPage = () => {
                 <div className="flex gap-2 pt-2">
                   <button
                     onClick={handleSave}
-                    disabled={!groupName.trim()}
-                    className="rounded-lg bg-blue-600 px-3 py-1 text-xs font-semibold text-white hover:bg-blue-700 disabled:bg-gray-300"
+                    disabled={!groupName.trim() || isSaving}
+                    className="rounded-lg bg-blue-600 px-3 py-1 text-xs font-semibold text-white hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
                   >
-                    Создать
+                    {isSaving ? 'Создание...' : 'Создать'}
                   </button>
                   <button
                     onClick={handleCancel}
-                    className="rounded-lg border border-gray-300 px-3 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                    disabled={isSaving}
+                    className="rounded-lg border border-gray-300 px-3 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Отмена
                   </button>
@@ -378,13 +397,15 @@ const AdminGroupsPage = () => {
                   <div className="flex gap-2 pt-2">
                     <button
                       onClick={() => handleUpdateGroup(group.id)}
-                      className="rounded-lg bg-blue-600 px-3 py-1 text-xs font-semibold text-white hover:bg-blue-700"
+                      disabled={!groupName.trim() || isUpdating}
+                      className="rounded-lg bg-blue-600 px-3 py-1 text-xs font-semibold text-white hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
                     >
-                      Сохранить
+                      {isUpdating ? 'Сохранение...' : 'Сохранить'}
                     </button>
                     <button
                       onClick={handleCancel}
-                      className="rounded-lg border border-gray-300 px-3 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                      disabled={isUpdating}
+                      className="rounded-lg border border-gray-300 px-3 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Отмена
                     </button>

@@ -163,12 +163,16 @@ const AdminEventsPage = () => {
   }) => {
     if (!eventumSlug) return;
     
-    if (editingEvent) {
-      const updated = await updateEvent(eventumSlug, editingEvent.id, eventData);
-      setEvents(prev => prev.map(e => e.id === editingEvent.id ? { ...updated, tags_data: updated.tags } : e));
-    } else {
-      const created = await createEvent(eventumSlug, eventData);
-      setEvents(prev => [...prev, { ...created, tags_data: created.tags }]);
+    try {
+      if (editingEvent) {
+        const updated = await updateEvent(eventumSlug, editingEvent.id, eventData);
+        setEvents(prev => prev.map(e => e.id === editingEvent.id ? { ...updated, tags_data: updated.tags } : e));
+      } else {
+        const created = await createEvent(eventumSlug, eventData);
+        setEvents(prev => [...prev, { ...created, tags_data: created.tags }]);
+      }
+    } catch (error) {
+      console.error('Ошибка сохранения мероприятия:', error);
     }
   };
 

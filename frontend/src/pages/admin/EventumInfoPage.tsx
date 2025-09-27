@@ -24,6 +24,8 @@ const EventumInfoPage = () => {
   const [isEditingDescription, setIsEditingDescription] = useState(false);
   const [tempName, setTempName] = useState("");
   const [tempDescription, setTempDescription] = useState("");
+  const [isSavingName, setIsSavingName] = useState(false);
+  const [isSavingDescription, setIsSavingDescription] = useState(false);
   
   // Состояние для модального окна добавления организатора
   const [isAddOrganizerModalOpen, setIsAddOrganizerModalOpen] = useState(false);
@@ -56,6 +58,7 @@ const EventumInfoPage = () => {
   const handleSaveName = async () => {
     if (!eventumSlug || !eventum) return;
     
+    setIsSavingName(true);
     try {
       const updatedEventum = await updateEventumName(eventumSlug, tempName);
       setEventum({ ...eventum, name: updatedEventum.name });
@@ -63,6 +66,8 @@ const EventumInfoPage = () => {
     } catch (error) {
       console.error('Ошибка сохранения названия:', error);
       setTempName(eventum.name); // Возвращаем исходное значение
+    } finally {
+      setIsSavingName(false);
     }
   };
 
@@ -76,6 +81,7 @@ const EventumInfoPage = () => {
   const handleSaveDescription = async () => {
     if (!eventumSlug || !eventum) return;
     
+    setIsSavingDescription(true);
     try {
       const updatedEventum = await updateEventumDescription(eventumSlug, tempDescription);
       setEventum({ ...eventum, description: updatedEventum.description });
@@ -83,6 +89,8 @@ const EventumInfoPage = () => {
     } catch (error) {
       console.error('Ошибка сохранения описания:', error);
       setTempDescription(eventum.description || ""); // Возвращаем исходное значение
+    } finally {
+      setIsSavingDescription(false);
     }
   };
 
@@ -213,13 +221,15 @@ const EventumInfoPage = () => {
                 <div className="flex items-center gap-2">
                   <button
                     onClick={handleSaveName}
-                    className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                    disabled={isSavingName}
+                    className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Сохранить
+                    {isSavingName ? 'Сохранение...' : 'Сохранить'}
                   </button>
                   <button
                     onClick={handleCancelNameEdit}
-                    className="px-3 py-1.5 text-sm bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+                    disabled={isSavingName}
+                    className="px-3 py-1.5 text-sm bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Отменить
                   </button>
@@ -274,13 +284,15 @@ const EventumInfoPage = () => {
               <div className="flex items-center justify-end gap-2">
                 <button
                   onClick={handleSaveDescription}
-                  className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                  disabled={isSavingDescription}
+                  className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Сохранить
+                  {isSavingDescription ? 'Сохранение...' : 'Сохранить'}
                 </button>
                 <button
                   onClick={handleCancelDescriptionEdit}
-                  className="px-3 py-1.5 text-sm bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+                  disabled={isSavingDescription}
+                  className="px-3 py-1.5 text-sm bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Отменить
                 </button>

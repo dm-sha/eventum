@@ -38,6 +38,7 @@ const EventEditModal = ({
   });
   const [tagSearchQuery, setTagSearchQuery] = useState("");
   const [showTagSuggestions, setShowTagSuggestions] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const tagInputRef = useRef<HTMLDivElement>(null);
 
 
@@ -158,6 +159,7 @@ const EventEditModal = ({
   const handleSave = async () => {
     if (!eventForm.name.trim() || !eventForm.start_time || !eventForm.end_time) return;
     
+    setIsSaving(true);
     try {
       // Преобразуем tags в tag_ids для backend
       const eventData = {
@@ -172,6 +174,8 @@ const EventEditModal = ({
       onClose();
     } catch (error) {
       console.error('Ошибка сохранения мероприятия:', error);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -344,14 +348,15 @@ const EventEditModal = ({
           <div className="flex gap-3 mt-6">
             <button
               onClick={handleSave}
-              disabled={!isFormValid}
-              className="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:bg-gray-300"
+              disabled={!isFormValid || isSaving}
+              className="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:bg-gray-300 disabled:cursor-not-allowed"
             >
-              Сохранить
+              {isSaving ? 'Сохранение...' : 'Сохранить'}
             </button>
             <button
               onClick={onClose}
-              className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              disabled={isSaving}
+              className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Отмена
             </button>
