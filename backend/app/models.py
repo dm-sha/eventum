@@ -1,20 +1,20 @@
-from django.db import models
-from django.core.exceptions import ValidationError
-from django.utils.text import slugify
-from transliterate import translit
-from django.utils import timezone
 from django.contrib.auth.models import AbstractUser, BaseUserManager
+from django.core.exceptions import ValidationError
+from django.db import models
+from django.utils import timezone
+
+from .utils import generate_unique_slug
 
 class Eventum(models.Model):
     name = models.CharField(max_length=200)
     slug = models.SlugField(max_length=200, unique=True)
     description = models.TextField(blank=True)
-    
+
     def save(self, *args, **kwargs):
         if not self.slug:
-            # Сначала транслитерируем русский текст в латиницу, затем создаем slug
-            transliterated = translit(self.name, 'ru', reversed=True)
-            self.slug = slugify(transliterated)
+            self.slug = generate_unique_slug(self, self.name)
+        elif Eventum.objects.exclude(pk=self.pk).filter(slug=self.slug).exists():
+            self.slug = generate_unique_slug(self, self.slug)
         super().save(*args, **kwargs)
     
     def __str__(self):
@@ -66,10 +66,9 @@ class GroupTag(models.Model):
         ]
     
     def save(self, *args, **kwargs):
-        if not self.slug:
-            # Сначала транслитерируем русский текст в латиницу, затем создаем slug
-            transliterated = translit(self.name, 'ru', reversed=True)
-            self.slug = slugify(transliterated)
+        if not self.slug or GroupTag.objects.filter(eventum=self.eventum, slug=self.slug).exclude(pk=self.pk).exists():
+            base_value = self.name if not self.slug else self.slug
+            self.slug = generate_unique_slug(self, base_value, scope_fields=['eventum'])
         self.full_clean()
         super().save(*args, **kwargs)
     
@@ -91,10 +90,9 @@ class ParticipantGroup(models.Model):
         ]
     
     def save(self, *args, **kwargs):
-        if not self.slug:
-            # Сначала транслитерируем русский текст в латиницу, затем создаем slug
-            transliterated = translit(self.name, 'ru', reversed=True)
-            self.slug = slugify(transliterated)
+        if not self.slug or ParticipantGroup.objects.filter(eventum=self.eventum, slug=self.slug).exclude(pk=self.pk).exists():
+            base_value = self.name if not self.slug else self.slug
+            self.slug = generate_unique_slug(self, base_value, scope_fields=['eventum'])
         self.full_clean()
         super().save(*args, **kwargs)
     
@@ -129,10 +127,9 @@ class EventTag(models.Model):
         unique_together = ('eventum', 'slug')
 
     def save(self, *args, **kwargs):
-        if not self.slug:
-            # Сначала транслитерируем русский текст в латиницу, затем создаем slug
-            transliterated = translit(self.name, 'ru', reversed=True)
-            self.slug = slugify(transliterated)
+        if not self.slug or EventTag.objects.filter(eventum=self.eventum, slug=self.slug).exclude(pk=self.pk).exists():
+            base_value = self.name if not self.slug else self.slug
+            self.slug = generate_unique_slug(self, base_value, scope_fields=['eventum'])
         self.full_clean()
         super().save(*args, **kwargs)
 
@@ -285,18 +282,10 @@ class Location(models.Model):
         verbose_name_plural = 'Locations'
     
     def save(self, *args, **kwargs):
-        if not self.slug:
-            # Сначала транслитерируем русский текст в латиницу, затем создаем slug
-            transliterated = translit(self.name, 'ru', reversed=True)
-            base_slug = slugify(transliterated)
-            
-            # Проверяем уникальность slug в рамках eventum
-            slug = base_slug
-            counter = 1
-            while Location.objects.filter(eventum=self.eventum, slug=slug).exclude(pk=self.pk).exists():
-                slug = f"{base_slug}-{counter}"
-                counter += 1
-            self.slug = slug
+        if not self.slug or Location.objects.filter(eventum=self.eventum, slug=self.slug).exclude(pk=self.pk).exists():
+            base_value = self.name if not self.slug else self.slug
+            self.slug = generate_unique_slug(self, base_value, scope_fields=['eventum'])
+        self.full_clean()
         super().save(*args, **kwargs)
     
     def clean(self):

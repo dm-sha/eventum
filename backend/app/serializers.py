@@ -203,6 +203,36 @@ class EventSerializer(serializers.ModelSerializer):
             'participants', 'groups', 'tags', 'tag_ids', 'location_id'
         ]
 
+    def validate_participants(self, value):
+        if not value:
+            return value
+
+        eventum = self.context.get('eventum')
+        if eventum:
+            invalid = [participant for participant in value if participant.eventum != eventum]
+            if invalid:
+                names = ', '.join(participant.name for participant in invalid)
+                raise serializers.ValidationError(
+                    f"Участники {names} принадлежат другому мероприятию"
+                )
+
+        return value
+
+    def validate_groups(self, value):
+        if not value:
+            return value
+
+        eventum = self.context.get('eventum')
+        if eventum:
+            invalid = [group for group in value if group.eventum != eventum]
+            if invalid:
+                names = ', '.join(group.name for group in invalid)
+                raise serializers.ValidationError(
+                    f"Группы {names} принадлежат другому мероприятию"
+                )
+
+        return value
+
     def validate_location_id(self, value):
         """Валидация location_id - локация должна принадлежать тому же eventum"""
         if value is None:
@@ -283,8 +313,19 @@ class LocationSerializer(serializers.ModelSerializer):
     
     def get_children(self, obj):
         """Возвращает список дочерних локаций"""
-        children = obj.children.all()
-        return LocationSerializer(children, many=True).data
+        children_map = self.context.get('children_map') if hasattr(self, 'context') else None
+
+        if children_map is not None:
+            children = children_map.get(obj.id, [])
+        else:
+            children = list(obj.children.all())
+
+        if not children:
+            return []
+
+        context = getattr(self, 'context', {})
+        serializer = self.__class__(children, many=True, context=context)
+        return serializer.data
     
     
     def validate_parent_id(self, value):
