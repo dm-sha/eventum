@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { getEventsForEventum, createEvent, updateEvent, deleteEvent } from "../../api/event";
 import { eventTagApi } from "../../api/eventTag";
-import type { Event, EventTag } from "../../types";
+import { getLocationsForEventum } from "../../api/location";
+import type { Event, EventTag, Location } from "../../types";
 import { 
   IconInformationCircle, 
   IconPencil, 
@@ -21,6 +22,7 @@ const AdminEventsPage = () => {
   const { eventumSlug } = useParams();
   const [events, setEvents] = useState<EventWithTags[]>([]);
   const [eventTags, setEventTags] = useState<EventTag[]>([]);
+  const [locations, setLocations] = useState<Location[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTags, setSelectedTags] = useState<number[]>([]);
@@ -46,6 +48,8 @@ const AdminEventsPage = () => {
       const eventsData = await getEventsForEventum(eventumSlug);
       
       let tagsData: EventTag[] = [];
+      let locationsData: Location[] = [];
+      
       try {
         tagsData = await eventTagApi.getEventTags(eventumSlug);
       } catch (tagError) {
@@ -53,25 +57,25 @@ const AdminEventsPage = () => {
         // Продолжаем работу без тегов
       }
       
+      try {
+        locationsData = await getLocationsForEventum(eventumSlug);
+      } catch (locationError) {
+        console.error('Ошибка загрузки локаций:', locationError);
+        // Продолжаем работу без локаций
+      }
+      
       // Добавляем данные тегов к мероприятиям
       const eventsWithTags = eventsData.map(event => {
-        // Обрабатываем случай, когда теги могут приходить как объекты или как ID
-        let eventTagIds = event.tags;
-        if (event.tags && event.tags.length > 0 && typeof event.tags[0] === 'object') {
-          eventTagIds = event.tags.map((tag: any) => tag.id);
-        }
-        
-        const eventTags = tagsData.filter(tag => eventTagIds.includes(tag.id));
-        
+        // Теги приходят как объекты EventTag
         return {
           ...event,
-          tags: eventTagIds, // Убеждаемся, что tags это массив ID
-          tags_data: eventTags
+          tags_data: event.tags
         };
       });
       
       setEvents(eventsWithTags);
       setEventTags(tagsData);
+      setLocations(locationsData);
     } catch (error) {
       console.error('Ошибка загрузки данных:', error);
     } finally {
@@ -79,13 +83,20 @@ const AdminEventsPage = () => {
     }
   };
 
-  const filteredEvents = events.filter(event => {
-    const matchesSearch = event.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         event.description.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesTags = selectedTags.length === 0 || 
-                       selectedTags.some(tagId => event.tags.includes(tagId));
-    return matchesSearch && matchesTags;
-  });
+  const filteredEvents = events
+    .filter(event => {
+      const matchesSearch = event.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                           event.description.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesTags = selectedTags.length === 0 || 
+                         selectedTags.some(tagId => event.tags.some(tag => tag.id === tagId));
+      return matchesSearch && matchesTags;
+    })
+    .sort((a, b) => {
+      // Сортируем по времени начала мероприятия
+      const dateA = new Date(a.start_time);
+      const dateB = new Date(b.start_time);
+      return dateA.getTime() - dateB.getTime();
+    });
 
 
   const formatEventTime = (startTime: string, endTime: string) => {
@@ -146,16 +157,18 @@ const AdminEventsPage = () => {
     description: string;
     start_time: string;
     end_time: string;
-    tags: number[];
+    tags?: number[];
+    tag_ids?: number[];
+    location_id?: number;
   }) => {
     if (!eventumSlug) return;
     
     if (editingEvent) {
       const updated = await updateEvent(eventumSlug, editingEvent.id, eventData);
-      setEvents(prev => prev.map(e => e.id === editingEvent.id ? { ...updated, tags_data: eventTags.filter(tag => updated.tags.includes(tag.id)) } : e));
+      setEvents(prev => prev.map(e => e.id === editingEvent.id ? { ...updated, tags_data: updated.tags } : e));
     } else {
       const created = await createEvent(eventumSlug, eventData);
-      setEvents(prev => [...prev, { ...created, tags_data: eventTags.filter(tag => created.tags.includes(tag.id)) }]);
+      setEvents(prev => [...prev, { ...created, tags_data: created.tags }]);
     }
   };
 
@@ -355,6 +368,7 @@ const AdminEventsPage = () => {
         onSave={handleSaveEvent}
         event={editingEvent}
         eventTags={eventTags}
+        locations={locations}
       />
     </div>
   );

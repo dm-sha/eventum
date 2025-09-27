@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import type { Event, EventTag } from "../../types";
+import type { Event, EventTag, Location } from "../../types";
 
 interface EventEditModalProps {
   isOpen: boolean;
@@ -9,10 +9,13 @@ interface EventEditModalProps {
     description: string;
     start_time: string;
     end_time: string;
-    tags: number[];
+    tags?: number[];
+    tag_ids?: number[];
+    location_id?: number;
   }) => Promise<void>;
   event?: Event | null;
   eventTags: EventTag[];
+  locations: Location[];
   title?: string;
 }
 
@@ -22,6 +25,7 @@ const EventEditModal = ({
   onSave, 
   event, 
   eventTags, 
+  locations,
   title 
 }: EventEditModalProps) => {
   const [eventForm, setEventForm] = useState({
@@ -29,11 +33,13 @@ const EventEditModal = ({
     description: "",
     start_time: "",
     end_time: "",
-    tags: [] as number[]
+    tags: [] as number[],
+    location_id: undefined as number | undefined
   });
   const [tagSearchQuery, setTagSearchQuery] = useState("");
   const [showTagSuggestions, setShowTagSuggestions] = useState(false);
   const tagInputRef = useRef<HTMLDivElement>(null);
+
 
   // Обработка кликов вне области ввода тегов
   useEffect(() => {
@@ -56,12 +62,16 @@ const EventEditModal = ({
   useEffect(() => {
     if (isOpen) {
       if (event) {
+        // Извлекаем ID из объектов тегов и локации
+        const tagIds = event.tags.map(tag => tag.id);
+        const locationId = event.location?.id || event.location_id;
         setEventForm({
           name: event.name,
           description: event.description,
           start_time: formatDateTimeForInput(event.start_time),
           end_time: formatDateTimeForInput(event.end_time),
-          tags: event.tags
+          tags: tagIds,
+          location_id: locationId
         });
       } else {
         setEventForm({
@@ -69,7 +79,8 @@ const EventEditModal = ({
           description: "",
           start_time: "",
           end_time: "",
-          tags: []
+          tags: [],
+          location_id: undefined
         });
       }
       setTagSearchQuery("");
@@ -115,7 +126,16 @@ const EventEditModal = ({
     if (!eventForm.name.trim() || !eventForm.start_time || !eventForm.end_time) return;
     
     try {
-      await onSave(eventForm);
+      // Преобразуем tags в tag_ids для backend
+      const eventData = {
+        name: eventForm.name,
+        description: eventForm.description,
+        start_time: eventForm.start_time,
+        end_time: eventForm.end_time,
+        location_id: eventForm.location_id,
+        tag_ids: eventForm.tags
+      };
+      await onSave(eventData);
       onClose();
     } catch (error) {
       console.error('Ошибка сохранения мероприятия:', error);
@@ -184,6 +204,27 @@ const EventEditModal = ({
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
                 />
               </div>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Локация
+              </label>
+              <select
+                value={eventForm.location_id || ""}
+                onChange={(e) => setEventForm(prev => ({
+                  ...prev,
+                  location_id: e.target.value ? parseInt(e.target.value) : undefined
+                }))}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+              >
+                <option value="">Выберите локацию (необязательно)</option>
+                {locations.map((location) => (
+                  <option key={location.id} value={location.id}>
+                    {location.name} ({location.kind})
+                  </option>
+                ))}
+              </select>
             </div>
             
             <div>

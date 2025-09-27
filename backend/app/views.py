@@ -15,7 +15,7 @@ import json
 from .models import Eventum, Participant, ParticipantGroup, GroupTag, Event, EventTag, UserProfile, UserRole, Location
 from .serializers import (
     EventumSerializer, ParticipantSerializer, ParticipantGroupSerializer,
-    GroupTagSerializer, EventSerializer, EventTagSerializer,
+    GroupTagSerializer, EventSerializer, EventWithLocationSerializer, EventTagSerializer,
     UserProfileSerializer, UserRoleSerializer, VKAuthSerializer, CustomTokenObtainPairSerializer,
     LocationSerializer
 )
@@ -217,7 +217,7 @@ class EventViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
         'groups__tags',
         'tags',
     )
-    serializer_class = EventSerializer
+    serializer_class = EventWithLocationSerializer
     permission_classes = [IsEventumOrganizerOrReadOnly]  # Организаторы CRUD, участники только чтение
 
     @action(detail=False, methods=['get'])

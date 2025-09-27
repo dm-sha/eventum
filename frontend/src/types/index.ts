@@ -51,10 +51,12 @@ export interface Event {
   start_time: string; // ISO 8601 string date
   end_time: string;   // ISO 8601 string date
   eventum: number;    // ID of the eventum
+  location?: Location; // Локация проведения мероприятия
+  location_id?: number; // ID локации для записи
   // (arrays of IDs)
   participants: number[];
   groups: number[];
-  tags: number[];
+  tags: EventTag[]; // Объекты тегов для чтения
 }
 
 export interface UserEvent extends Event {
@@ -69,6 +71,7 @@ export interface CreateEventData {
   event_description?: string;
   start_time: string;
   end_time: string;
+  location_id?: number;
 }
 
 export interface UserRole {

@@ -128,6 +128,7 @@ class EventTag(models.Model):
 
 class Event(models.Model):
     eventum = models.ForeignKey(Eventum, on_delete=models.CASCADE, related_name='events')
+    location = models.ForeignKey('Location', on_delete=models.SET_NULL, related_name='events', null=True, blank=True)
     name = models.CharField(max_length=200)
     description = models.TextField(blank=True)
     start_time = models.DateTimeField()
@@ -153,19 +154,20 @@ class Event(models.Model):
         if self.end_time <= self.start_time:
             raise ValidationError("End time must be after start time")
         
-        # Ensure all participants belong to the same eventum
-        for participant in self.participants.all():
-            if participant.eventum != self.eventum:
-                raise ValidationError(
-                    f"Participant {participant.name} belongs to a different eventum"
-                )
-        
-        # Ensure all groups belong to the same eventum
-        for group in self.groups.all():
-            if group.eventum != self.eventum:
-                raise ValidationError(
-                    f"Group {group.name} belongs to a different eventum"
-                )
+        # Ensure all participants belong to the same eventum (only if object is saved)
+        if self.pk:
+            for participant in self.participants.all():
+                if participant.eventum != self.eventum:
+                    raise ValidationError(
+                        f"Participant {participant.name} belongs to a different eventum"
+                    )
+            
+            # Ensure all groups belong to the same eventum (only if object is saved)
+            for group in self.groups.all():
+                if group.eventum != self.eventum:
+                    raise ValidationError(
+                        f"Group {group.name} belongs to a different eventum"
+                    )
     
     def __str__(self):
         return f"{self.name} ({self.eventum.name})"

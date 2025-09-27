@@ -157,26 +157,69 @@ class EventTagSerializer(serializers.ModelSerializer):
 class EventSerializer(serializers.ModelSerializer):
     participants = serializers.PrimaryKeyRelatedField(
         many=True,
-        queryset=Participant.objects.all()
+        queryset=Participant.objects.all(),
+        required=False,
+        allow_empty=True
     )
     groups = serializers.PrimaryKeyRelatedField(
         many=True,
-        queryset=ParticipantGroup.objects.all()
+        queryset=ParticipantGroup.objects.all(),
+        required=False,
+        allow_empty=True
     )
     tags = EventTagSerializer(many=True, read_only=True)
     tag_ids = serializers.PrimaryKeyRelatedField(
         many=True,
         write_only=True,
         source='tags',
-        queryset=EventTag.objects.all()
+        queryset=EventTag.objects.all(),
+        required=False,
+        allow_empty=True
+    )
+    location_id = serializers.PrimaryKeyRelatedField(
+        write_only=True,
+        source='location',
+        queryset=Location.objects.all(),
+        required=False,
+        allow_null=True
     )
 
     class Meta:
         model = Event
         fields = [
             'id', 'name', 'description', 'start_time', 'end_time',
-            'participants', 'groups', 'tags', 'tag_ids'
+            'participants', 'groups', 'tags', 'tag_ids', 'location_id'
         ]
+
+    def validate_location_id(self, value):
+        """Валидация location_id - локация должна принадлежать тому же eventum"""
+        if value is None:
+            return value
+        
+        # Получаем eventum из контекста
+        eventum = self.context.get('eventum')
+        if eventum and value.eventum != eventum:
+            raise serializers.ValidationError(
+                f"Локация '{value.name}' не принадлежит данному eventum"
+            )
+        
+        return value
+
+    def validate_tag_ids(self, value):
+        """Валидация tag_ids - теги должны принадлежать тому же eventum"""
+        if not value:
+            return value
+        
+        # Получаем eventum из контекста
+        eventum = self.context.get('eventum')
+        if eventum:
+            for tag in value:
+                if tag.eventum != eventum:
+                    raise serializers.ValidationError(
+                        f"Тег '{tag.name}' не принадлежит данному eventum"
+                    )
+        
+        return value
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
@@ -307,6 +350,14 @@ class LocationSerializer(serializers.ModelSerializer):
             validated_data['slug'] = slug
         
         return super().update(instance, validated_data)
+
+
+# Добавляем поле location в EventSerializer после определения LocationSerializer
+class EventWithLocationSerializer(EventSerializer):
+    location = LocationSerializer(read_only=True)
+    
+    class Meta(EventSerializer.Meta):
+        fields = EventSerializer.Meta.fields + ['location']
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
