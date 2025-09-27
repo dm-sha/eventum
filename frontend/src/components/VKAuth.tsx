@@ -122,7 +122,7 @@ const VKAuth: React.FC = () => {
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 px-4 py-8 sm:py-12">
       <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-6 sm:p-8">
         <div className="text-center mb-8 space-y-2">
-          <h1 className="text-3xl font-bold text-gray-900">Eventum</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Merup</h1>
           <p className="text-gray-600 text-sm sm:text-base">
             Войдите через VK для продолжения
           </p>
