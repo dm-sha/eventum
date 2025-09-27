@@ -77,8 +77,8 @@ const EventEditModal = ({
         setEventForm({
           name: "",
           description: "",
-          start_time: "",
-          end_time: "",
+          start_time: getDefaultDateTime(),
+          end_time: getDefaultEndDateTime(),
           tags: [],
           location_id: undefined
         });
@@ -91,8 +91,41 @@ const EventEditModal = ({
   const formatDateTimeForInput = (dateTime: string) => {
     if (!dateTime) return "";
     const date = new Date(dateTime);
-    // Конвертируем в формат YYYY-MM-DDTHH:MM для datetime-local
-    return date.toISOString().slice(0, 16);
+    // Используем локальное время для datetime-local без конвертации в UTC
+    return formatLocalDateTime(date);
+  };
+
+  // Функция для форматирования даты в локальном времени для datetime-local
+  const formatLocalDateTime = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  };
+
+  const getDefaultDateTime = () => {
+    const now = new Date();
+    // Устанавливаем время на начало текущего часа
+    now.setMinutes(0, 0, 0);
+    return formatLocalDateTime(now);
+  };
+
+  const getDefaultEndDateTime = () => {
+    const now = new Date();
+    // Устанавливаем время на час вперед от начала текущего часа
+    now.setMinutes(0, 0, 0);
+    now.setHours(now.getHours() + 1);
+    return formatLocalDateTime(now);
+  };
+
+  const getEndTimeFromStartTime = (startTime: string) => {
+    if (!startTime) return "";
+    const startDate = new Date(startTime);
+    // Добавляем час к времени начала
+    startDate.setHours(startDate.getHours() + 1);
+    return formatLocalDateTime(startDate);
   };
 
   const addTagToForm = (tag: EventTag) => {
@@ -189,7 +222,14 @@ const EventEditModal = ({
                 <input
                   type="datetime-local"
                   value={eventForm.start_time}
-                  onChange={(e) => setEventForm(prev => ({ ...prev, start_time: e.target.value }))}
+                  onChange={(e) => {
+                    const newStartTime = e.target.value;
+                    setEventForm(prev => ({ 
+                      ...prev, 
+                      start_time: newStartTime,
+                      end_time: getEndTimeFromStartTime(newStartTime)
+                    }));
+                  }}
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
                 />
               </div>
