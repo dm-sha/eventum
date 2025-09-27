@@ -1,26 +1,35 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { getEventumDetails, updateEventumName, updateEventumDescription } from "../../api/eventum";
-import { getEventumOrganizers, addEventumOrganizer, removeEventumOrganizer, searchUsers } from "../../api/organizers";
-import type { EventumDetails, User, UserRole } from "../../types";
+import { addEventumOrganizer, removeEventumOrganizer, searchUsers } from "../../api/organizers";
+import { useAuth } from "../../contexts/AuthContext";
+import type { EventumDetails, User } from "../../types";
 import { 
   IconPencil, 
   IconPlus, 
   IconTrash,
   IconUsers,
   IconCalendar,
-  IconSettings
+  IconSettings,
+  IconX
 } from "../../components/icons";
 
 
 const EventumInfoPage = () => {
   const { eventumSlug } = useParams();
+  const { user } = useAuth();
   const [eventum, setEventum] = useState<EventumDetails | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isEditingName, setIsEditingName] = useState(false);
   const [isEditingDescription, setIsEditingDescription] = useState(false);
   const [tempName, setTempName] = useState("");
   const [tempDescription, setTempDescription] = useState("");
+  
+  // Состояние для модального окна добавления организатора
+  const [isAddOrganizerModalOpen, setIsAddOrganizerModalOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<User[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
 
   useEffect(() => {
     if (eventumSlug) {
@@ -85,12 +94,62 @@ const EventumInfoPage = () => {
   };
 
   const handleAddOrganizer = () => {
-    // TODO: Реализовать добавление организатора с модальным окном поиска
-    console.log('Добавить организатора');
+    setIsAddOrganizerModalOpen(true);
+    setSearchQuery("");
+    setSearchResults([]);
   };
 
-  const handleRemoveOrganizer = async (roleId: number) => {
+  const handleSearchUsers = async (query: string) => {
+    if (query.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      const results = await searchUsers(query);
+      setSearchResults(results);
+    } catch (error) {
+      console.error('Ошибка поиска пользователей:', error);
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleAddUserAsOrganizer = async (userId: number) => {
     if (!eventumSlug || !eventum) return;
+
+    try {
+      const newOrganizerRole = await addEventumOrganizer(eventumSlug, userId);
+      // Обновляем список организаторов
+      setEventum({ 
+        ...eventum, 
+        organizers: [...eventum.organizers, newOrganizerRole] 
+      });
+      setIsAddOrganizerModalOpen(false);
+      setSearchQuery("");
+      setSearchResults([]);
+    } catch (error) {
+      console.error('Ошибка добавления организатора:', error);
+      alert('Не удалось добавить организатора. Возможно, пользователь уже является организатором.');
+    }
+  };
+
+  const closeAddOrganizerModal = () => {
+    setIsAddOrganizerModalOpen(false);
+    setSearchQuery("");
+    setSearchResults([]);
+  };
+
+  const handleRemoveOrganizer = async (roleId: number, organizerUserId: number) => {
+    if (!eventumSlug || !eventum || !user) return;
+    
+    // Проверяем, не пытается ли пользователь удалить себя
+    if (organizerUserId === user.id) {
+      alert('Вы не можете удалить себя из списка организаторов.');
+      return;
+    }
     
     if (!confirm('Вы уверены, что хотите удалить этого организатора?')) {
       return;
@@ -310,13 +369,15 @@ const EventumInfoPage = () => {
                       <p className="text-sm text-gray-500">{organizerRole.user.email}</p>
                     </div>
                   </div>
-                  <button
-                    onClick={() => handleRemoveOrganizer(organizerRole.id)}
-                    className="p-1 rounded text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                    title="Удалить организатора"
-                  >
-                    <IconTrash size={16} />
-                  </button>
+                  {organizerRole.user.id !== user?.id && (
+                    <button
+                      onClick={() => handleRemoveOrganizer(organizerRole.id, organizerRole.user.id)}
+                      className="p-1 rounded text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                      title="Удалить организатора"
+                    >
+                      <IconTrash size={16} />
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
@@ -327,6 +388,94 @@ const EventumInfoPage = () => {
           )}
         </div>
       </section>
+
+      {/* Модальное окно добавления организатора */}
+      {isAddOrganizerModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Добавить организатора</h3>
+              <button
+                onClick={closeAddOrganizerModal}
+                className="p-1 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+              >
+                <IconX size={20} />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Поиск пользователей
+                </label>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    handleSearchUsers(e.target.value);
+                  }}
+                  placeholder="Введите имя пользователя..."
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                  autoFocus
+                />
+              </div>
+              
+              {isSearching && (
+                <div className="text-center py-4">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
+                </div>
+              )}
+              
+              {searchResults.length > 0 && (
+                <div className="max-h-60 overflow-y-auto">
+                  <div className="space-y-2">
+                    {searchResults.map((user) => (
+                      <div
+                        key={user.id}
+                        className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+                            <span className="text-white text-sm font-medium">
+                              {user.name.charAt(0).toUpperCase()}
+                            </span>
+                          </div>
+                          <div>
+                            <p className="font-medium text-gray-900">{user.name}</p>
+                            <p className="text-sm text-gray-500">{user.email}</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => handleAddUserAsOrganizer(user.id)}
+                          className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                        >
+                          Добавить
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {searchQuery.length >= 2 && !isSearching && searchResults.length === 0 && (
+                <div className="text-center py-4 text-gray-500">
+                  <p>Пользователи не найдены</p>
+                </div>
+              )}
+            </div>
+            
+            <div className="flex items-center justify-end gap-2 mt-6">
+              <button
+                onClick={closeAddOrganizerModal}
+                className="px-4 py-2 text-sm bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+              >
+                Отменить
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
