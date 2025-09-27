@@ -9,7 +9,7 @@ import {
   IconHome,
   IconTag,
   IconTags,
-  IconUsers,
+  IconUsersCircle,
   IconMapPin,
 } from "./icons";
 
@@ -18,7 +18,7 @@ const AdminLayout = () => {
   const menu = [
     { to: ".", label: "Общие", icon: IconHome, end: true },
     { to: "events", label: "Мероприятия", icon: IconCalendar },
-    { to: "participants", label: "Участники", icon: IconUsers },
+    { to: "participants", label: "Участники", icon: IconUsersCircle },
     { to: "locations", label: "Локации", icon: IconMapPin },
     { to: "event-tags", label: "Теги мероприятий", icon: IconTag },
     { to: "group-tags", label: "Теги групп", icon: IconTags },

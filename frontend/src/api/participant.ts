@@ -16,8 +16,6 @@ export const createParticipant = async (eventumSlug: string, participantData: {
     return response.data;
 };
 
-
-
 // Обновить участника
 export const updateParticipant = async (
     eventumSlug: string, 

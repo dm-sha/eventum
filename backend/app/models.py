@@ -33,6 +33,11 @@ class Participant(models.Model):
                 name='unique_user_per_eventum'
             )
         ]
+        indexes = [
+            models.Index(fields=['eventum']),  # Для фильтрации по eventum
+            models.Index(fields=['user']),     # Для поиска по пользователю
+            models.Index(fields=['name']),     # Для поиска по имени
+        ]
     
     def clean(self):
         # Валидация: если указан пользователь, то имя должно соответствовать имени пользователя
@@ -55,6 +60,10 @@ class GroupTag(models.Model):
     
     class Meta:
         unique_together = ('eventum', 'slug')
+        indexes = [
+            models.Index(fields=['eventum']),  # Для фильтрации по eventum
+            models.Index(fields=['name']),     # Для поиска по имени
+        ]
     
     def save(self, *args, **kwargs):
         if not self.slug:
@@ -76,6 +85,10 @@ class ParticipantGroup(models.Model):
     
     class Meta:
         unique_together = ('eventum', 'slug')
+        indexes = [
+            models.Index(fields=['eventum']),  # Для фильтрации по eventum
+            models.Index(fields=['name']),     # Для поиска по имени
+        ]
     
     def save(self, *args, **kwargs):
         if not self.slug:

@@ -22,6 +22,7 @@ export interface Participant {
   user?: User;
   user_id?: number;
   eventum: number; // ID of the eventum
+  groups?: ParticipantGroup[];
 }
 
 export interface GroupTag {

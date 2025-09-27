@@ -30,10 +30,11 @@ class EventumSerializer(serializers.ModelSerializer):
 class ParticipantSerializer(serializers.ModelSerializer):
     user = serializers.SerializerMethodField(read_only=True)
     user_id = serializers.IntegerField(write_only=True, required=False, allow_null=True)
+    groups = serializers.SerializerMethodField(read_only=True)
     
     class Meta:
         model = Participant
-        fields = ['id', 'name', 'user', 'user_id']
+        fields = ['id', 'name', 'user', 'user_id', 'groups']
     
     def get_user(self, obj):
         """Возвращает информацию о пользователе"""
@@ -48,6 +49,17 @@ class ParticipantSerializer(serializers.ModelSerializer):
                 'last_login': obj.user.last_login
             }
         return None
+    
+    def get_groups(self, obj):
+        """Возвращает группы участника"""
+        # Используем prefetch_related для оптимизации
+        groups = obj.groups.all()
+        return [{
+            'id': group.id,
+            'name': group.name,
+            'slug': group.slug,
+            'tags': [{'id': tag.id, 'name': tag.name, 'slug': tag.slug} for tag in group.tags.all()]
+        } for group in groups]
     
     def create(self, validated_data):
         """Переопределяем create для автоматического заполнения имени из пользователя"""

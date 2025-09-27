@@ -3,6 +3,7 @@ from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.permissions import AllowAny
+from rest_framework.pagination import PageNumberPagination
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.shortcuts import get_object_or_404
@@ -20,6 +21,10 @@ from .serializers import (
     LocationSerializer
 )
 from .permissions import IsEventumOrganizer, IsEventumParticipant, IsEventumOrganizerOrReadOnly, IsEventumOrganizerOrReadOnlyForList
+from .utils import log_execution_time
+import logging
+
+logger = logging.getLogger(__name__)
 
 class EventumViewSet(viewsets.ModelViewSet):
     queryset = Eventum.objects.all()
@@ -50,6 +55,68 @@ class ParticipantViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
     queryset = Participant.objects.select_related('user', 'eventum').all()
     serializer_class = ParticipantSerializer
     permission_classes = [IsEventumOrganizerOrReadOnly]  # Организаторы CRUD, участники только чтение
+    pagination_class = PageNumberPagination
+    
+    def get_queryset(self):
+        """Оптимизированный queryset для списка участников"""
+        eventum = self.get_eventum()
+        return Participant.objects.filter(eventum=eventum).select_related(
+            'user', 
+            'eventum'
+        ).prefetch_related(
+            'groups__tags'  # Оптимизируем загрузку групп и их тегов
+        )
+    
+    @log_execution_time("Получение списка участников")
+    def list(self, request, *args, **kwargs):
+        """Переопределяем list для добавления кэширования"""
+        # Для пагинированных запросов не используем кэширование
+        if request.GET.get('page'):
+            return super().list(request, *args, **kwargs)
+        
+        eventum_slug = kwargs.get('eventum_slug')
+        cache_key = f"participants_list_{eventum_slug}"
+        
+        # Пытаемся получить данные из кэша
+        cached_data = cache.get(cache_key)
+        if cached_data is not None:
+            logger.info(f"Данные участников получены из кэша для {eventum_slug}")
+            return Response(cached_data)
+        
+        # Если данных нет в кэше, выполняем запрос
+        logger.info(f"Загрузка участников из БД для {eventum_slug}")
+        queryset = self.filter_queryset(self.get_queryset())
+        serializer = self.get_serializer(queryset, many=True)
+        
+        # Кэшируем результат на 5 минут
+        cache.set(cache_key, serializer.data, 300)
+        logger.info(f"Кэшировано {len(serializer.data)} участников для {eventum_slug}")
+        
+        return Response(serializer.data)
+    
+    def perform_create(self, serializer):
+        """Переопределяем для инвалидации кэша при создании"""
+        eventum = self.get_eventum()
+        serializer.save(eventum=eventum)
+        # Инвалидируем кэш
+        cache_key = f"participants_list_{eventum.slug}"
+        cache.delete(cache_key)
+    
+    def perform_update(self, serializer):
+        """Переопределяем для инвалидации кэша при обновлении"""
+        eventum = self.get_eventum()
+        serializer.save()
+        # Инвалидируем кэш
+        cache_key = f"participants_list_{eventum.slug}"
+        cache.delete(cache_key)
+    
+    def perform_destroy(self, instance):
+        """Переопределяем для инвалидации кэша при удалении"""
+        eventum = self.get_eventum()
+        instance.delete()
+        # Инвалидируем кэш
+        cache_key = f"participants_list_{eventum.slug}"
+        cache.delete(cache_key)
     
     @action(detail=False, methods=['get'])
     def me(self, request, eventum_slug=None):
@@ -87,6 +154,9 @@ class ParticipantViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
         serializer = self.get_serializer(data=participant_data)
         if serializer.is_valid():
             participant = serializer.save()
+            # Инвалидируем кэш
+            cache_key = f"participants_list_{eventum.slug}"
+            cache.delete(cache_key)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
@@ -100,6 +170,9 @@ class ParticipantViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
         try:
             participant = Participant.objects.get(user=request.user, eventum=eventum)
             participant.delete()
+            # Инвалидируем кэш
+            cache_key = f"participants_list_{eventum.slug}"
+            cache.delete(cache_key)
             return Response({'status': 'success'}, status=status.HTTP_200_OK)
         except Participant.DoesNotExist:
             return Response({'error': 'User is not a participant in this eventum'}, status=status.HTTP_404_NOT_FOUND)
@@ -124,22 +197,30 @@ class ParticipantGroupViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
             'participants__eventum'
         ).select_related('eventum')  # Добавляем select_related для eventum
     
+    @log_execution_time("Получение списка групп участников")
     def list(self, request, *args, **kwargs):
         """Переопределяем list для добавления кэширования"""
+        # Для пагинированных запросов не используем кэширование
+        if request.GET.get('page'):
+            return super().list(request, *args, **kwargs)
+        
         eventum_slug = kwargs.get('eventum_slug')
         cache_key = f"groups_list_{eventum_slug}"
         
         # Пытаемся получить данные из кэша
         cached_data = cache.get(cache_key)
         if cached_data is not None:
+            logger.info(f"Данные групп получены из кэша для {eventum_slug}")
             return Response(cached_data)
         
         # Если данных нет в кэше, выполняем запрос
+        logger.info(f"Загрузка групп из БД для {eventum_slug}")
         queryset = self.filter_queryset(self.get_queryset())
         serializer = self.get_serializer(queryset, many=True)
         
         # Кэшируем результат на 5 минут
         cache.set(cache_key, serializer.data, 300)
+        logger.info(f"Кэшировано {len(serializer.data)} групп для {eventum_slug}")
         
         return Response(serializer.data)
     
@@ -171,6 +252,72 @@ class GroupTagViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
     )
     serializer_class = GroupTagSerializer
     permission_classes = [IsEventumOrganizerOrReadOnly]  # Организаторы CRUD, участники только чтение
+    pagination_class = PageNumberPagination
+    
+    def get_queryset(self):
+        """Оптимизированный queryset для списка тегов групп"""
+        eventum = self.get_eventum()
+        return GroupTag.objects.filter(eventum=eventum).prefetch_related(
+            'groups__participants__user',
+            'groups__tags'
+        ).select_related('eventum')
+    
+    @log_execution_time("Получение списка тегов групп")
+    def list(self, request, *args, **kwargs):
+        """Переопределяем list для добавления кэширования"""
+        # Для пагинированных запросов не используем кэширование
+        if request.GET.get('page'):
+            return super().list(request, *args, **kwargs)
+        
+        eventum_slug = kwargs.get('eventum_slug')
+        cache_key = f"group_tags_list_{eventum_slug}"
+        
+        # Пытаемся получить данные из кэша
+        cached_data = cache.get(cache_key)
+        if cached_data is not None:
+            logger.info(f"Данные тегов групп получены из кэша для {eventum_slug}")
+            return Response(cached_data)
+        
+        # Если данных нет в кэше, выполняем запрос
+        logger.info(f"Загрузка тегов групп из БД для {eventum_slug}")
+        queryset = self.filter_queryset(self.get_queryset())
+        serializer = self.get_serializer(queryset, many=True)
+        
+        # Кэшируем результат на 5 минут
+        cache.set(cache_key, serializer.data, 300)
+        logger.info(f"Кэшировано {len(serializer.data)} тегов групп для {eventum_slug}")
+        
+        return Response(serializer.data)
+    
+    def perform_create(self, serializer):
+        """Переопределяем для инвалидации кэша при создании"""
+        eventum = self.get_eventum()
+        serializer.save(eventum=eventum)
+        # Инвалидируем кэш
+        cache_key = f"group_tags_list_{eventum.slug}"
+        cache.delete(cache_key)
+        # Также инвалидируем кэш групп, так как теги влияют на группы
+        cache.delete(f"groups_list_{eventum.slug}")
+    
+    def perform_update(self, serializer):
+        """Переопределяем для инвалидации кэша при обновлении"""
+        eventum = self.get_eventum()
+        serializer.save()
+        # Инвалидируем кэш
+        cache_key = f"group_tags_list_{eventum.slug}"
+        cache.delete(cache_key)
+        # Также инвалидируем кэш групп
+        cache.delete(f"groups_list_{eventum.slug}")
+    
+    def perform_destroy(self, instance):
+        """Переопределяем для инвалидации кэша при удалении"""
+        eventum = self.get_eventum()
+        instance.delete()
+        # Инвалидируем кэш
+        cache_key = f"group_tags_list_{eventum.slug}"
+        cache.delete(cache_key)
+        # Также инвалидируем кэш групп
+        cache.delete(f"groups_list_{eventum.slug}")
 
     @action(detail=True, methods=['get'])
     def groups(self, request, eventum_slug=None, pk=None):
@@ -187,6 +334,9 @@ class GroupTagViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
         try:
             group = ParticipantGroup.objects.get(id=group_id, eventum__slug=eventum_slug)
             group_tag.groups.add(group)
+            # Инвалидируем кэш
+            cache.delete(f"group_tags_list_{eventum_slug}")
+            cache.delete(f"groups_list_{eventum_slug}")
             return Response({'status': 'success'}, status=status.HTTP_200_OK)
         except ParticipantGroup.DoesNotExist:
             return Response({'error': 'Group not found'}, status=status.HTTP_404_NOT_FOUND)
@@ -198,6 +348,9 @@ class GroupTagViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
         try:
             group = ParticipantGroup.objects.get(id=group_id, eventum__slug=eventum_slug)
             group_tag.groups.remove(group)
+            # Инвалидируем кэш
+            cache.delete(f"group_tags_list_{eventum_slug}")
+            cache.delete(f"groups_list_{eventum_slug}")
             return Response({'status': 'success'}, status=status.HTTP_200_OK)
         except ParticipantGroup.DoesNotExist:
             return Response({'error': 'Group not found'}, status=status.HTTP_404_NOT_FOUND)
