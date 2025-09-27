@@ -1,11 +1,100 @@
 from rest_framework import serializers
+from rest_framework.relations import MANY_RELATION_KWARGS
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.utils.text import slugify
 from transliterate import translit
 from .models import (
-    Eventum, Participant, ParticipantGroup, 
+    Eventum, Participant, ParticipantGroup,
     GroupTag, Event, EventTag, UserProfile, UserRole, Location
 )
+
+
+class BulkManyRelatedField(serializers.ManyRelatedField):
+    """Many-related field that resolves all primary keys in a single query."""
+
+    def __init__(self, *args, select_related=(), prefetch_related=(), **kwargs):
+        self.bulk_select_related = tuple(select_related)
+        self.bulk_prefetch_related = tuple(prefetch_related)
+        super().__init__(*args, **kwargs)
+
+    def to_internal_value(self, data):
+        if isinstance(data, str) or not hasattr(data, "__iter__"):
+            self.fail("not_a_list", input_type=type(data).__name__)
+
+        items = list(data)
+        if not self.allow_empty and len(items) == 0:
+            self.fail("empty")
+
+        if not items:
+            return []
+
+        child = self.child_relation
+        pk_field = getattr(child, "pk_field", None)
+        if pk_field is None:
+            # Fall back to the default implementation for custom relations.
+            return super().to_internal_value(items)
+
+        validated_ids = []
+        for item in items:
+            try:
+                validated_ids.append(pk_field.to_internal_value(item))
+            except serializers.ValidationError:
+                raise
+            except (TypeError, ValueError):
+                child.fail("incorrect_type", data_type=type(item).__name__)
+
+        queryset = child.get_queryset()
+        if queryset is None:
+            raise AssertionError("BulkPrimaryKeyRelatedField requires a queryset.")
+
+        if self.bulk_select_related:
+            queryset = queryset.select_related(*self.bulk_select_related)
+        if self.bulk_prefetch_related:
+            queryset = queryset.prefetch_related(*self.bulk_prefetch_related)
+
+        matched = list(queryset.filter(pk__in=set(validated_ids)))
+        objects_by_pk = {obj.pk: obj for obj in matched}
+
+        missing_ids = [pk for pk in validated_ids if pk not in objects_by_pk]
+        if missing_ids:
+            template = child.default_error_messages.get(
+                "does_not_exist",
+                'Invalid pk "{pk_value}" - object does not exist.',
+            )
+            raise serializers.ValidationError(
+                template.format(pk_value=", ".join(str(pk) for pk in missing_ids))
+            )
+
+        return [objects_by_pk[pk] for pk in validated_ids]
+
+
+class BulkPrimaryKeyRelatedField(serializers.PrimaryKeyRelatedField):
+    """Primary key field that performs bulk resolution for ``many=True`` usage."""
+
+    def __init__(self, *args, select_related=None, prefetch_related=None, **kwargs):
+        select_related = () if select_related is None else select_related
+        prefetch_related = () if prefetch_related is None else prefetch_related
+        if isinstance(select_related, str):
+            select_related = (select_related,)
+        if isinstance(prefetch_related, str):
+            prefetch_related = (prefetch_related,)
+        self._bulk_select_related = tuple(select_related)
+        self._bulk_prefetch_related = tuple(prefetch_related)
+        super().__init__(*args, **kwargs)
+
+    @classmethod
+    def many_init(cls, *args, **kwargs):
+        child_relation = cls(*args, **kwargs)
+        list_kwargs = {"child_relation": child_relation}
+        for key in kwargs:
+            if key in MANY_RELATION_KWARGS:
+                list_kwargs[key] = kwargs[key]
+
+        return BulkManyRelatedField(
+            select_related=child_relation._bulk_select_related,
+            prefetch_related=child_relation._bulk_prefetch_related,
+            **list_kwargs,
+        )
 
 class EventumSerializer(serializers.ModelSerializer):
     class Meta:
@@ -95,18 +184,20 @@ class GroupTagSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'slug']
 
 class ParticipantGroupSerializer(serializers.ModelSerializer):
-    participants = serializers.PrimaryKeyRelatedField(
+    participants = BulkPrimaryKeyRelatedField(
         many=True,
         queryset=Participant.objects.all(),
-        required=False
+        required=False,
+        select_related=("eventum", "user"),
     )
     tags = GroupTagSerializer(many=True, read_only=True)
-    tag_ids = serializers.PrimaryKeyRelatedField(
+    tag_ids = BulkPrimaryKeyRelatedField(
         many=True,
         write_only=True,
         source='tags',
         queryset=GroupTag.objects.all(),
-        required=False
+        required=False,
+        select_related="eventum",
     )
     
     def to_representation(self, instance):
@@ -122,25 +213,45 @@ class ParticipantGroupSerializer(serializers.ModelSerializer):
     class Meta:
         model = ParticipantGroup
         fields = ['id', 'name', 'slug', 'participants', 'tags', 'tag_ids']
-    
+
+    def validate_tag_ids(self, value):
+        """Валидация тегов группы с использованием ID."""
+        if not value:
+            return value
+
+        eventum = self.context.get('eventum')
+        if not eventum:
+            return value
+
+        eventum_id = getattr(eventum, 'id', eventum)
+        invalid_tags = [tag for tag in value if tag.eventum_id != eventum_id]
+        if invalid_tags:
+            invalid_names = [tag.name for tag in invalid_tags]
+            raise serializers.ValidationError(
+                f"Теги {', '.join(invalid_names)} принадлежат другому мероприятию"
+            )
+
+        return value
+
     def validate_participants(self, value):
         """Проверяем, что все участники принадлежат тому же eventum"""
         if not value:
             return value
-            
+
         # Получаем eventum из контекста
         eventum = self.context.get('eventum')
         if not eventum:
             return value
-            
+
         # Проверяем, что все участники принадлежат тому же eventum
-        invalid_participants = [p for p in value if p.eventum != eventum]
+        eventum_id = getattr(eventum, 'id', eventum)
+        invalid_participants = [p for p in value if p.eventum_id != eventum_id]
         if invalid_participants:
             invalid_names = [p.name for p in invalid_participants]
             raise serializers.ValidationError(
                 f"Участники {', '.join(invalid_names)} принадлежат другому мероприятию"
             )
-        
+
         return value
     
     def create(self, validated_data):
@@ -169,26 +280,29 @@ class EventTagSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'slug']
 
 class EventSerializer(serializers.ModelSerializer):
-    participants = serializers.PrimaryKeyRelatedField(
+    participants = BulkPrimaryKeyRelatedField(
         many=True,
         queryset=Participant.objects.all(),
         required=False,
-        allow_empty=True
+        allow_empty=True,
+        select_related=("eventum", "user"),
     )
-    groups = serializers.PrimaryKeyRelatedField(
+    groups = BulkPrimaryKeyRelatedField(
         many=True,
         queryset=ParticipantGroup.objects.all(),
         required=False,
-        allow_empty=True
+        allow_empty=True,
+        select_related="eventum",
     )
     tags = EventTagSerializer(many=True, read_only=True)
-    tag_ids = serializers.PrimaryKeyRelatedField(
+    tag_ids = BulkPrimaryKeyRelatedField(
         many=True,
         write_only=True,
         source='tags',
         queryset=EventTag.objects.all(),
         required=False,
-        allow_empty=True
+        allow_empty=True,
+        select_related="eventum",
     )
     location_id = serializers.PrimaryKeyRelatedField(
         write_only=True,
@@ -211,7 +325,12 @@ class EventSerializer(serializers.ModelSerializer):
 
         eventum = self.context.get('eventum')
         if eventum:
-            invalid = [participant for participant in value if participant.eventum != eventum]
+            eventum_id = getattr(eventum, 'id', eventum)
+            invalid = [
+                participant
+                for participant in value
+                if participant.eventum_id != eventum_id
+            ]
             if invalid:
                 names = ', '.join(participant.name for participant in invalid)
                 raise serializers.ValidationError(
@@ -226,7 +345,12 @@ class EventSerializer(serializers.ModelSerializer):
 
         eventum = self.context.get('eventum')
         if eventum:
-            invalid = [group for group in value if group.eventum != eventum]
+            eventum_id = getattr(eventum, 'id', eventum)
+            invalid = [
+                group
+                for group in value
+                if group.eventum_id != eventum_id
+            ]
             if invalid:
                 names = ', '.join(group.name for group in invalid)
                 raise serializers.ValidationError(
@@ -253,16 +377,18 @@ class EventSerializer(serializers.ModelSerializer):
         """Валидация tag_ids - теги должны принадлежать тому же eventum"""
         if not value:
             return value
-        
+
         # Получаем eventum из контекста
         eventum = self.context.get('eventum')
         if eventum:
-            for tag in value:
-                if tag.eventum != eventum:
-                    raise serializers.ValidationError(
-                        f"Тег '{tag.name}' не принадлежит данному eventum"
-                    )
-        
+            eventum_id = getattr(eventum, 'id', eventum)
+            invalid_tags = [tag for tag in value if tag.eventum_id != eventum_id]
+            if invalid_tags:
+                names = ', '.join(tag.name for tag in invalid_tags)
+                raise serializers.ValidationError(
+                    f"Теги {names} не принадлежат данному eventum"
+                )
+
         return value
 
 
