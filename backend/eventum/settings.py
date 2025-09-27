@@ -146,7 +146,11 @@ DATABASES = {
         'OPTIONS': {
             'sslmode': 'require',
             'connect_timeout': 30,
-            'options': '-c default_transaction_isolation=read_committed'
+            'options': '-c default_transaction_isolation=read_committed',
+            'keepalives': 1,
+            'keepalives_idle': 30,
+            'keepalives_interval': 10,
+            'keepalives_count': 5,
         },
         'CONN_HEALTH_CHECKS': True,
     }

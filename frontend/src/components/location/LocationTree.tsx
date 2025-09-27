@@ -105,12 +105,9 @@ const LocationNode: React.FC<LocationNodeProps> = ({
             </span>
           </div>
           
-          {(location.address || location.floor) && (
+          {(location.address) && (
             <div className="text-sm text-gray-500 truncate mt-1">
-              {[
-                location.address,
-                location.floor ? `этаж ${location.floor}` : null
-              ].filter(Boolean).join(', ')}
+              {[location.address].filter(Boolean).join(', ')}
             </div>
           )}
         </div>
