@@ -5,24 +5,24 @@ import {
   IconCalendar,
   IconChevronLeft,
   IconChevronRight,
-  IconGrid,
   IconHome,
-  IconTag,
-  IconTags,
   IconUsersCircle,
   IconMapPin,
+  IconEventTag,
+  IconGroupTag,
+  IconParticipantGroup,
 } from "./icons";
 
 const AdminLayout = () => {
   const location = useLocation();
   const menu = [
     { to: ".", label: "Общие", icon: IconHome, end: true },
-    { to: "events", label: "Мероприятия", icon: IconCalendar },
-    { to: "participants", label: "Участники", icon: IconUsersCircle },
     { to: "locations", label: "Локации", icon: IconMapPin },
-    { to: "event-tags", label: "Теги мероприятий", icon: IconTag },
-    { to: "group-tags", label: "Теги групп", icon: IconTags },
-    { to: "groups", label: "Группы", icon: IconGrid },
+    { to: "events", label: "Мероприятия", icon: IconCalendar },
+    { to: "event-tags", label: "Теги мероприятий", icon: IconEventTag },
+    { to: "participants", label: "Участники", icon: IconUsersCircle },
+    { to: "groups", label: "Группы участников", icon: IconParticipantGroup },
+    { to: "group-tags", label: "Теги групп", icon: IconGroupTag },
   ];
 
   // Sidebar collapsed state with persistence
