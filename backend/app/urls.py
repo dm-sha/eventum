@@ -21,6 +21,7 @@ from .views import (
     remove_eventum_organizer,
     search_users
 )
+from .cors_test_views import cors_test_view
 
 router = DefaultRouter()
 router.register(r'eventums', EventumViewSet)
@@ -58,4 +59,7 @@ urlpatterns = [
     
     # Поиск пользователей
     path('users/search/', search_users, name='search_users'),
+    
+    # Тест CORS
+    path('cors-test/', cors_test_view, name='cors_test'),
 ]

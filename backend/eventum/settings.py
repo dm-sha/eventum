@@ -79,6 +79,16 @@ CSRF_TRUSTED_ORIGINS = [
 
 CORS_ALLOW_CREDENTIALS = True
 
+# Дополнительные настройки для preflight запросов
+CORS_PREFLIGHT_MAX_AGE = 86400  # 24 часа
+CORS_ALLOW_PRIVATE_NETWORK = True
+
+# Настройки для обработки preflight запросов
+CORS_EXPOSE_HEADERS = [
+    'Content-Type',
+    'X-CSRFToken',
+]
+
 # В режиме разработки разрешаем все localhost порты
 if DEBUG:
     CORS_ALLOW_ALL_ORIGINS = False
@@ -94,11 +104,15 @@ CORS_ALLOWED_HEADERS = [
     'authorization',
     'Authorization',
     'content-type',
+    'Content-Type',
     'dnt',
     'origin',
     'user-agent',
     'x-csrftoken',
     'x-requested-with',
+    'X-Requested-With',
+    'Access-Control-Request-Method',
+    'Access-Control-Request-Headers',
 ]
 CORS_ALLOWED_METHODS = [
     'DELETE',
@@ -253,6 +267,14 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ],
+    'DEFAULT_RENDERER_CLASSES': [
+        'rest_framework.renderers.JSONRenderer',
+    ],
+    'DEFAULT_PARSER_CLASSES': [
+        'rest_framework.parsers.JSONParser',
+        'rest_framework.parsers.MultiPartParser',
+        'rest_framework.parsers.FormParser',
+    ],
 }
 
 # VK API настройки
@@ -290,6 +312,11 @@ SESSION_SERIALIZER = 'django.contrib.sessions.serializers.JSONSerializer'
 # Настройки для стабильной работы с большими наборами данных
 DATA_UPLOAD_MAX_NUMBER_FIELDS = 10000  # Увеличиваем лимит полей для админки
 DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10MB для больших форм
+
+# Отключаем CSRF для API (используем JWT токены)
+CSRF_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_HTTPONLY = True
+CSRF_COOKIE_SAMESITE = 'Lax'
 
 # Настройки для оптимизации запросов
 USE_TZ = True

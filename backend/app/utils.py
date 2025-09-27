@@ -3,6 +3,8 @@ import time
 from functools import wraps
 
 from django.utils.text import slugify
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
 from transliterate import translit
 
 logger = logging.getLogger(__name__)
@@ -61,3 +63,17 @@ def generate_unique_slug(instance, value, *, slug_field: str = "slug", scope_fie
         counter += 1
 
     return slug
+
+
+def csrf_exempt_api(view_func):
+    """
+    Декоратор для отключения CSRF защиты для API endpoints
+    """
+    return csrf_exempt(view_func)
+
+
+def csrf_exempt_class_api(view_class):
+    """
+    Декоратор класса для отключения CSRF защиты для API ViewSets
+    """
+    return method_decorator(csrf_exempt, name='dispatch')(view_class)

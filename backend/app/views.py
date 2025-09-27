@@ -21,7 +21,7 @@ from .serializers import (
     LocationSerializer
 )
 from .permissions import IsEventumOrganizer, IsEventumParticipant, IsEventumOrganizerOrReadOnly, IsEventumOrganizerOrReadOnlyForList
-from .utils import log_execution_time
+from .utils import log_execution_time, csrf_exempt_class_api
 import logging
 
 logger = logging.getLogger(__name__)
@@ -361,6 +361,7 @@ class EventTagViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
     serializer_class = EventTagSerializer
     permission_classes = [IsEventumOrganizerOrReadOnly]  # Организаторы CRUD, участники только чтение
 
+@csrf_exempt_class_api
 class EventViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
     queryset = Event.objects.all().select_related('eventum', 'location').prefetch_related(
         'participants',
