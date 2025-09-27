@@ -164,7 +164,7 @@ const AdminGroupsPage = () => {
           <div className="group relative">
             <IconInformationCircle size={20} className="text-gray-400 cursor-help" />
             <div className="absolute top-full left-0 mt-2 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-normal w-80 z-50">
-              Создавайте группы, добавляйте участников и упрощайте массовую коммуникацию.
+              Группы предназначены для удобного назначения участников на мероприятия, а также для их структурирования и категоризации.
             </div>
           </div>
         </div>

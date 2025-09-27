@@ -8,6 +8,7 @@ from .views import (
     GroupTagViewSet,
     EventViewSet,
     EventTagViewSet,
+    LocationViewSet,
     VKAuthView,
     CustomTokenRefreshView,
     user_profile,
@@ -31,6 +32,7 @@ eventum_scoped_router.register(r'groups', ParticipantGroupViewSet, basename='par
 eventum_scoped_router.register(r'group-tags', GroupTagViewSet, basename='grouptag')
 eventum_scoped_router.register(r'events', EventViewSet, basename='event')
 eventum_scoped_router.register(r'event-tags', EventTagViewSet, basename='eventtag')
+eventum_scoped_router.register(r'locations', LocationViewSet, basename='location')
 
 urlpatterns = [
     path('', include(router.urls)),

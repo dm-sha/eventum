@@ -10,6 +10,7 @@ import {
   IconTag,
   IconTags,
   IconUsers,
+  IconMapPin,
 } from "./icons";
 
 const AdminLayout = () => {
@@ -18,6 +19,7 @@ const AdminLayout = () => {
     { to: ".", label: "Общие", icon: IconHome, end: true },
     { to: "events", label: "Мероприятия", icon: IconCalendar },
     { to: "participants", label: "Участники", icon: IconUsers },
+    { to: "locations", label: "Локации", icon: IconMapPin },
     { to: "event-tags", label: "Теги мероприятий", icon: IconTag },
     { to: "group-tags", label: "Теги групп", icon: IconTags },
     { to: "groups", label: "Группы", icon: IconGrid },
@@ -33,6 +35,7 @@ const AdminLayout = () => {
     }
     return false; // По умолчанию развернута
   });
+
 
   useEffect(() => {
     try {

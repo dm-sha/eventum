@@ -1,8 +1,10 @@
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from django.utils.text import slugify
+from transliterate import translit
 from .models import (
     Eventum, Participant, ParticipantGroup, 
-    GroupTag, Event, EventTag, UserProfile, UserRole
+    GroupTag, Event, EventTag, UserProfile, UserRole, Location
 )
 
 class EventumSerializer(serializers.ModelSerializer):
@@ -198,6 +200,113 @@ class VKAuthSerializer(serializers.Serializer):
     """Сериализатор для авторизации через VK"""
     code = serializers.CharField()
     state = serializers.CharField(required=False)
+
+
+class LocationSerializer(serializers.ModelSerializer):
+    parent = serializers.SerializerMethodField(read_only=True)
+    parent_id = serializers.IntegerField(write_only=True, required=False, allow_null=True)
+    children = serializers.SerializerMethodField(read_only=True)
+    
+    class Meta:
+        model = Location
+        fields = [
+            'id', 'name', 'slug', 'kind', 'address', 'floor', 'notes',
+            'parent', 'parent_id', 'children'
+        ]
+        read_only_fields = ['slug']
+    
+    def get_parent(self, obj):
+        """Возвращает информацию о родительской локации"""
+        if obj.parent:
+            return {
+                'id': obj.parent.id,
+                'name': obj.parent.name,
+                'slug': obj.parent.slug,
+                'kind': obj.parent.kind
+            }
+        return None
+    
+    def get_children(self, obj):
+        """Возвращает список дочерних локаций"""
+        children = obj.children.all()
+        return LocationSerializer(children, many=True).data
+    
+    
+    def validate_parent_id(self, value):
+        """Проверяем, что родительская локация принадлежит тому же eventum"""
+        if value is None:
+            return value
+            
+        # Получаем eventum из контекста
+        eventum = self.context.get('eventum')
+        if not eventum:
+            return value
+            
+        try:
+            parent = Location.objects.get(id=value)
+            if parent.eventum != eventum:
+                raise serializers.ValidationError(
+                    "Родительская локация должна принадлежать тому же мероприятию"
+                )
+        except Location.DoesNotExist:
+            raise serializers.ValidationError(f"Родительская локация с ID {value} не найдена")
+        
+        return value
+    
+    def create(self, validated_data):
+        """Переопределяем create для обработки parent_id и генерации уникального slug"""
+        parent_id = validated_data.pop('parent_id', None)
+        if parent_id:
+            try:
+                parent = Location.objects.get(id=parent_id)
+                validated_data['parent'] = parent
+            except Location.DoesNotExist:
+                raise serializers.ValidationError(f"Родительская локация с ID {parent_id} не найдена")
+        
+        # Генерируем уникальный slug
+        eventum = validated_data.get('eventum')
+        name = validated_data.get('name')
+        if name and eventum:
+            transliterated = translit(name, 'ru', reversed=True)
+            base_slug = slugify(transliterated)
+            
+            slug = base_slug
+            counter = 1
+            while Location.objects.filter(eventum=eventum, slug=slug).exists():
+                slug = f"{base_slug}-{counter}"
+                counter += 1
+            validated_data['slug'] = slug
+        
+        return super().create(validated_data)
+    
+    def update(self, instance, validated_data):
+        """Переопределяем update для обработки parent_id и генерации уникального slug"""
+        parent_id = validated_data.pop('parent_id', None)
+        if parent_id:
+            try:
+                parent = Location.objects.get(id=parent_id)
+                validated_data['parent'] = parent
+            except Location.DoesNotExist:
+                raise serializers.ValidationError(f"Родительская локация с ID {parent_id} не найдена")
+        elif parent_id is None:
+            # Если parent_id явно передан как None, убираем родителя
+            validated_data['parent'] = None
+        
+        # Генерируем уникальный slug если изменилось название
+        if 'name' in validated_data and validated_data['name'] != instance.name:
+            eventum = instance.eventum
+            name = validated_data['name']
+            transliterated = translit(name, 'ru', reversed=True)
+            base_slug = slugify(transliterated)
+            
+            slug = base_slug
+            counter = 1
+            while Location.objects.filter(eventum=eventum, slug=slug).exclude(id=instance.id).exists():
+                slug = f"{base_slug}-{counter}"
+                counter += 1
+            validated_data['slug'] = slug
+        
+        return super().update(instance, validated_data)
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):

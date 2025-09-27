@@ -243,6 +243,94 @@ class UserProfile(AbstractUser):
         return f"{self.name} (VK: {self.vk_id})"
 
 
+class Location(models.Model):
+    """Локации для проведения мероприятий"""
+    class Kind(models.TextChoices):
+        VENUE = "venue", "Площадка/Территория"
+        BUILDING = "building", "Здание/Корпус"
+        ROOM = "room", "Аудитория/Кабинет"
+        AREA = "area", "Зона/Outdoor"
+        OTHER = "other", "Другое"
+
+    eventum = models.ForeignKey(Eventum, on_delete=models.CASCADE, related_name='locations')
+    parent = models.ForeignKey(
+        "self", null=True, blank=True,
+        on_delete=models.CASCADE, related_name="children"
+    )
+    name = models.CharField(max_length=200)
+    slug = models.SlugField(max_length=220, blank=True)
+    kind = models.CharField(max_length=20, choices=Kind.choices, default=Kind.ROOM)
+    address = models.CharField(max_length=300, blank=True)
+    floor = models.CharField(max_length=20, blank=True)
+    notes = models.TextField(blank=True)
+    
+    class Meta:
+        unique_together = ('eventum', 'slug')
+        verbose_name = 'Location'
+        verbose_name_plural = 'Locations'
+    
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            # Сначала транслитерируем русский текст в латиницу, затем создаем slug
+            transliterated = translit(self.name, 'ru', reversed=True)
+            base_slug = slugify(transliterated)
+            
+            # Проверяем уникальность slug в рамках eventum
+            slug = base_slug
+            counter = 1
+            while Location.objects.filter(eventum=self.eventum, slug=slug).exclude(pk=self.pk).exists():
+                slug = f"{base_slug}-{counter}"
+                counter += 1
+            self.slug = slug
+        super().save(*args, **kwargs)
+    
+    def clean(self):
+        # Проверяем, что родительская локация принадлежит тому же eventum
+        if self.parent and self.parent.eventum != self.eventum:
+            raise ValidationError("Родительская локация должна принадлежать тому же мероприятию")
+        
+        # Проверяем иерархию типов локаций
+        if self.parent:
+            parent_kind = self.parent.kind
+            current_kind = self.kind
+            
+            # Определяем допустимые иерархии
+            valid_hierarchies = {
+                'venue': ['building', 'area', 'other'],  # venue может содержать building, area или other
+                'building': ['room', 'area', 'other'],   # building может содержать room, area или other
+                'room': ['other'],                       # room может содержать other
+                'area': ['other'],                       # area может содержать other
+                'other': []                              # other не может содержать другие локации
+            }
+            
+            if current_kind not in valid_hierarchies.get(parent_kind, []):
+                parent_display = dict(self.Kind.choices)[parent_kind]
+                current_display = dict(self.Kind.choices)[current_kind]
+                raise ValidationError(
+                    f"Локация типа '{current_display}' не может быть дочерней для локации типа '{parent_display}'"
+                )
+        
+        # Проверяем на циклы в иерархии
+        if self.parent:
+            self._check_for_cycles()
+    
+    def _check_for_cycles(self):
+        """Проверяет, не создается ли цикл в иерархии локаций"""
+        visited = set()
+        current = self.parent
+        
+        while current:
+            if current.id in visited:
+                raise ValidationError("Обнаружен цикл в иерархии локаций")
+            if current.id == self.id:
+                raise ValidationError("Локация не может быть родителем самой себе")
+            visited.add(current.id)
+            current = current.parent
+    
+    def __str__(self):
+        return f"{self.name} ({self.eventum.name})"
+
+
 class UserRole(models.Model):
     """Роли пользователей для конкретных eventum'ов"""
     ROLE_CHOICES = [

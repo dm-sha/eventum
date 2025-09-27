@@ -9,6 +9,7 @@ import AdminParticipantsPage from "../pages/admin/ParticipantsPage";
 import AdminEventTagsPage from "../pages/admin/EventTagsPage";
 import AdminGroupTagsPage from "../pages/admin/GroupTagsPage";
 import AdminGroupsPage from "../pages/admin/GroupsPage";
+import LocationsPage from "../pages/admin/LocationsPage";
 import VKAuth from "../components/VKAuth";
 import DashboardPage from "../pages/DashboardPage";
 import HomePage from "../pages/HomePage";
@@ -61,6 +62,7 @@ export const AppRouter = () => {
         <Route path="event-tags" element={<AdminEventTagsPage />} />
         <Route path="group-tags" element={<AdminGroupTagsPage />} />
         <Route path="groups" element={<AdminGroupsPage />} />
+        <Route path="locations" element={<LocationsPage />} />
       </Route>
     </Routes>
   );

@@ -5,3 +5,4 @@ export * from './group';
 export * from './eventTag';
 export * from './groupTag';
 export * from './organizers';
+export * from './location';

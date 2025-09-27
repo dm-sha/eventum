@@ -6,7 +6,7 @@ from import_export.admin import ImportExportModelAdmin
 # Импортируем все модели
 from .models import (
     Eventum, Participant, ParticipantGroup,
-    GroupTag, Event, EventTag, UserProfile, UserRole
+    GroupTag, Event, EventTag, UserProfile, UserRole, Location
 )
 
 # Импортируем все ресурсы, которые мы определили в resources.py
@@ -43,6 +43,12 @@ class EventInline(admin.TabularInline):
     # filter_horizontal не работает в TabularInline - это ограничение Django
     # Для редактирования M2M полей нужно переходить на страницу события
     fields = ['name', 'description', 'start_time', 'end_time']
+
+class LocationInline(admin.TabularInline):
+    model = Location
+    extra = 1
+    fields = ['name', 'kind', 'parent', 'address', 'floor']
+    fk_name = 'parent'
 
 
 class EventumAdminForm(forms.ModelForm):
@@ -121,6 +127,31 @@ class EventAdminForm(forms.ModelForm):
                     raise ValidationError(
                         f"Группа '{group.name}' принадлежит другому мероприятию"
                     )
+        
+        return cleaned_data
+
+class LocationAdminForm(forms.ModelForm):
+    class Meta:
+        model = Location
+        fields = '__all__'
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Делаем slug только для чтения, если объект уже существует
+        if self.instance and self.instance.pk:
+            self.fields['slug'].widget.attrs['readonly'] = True
+            self.fields['slug'].help_text = 'Slug автоматически генерируется из названия'
+    
+    def clean(self):
+        cleaned_data = super().clean()
+        parent = cleaned_data.get('parent')
+        eventum = cleaned_data.get('eventum')
+        
+        # Проверяем, что родительская локация принадлежит тому же eventum
+        if parent and eventum and parent.eventum != eventum:
+            raise ValidationError(
+                "Родительская локация должна принадлежать тому же мероприятию"
+            )
         
         return cleaned_data
 
@@ -205,6 +236,22 @@ class UserProfileAdmin(admin.ModelAdmin):
     search_fields = ('vk_id', 'name', 'email')
     readonly_fields = ('vk_id', 'date_joined', 'last_login')
     inlines = [UserParticipantInline]
+
+
+# --- LocationAdmin ---
+@admin.register(Location)
+class LocationAdmin(admin.ModelAdmin):
+    form = LocationAdminForm
+    list_display = ('name', 'kind', 'parent', 'eventum', 'address', 'floor')
+    list_filter = ('kind', 'eventum', 'parent')
+    search_fields = ('name', 'address', 'notes')
+    prepopulated_fields = {'slug': ('name',)}
+    autocomplete_fields = ('parent',)
+    inlines = [LocationInline]
+    
+    def get_queryset(self, request):
+        """Оптимизируем запросы для админки"""
+        return super().get_queryset(request).select_related('eventum', 'parent')
 
 
 # --- UserRoleAdmin ---

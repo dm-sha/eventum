@@ -12,11 +12,12 @@ from django.core.cache import cache
 from django.db.models import Prefetch
 import requests
 import json
-from .models import Eventum, Participant, ParticipantGroup, GroupTag, Event, EventTag, UserProfile, UserRole
+from .models import Eventum, Participant, ParticipantGroup, GroupTag, Event, EventTag, UserProfile, UserRole, Location
 from .serializers import (
     EventumSerializer, ParticipantSerializer, ParticipantGroupSerializer,
     GroupTagSerializer, EventSerializer, EventTagSerializer,
-    UserProfileSerializer, UserRoleSerializer, VKAuthSerializer, CustomTokenObtainPairSerializer
+    UserProfileSerializer, UserRoleSerializer, VKAuthSerializer, CustomTokenObtainPairSerializer,
+    LocationSerializer
 )
 from .permissions import IsEventumOrganizer, IsEventumParticipant, IsEventumOrganizerOrReadOnly, IsEventumOrganizerOrReadOnlyForList
 
@@ -234,6 +235,105 @@ class EventViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
         events = Event.objects.filter(eventum=eventum, end_time__lt=now).order_by('-start_time')
         serializer = self.get_serializer(events, many=True)
         return Response(serializer.data)
+
+
+class LocationViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
+    queryset = Location.objects.all().select_related('eventum', 'parent').prefetch_related('children')
+    serializer_class = LocationSerializer
+    permission_classes = [IsEventumOrganizerOrReadOnly]  # Организаторы CRUD, участники только чтение
+    
+    def get_queryset(self):
+        """Оптимизированный queryset для списка локаций"""
+        eventum = self.get_eventum()
+        return Location.objects.filter(eventum=eventum).select_related(
+            'eventum', 'parent'
+        ).prefetch_related('children')
+    
+    @action(detail=False, methods=['get'])
+    def tree(self, request, eventum_slug=None):
+        """Получить дерево локаций (только корневые элементы с детьми)"""
+        eventum = self.get_eventum()
+        root_locations = Location.objects.filter(
+            eventum=eventum, 
+            parent__isnull=True
+        ).select_related('eventum').prefetch_related('children')
+        
+        serializer = self.get_serializer(root_locations, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=True, methods=['get'])
+    def children(self, request, eventum_slug=None, pk=None):
+        """Получить дочерние локации"""
+        location = self.get_object()
+        children = location.children.all()
+        serializer = self.get_serializer(children, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'])
+    def by_kind(self, request, eventum_slug=None):
+        """Получить локации по типу"""
+        eventum = self.get_eventum()
+        kind = request.query_params.get('kind')
+        
+        if not kind:
+            return Response({'error': 'kind parameter is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        locations = Location.objects.filter(eventum=eventum, kind=kind)
+        serializer = self.get_serializer(locations, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'])
+    def valid_parents(self, request, eventum_slug=None):
+        """Получить список валидных родительских локаций для указанного типа"""
+        eventum = self.get_eventum()
+        kind = request.query_params.get('kind')
+        exclude_id = request.query_params.get('exclude_id')
+        
+        if not kind:
+            return Response({'error': 'kind parameter is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Определяем допустимые типы родительских локаций
+        valid_parent_kinds = {
+            'venue': [],  # venue не может иметь родителя
+            'building': ['venue'],
+            'room': ['building'],
+            'area': ['venue', 'building'],
+            'other': ['venue', 'building', 'room', 'area']  # other может быть дочерним для всех типов
+        }
+        
+        allowed_kinds = valid_parent_kinds.get(kind, [])
+        
+        # Получаем локации подходящих типов
+        queryset = Location.objects.filter(eventum=eventum, kind__in=allowed_kinds)
+        
+        # Исключаем текущую локацию (если редактируем)
+        if exclude_id:
+            queryset = queryset.exclude(id=exclude_id)
+        
+        # Исключаем локации, которые уже являются детьми текущей локации (если редактируем)
+        if exclude_id:
+            try:
+                current_location = Location.objects.get(id=exclude_id)
+                # Получаем всех потомков текущей локации
+                descendants = self._get_descendants(current_location)
+                if descendants:
+                    queryset = queryset.exclude(id__in=descendants)
+            except Location.DoesNotExist:
+                pass
+        
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+    
+    def _get_descendants(self, location):
+        """Рекурсивно получает всех потомков локации"""
+        descendants = []
+        children = location.children.all()
+        
+        for child in children:
+            descendants.append(child.id)
+            descendants.extend(self._get_descendants(child))
+        
+        return descendants
 
 
 # Аутентификация через VK

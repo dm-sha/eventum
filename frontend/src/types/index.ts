@@ -84,3 +84,30 @@ export interface EventumDetails extends Eventum {
   events_count: number;
   organizers: UserRole[];
 }
+
+export interface Location {
+  id: number;
+  name: string;
+  slug: string;
+  kind: 'venue' | 'building' | 'room' | 'area' | 'other';
+  address: string;
+  floor: string;
+  notes: string;
+  parent?: {
+    id: number;
+    name: string;
+    slug: string;
+    kind: string;
+  } | null;
+  parent_id?: number | null;
+  children?: Location[];
+}
+
+export interface CreateLocationData {
+  name: string;
+  kind: 'venue' | 'building' | 'room' | 'area' | 'other';
+  address?: string;
+  floor?: string;
+  notes?: string;
+  parent_id?: number | null;
+}
