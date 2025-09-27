@@ -67,7 +67,7 @@ const AdminLayout = () => {
   };
 
   return (
-    <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
+    <div className="flex h-screen flex-col overflow-hidden bg-gray-50">
       {/* Top bar across the page */}
       <Header
         variant="admin"
@@ -77,7 +77,7 @@ const AdminLayout = () => {
       />
 
       {/* Content row: sidebar + page */}
-      <div className="flex flex-1 min-h-0 overflow-hidden">
+      <div className="flex min-h-0 flex-1 overflow-hidden">
         {/* Backdrop for mobile menu */}
         {isMobileMenuOpen && (
           <button
@@ -90,61 +90,63 @@ const AdminLayout = () => {
 
         {/* Sidebar */}
         <aside
-          className={`${
+          className={`fixed top-14 bottom-0 left-0 z-30 w-64 translate-x-0 transform border-r border-gray-200 bg-white pb-3 pl-0 pr-2 pt-2 shadow-lg transition-transform duration-200 ease-in-out lg:static lg:h-full lg:translate-x-0 lg:shadow-none ${
             collapsed ? "lg:w-20" : "lg:w-64"
-          } fixed top-14 bottom-0 left-0 z-30 w-64 transform bg-white border-r border-gray-200 pt-2 pb-3 pl-0 pr-2 flex flex-col transition-transform duration-200 ease-in-out lg:static lg:translate-x-0 lg:h-full ${
-            isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
-          }`}
+          } ${isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"}`}
           aria-label="Админ-меню"
         >
-          <div className="flex-1 overflow-y-auto">
-            <nav className="space-y-1">
-              {menu.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <NavLink
-                    key={item.to}
-                    to={item.to}
-                    end={item.end}
-                    title={item.label}
-                    aria-label={item.label}
-                    className={({ isActive }) =>
-                      `flex items-center justify-start gap-3 px-3 py-2 rounded text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors border-l-4 ${
-                        isActive ? "bg-gray-100 font-medium border-blue-600" : "border-transparent"
-                      } ${collapsed ? "lg:justify-center lg:px-2 lg:border-l-0" : ""}`
-                    }
-                  >
-                    <Icon className="shrink-0 text-gray-600" />
-                    <span
-                      className={`${
-                        collapsed ? "lg:hidden" : ""
-                      } text-sm whitespace-nowrap`}
+          <div className="flex h-full flex-col overflow-hidden">
+            <div className="flex-1 overflow-y-auto px-2">
+              <nav className="space-y-1">
+                {menu.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <NavLink
+                      key={item.to}
+                      to={item.to}
+                      end={item.end}
+                      title={item.label}
+                      aria-label={item.label}
+                      className={({ isActive }) =>
+                        `flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                          isActive
+                            ? "bg-blue-50 text-blue-700"
+                            : "hover:bg-gray-100"
+                        } ${collapsed ? "lg:justify-center lg:px-2" : ""}`
+                      }
                     >
-                      {item.label}
-                    </span>
-                  </NavLink>
-                );
-              })}
-            </nav>
-          </div>
-          <div className="mt-auto px-1">
-            <button
-              type="button"
-              onClick={() => setCollapsed((c) => !c)}
-              className="w-full flex items-center justify-center gap-2 px-2 py-2 rounded border border-gray-200 hover:bg-gray-100 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              aria-label={collapsed ? "Раскрыть меню" : "Скрыть меню"}
-              aria-expanded={!collapsed}
-            >
-              <AsideToggleIcon />
-              <span className={`text-sm ${collapsed ? 'hidden' : ''}`}>
-                {collapsed ? "" : "Свернуть"}
-              </span>
-            </button>
+                      <Icon className="shrink-0" />
+                      <span
+                        className={`whitespace-nowrap transition-opacity duration-150 ${
+                          collapsed ? "lg:invisible lg:w-0 lg:opacity-0" : ""
+                        }`}
+                      >
+                        {item.label}
+                      </span>
+                    </NavLink>
+                  );
+                })}
+              </nav>
+            </div>
+            <div className="mt-auto border-t border-gray-200 px-2 pt-3">
+              <button
+                type="button"
+                onClick={() => setCollapsed((c) => !c)}
+                className="flex w-full items-center justify-center gap-2 rounded-lg border border-gray-200 px-2 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                aria-label={collapsed ? "Раскрыть меню" : "Скрыть меню"}
+                aria-expanded={!collapsed}
+              >
+                <AsideToggleIcon />
+                <span className={`${collapsed ? "hidden" : ""}`}>
+                  Свернуть
+                </span>
+              </button>
+            </div>
           </div>
         </aside>
 
         {/* Page content */}
-        <main className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8 overflow-y-auto">
+        <main className="min-w-0 flex-1 overflow-y-auto bg-gray-50 p-4 sm:p-6 lg:p-8">
           <Outlet />
         </main>
       </div>

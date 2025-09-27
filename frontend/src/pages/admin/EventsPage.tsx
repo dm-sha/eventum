@@ -277,73 +277,73 @@ const AdminEventsPage = () => {
             return (
               <div
                 key={event.id}
-                className={`rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm transition-all duration-200 ${
-                  isExpanded ? 'min-h-[100px]' : 'h-16'
+                className={`rounded-xl border border-gray-200 bg-white px-4 py-4 shadow-sm transition-all duration-200 ${
+                  isExpanded ? 'ring-1 ring-blue-100' : ''
                 }`}
               >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4 flex-1 min-w-0">
-                    {/* Время */}
-                    <div className="text-sm text-gray-600 flex-shrink-0">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4 sm:flex-1 sm:min-w-0">
+                    <div className="text-sm text-gray-600">
                       <span className="whitespace-nowrap">{formatEventTime(event.start_time, event.end_time)}</span>
                     </div>
-                    
-                    {/* Название */}
                     <div className="flex-1 min-w-0">
-                      <h3 className="text-sm font-medium text-gray-900 truncate">{event.name}</h3>
-                    </div>
-                    
-                    {/* Теги */}
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                      <div className="flex items-center gap-1">
-                        {displayTags.length > 0 ? (
-                          displayTags.map((tag) => (
-                            <span
-                              key={tag.id}
-                              className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
-                            >
-                              {tag.name}
-                            </span>
-                          ))
-                        ) : (
-                          <span className="text-xs text-gray-400">Нет тегов</span>
-                        )}
-                        {hasMoreTags && !isExpanded && (
-                          <button
-                            onClick={() => toggleEventExpansion(event.id)}
-                            className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200"
-                          >
-                            <IconEllipsisHorizontal size={12} />
-                          </button>
-                        )}
-                        {isExpanded && (
-                          <button
-                            onClick={() => toggleEventExpansion(event.id)}
-                            className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200"
-                          >
-                            Скрыть
-                          </button>
-                        )}
-                      </div>
+                      <h3 className="truncate text-sm font-semibold text-gray-900 sm:text-base">{event.name}</h3>
+                      {event.description && isExpanded && (
+                        <p className="mt-1 text-xs text-gray-500 sm:text-sm">
+                          {event.description}
+                        </p>
+                      )}
                     </div>
                   </div>
-                  
-                  {/* Действия */}
-                  <div className="flex items-center gap-2 ml-4 flex-shrink-0">
-                    <button
-                      onClick={() => openEditModal(event)}
-                      className="p-1 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100"
-                      title="Редактировать"
-                    >
-                      <IconPencil size={16} />
-                    </button>
-                    <button
-                      onClick={() => handleDeleteEvent(event.id)}
-                      className="p-1 rounded text-gray-400 hover:text-red-600 hover:bg-red-50"
-                      title="Удалить"
-                    >
-                      <IconTrash size={16} />
-                    </button>
+
+                  <div className="flex items-start justify-between gap-3 sm:justify-end">
+                    <div className="flex flex-wrap items-center gap-1">
+                      {displayTags.length > 0 ? (
+                        displayTags.map((tag) => (
+                          <span
+                            key={tag.id}
+                            className="inline-flex items-center rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700"
+                          >
+                            {tag.name}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-xs text-gray-400">Нет тегов</span>
+                      )}
+                      {hasMoreTags && !isExpanded && (
+                        <button
+                          onClick={() => toggleEventExpansion(event.id)}
+                          className="inline-flex items-center rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-200"
+                        >
+                          <IconEllipsisHorizontal size={12} />
+                        </button>
+                      )}
+                      {isExpanded && (
+                        <button
+                          onClick={() => toggleEventExpansion(event.id)}
+                          className="inline-flex items-center rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-200"
+                        >
+                          Скрыть
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => openEditModal(event)}
+                        className="inline-flex items-center justify-center rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+                        title="Редактировать"
+                      >
+                        <IconPencil size={16} />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteEvent(event.id)}
+                        className="inline-flex items-center justify-center rounded-lg p-2 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                        title="Удалить"
+                      >
+                        <IconTrash size={16} />
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>

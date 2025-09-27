@@ -130,10 +130,10 @@ const AdminParticipantsPage = () => {
       </header>
 
       {/* Кнопка добавления */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <button
           onClick={handleCreateParticipant}
-          className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
         >
           <IconPlus size={16} />
           Добавить участника
@@ -178,7 +178,7 @@ const AdminParticipantsPage = () => {
 
         </div>
 
-          <span className="text-xs text-gray-500 whitespace-nowrap">Всего: {filteredParticipants.length}</span>
+        <span className="text-xs text-gray-500 whitespace-nowrap">Всего: {filteredParticipants.length}</span>
       </div>
 
       {/* Список участников */}
@@ -192,84 +192,90 @@ const AdminParticipantsPage = () => {
             return (
               <li
                 key={participant.id}
-                className="flex items-center gap-4 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm"
+                className="flex flex-col gap-4 rounded-xl border border-gray-200 bg-white px-4 py-4 shadow-sm sm:flex-row sm:items-center sm:justify-between"
               >
-                {/* Аватарка или иконка участника слева */}
-                {participant.user?.avatar_url ? (
-                  <img
-                    src={participant.user.avatar_url}
-                    alt={participant.name}
-                    className="w-8 h-8 rounded-full object-cover flex-shrink-0"
-                    onError={(e) => {
-                      // Если аватарка не загрузилась, заменяем на иконку
-                      const target = e.currentTarget as HTMLImageElement;
-                      const nextElement = target.nextElementSibling as HTMLElement;
-                      if (target) target.style.display = 'none';
-                      if (nextElement) nextElement.style.display = 'block';
-                    }}
-                  />
-                ) : null}
-                <IconUser 
-                  size={20} 
-                  className={`text-gray-400 flex-shrink-0 ${participant.user?.avatar_url ? 'hidden' : ''}`}
-                />
-                
-                {/* Основная информация */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-sm font-medium text-gray-900 truncate">
-                      {participant.name}
-                    </span>
-                    {vkUrl && (
-                      <a
-                        href={vkUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1 text-blue-600 hover:text-blue-800 text-xs"
-                      >
-                        <IconExternalLink size={12} />
-                        ВК
-                      </a>
-                    )}
-                  </div>
-                  
-                  {/* Группы участника */}
-                  {participant.groups && participant.groups.length > 0 && (
-                    <div className="flex flex-wrap gap-1">
-                      {participant.groups.map((group) => (
-                        <span
-                          key={group.id}
-                          className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700"
-                        >
-                          {group.name}
-                        </span>
-                      ))}
+                <div className="flex items-center gap-4">
+                    <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+                      {participant.user?.avatar_url ? (
+                        <>
+                          <img
+                            src={participant.user.avatar_url}
+                            alt={participant.name}
+                            className="h-12 w-12 rounded-full object-cover"
+                            onError={(e) => {
+                              const fallback = e.currentTarget.nextElementSibling as HTMLElement;
+                              if (fallback) {
+                                fallback.classList.remove('hidden');
+                              }
+                              e.currentTarget.remove();
+                            }}
+                          />
+                          <div className="avatar-fallback hidden flex h-full w-full items-center justify-center">
+                            <IconUser size={20} />
+                          </div>
+                        </>
+                      ) : (
+                        <IconUser size={20} />
+                      )}
                     </div>
-                  )}
-                </div>
-                
-                {/* Кнопки действий справа */}
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <button
-                    onClick={() => handleEditParticipant(participant)}
-                    className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
-                    title="Редактировать"
-                  >
-                    <IconPencil size={16} />
-                  </button>
-                  <button
-                    onClick={() => handleDeleteParticipant(participant)}
-                    disabled={deletingParticipantId === participant.id}
-                    className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="Удалить"
-                  >
-                    {deletingParticipantId === participant.id ? (
-                      <div className="animate-spin w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full"></div>
-                    ) : (
-                      <IconTrash size={16} />
-                    )}
-                  </button>
-                </div>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="mb-1 flex flex-wrap items-center gap-2">
+                        <span className="truncate text-sm font-semibold text-gray-900">
+                          {participant.name}
+                        </span>
+                        {vkUrl && (
+                          <a
+                            href={vkUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100"
+                          >
+                            <IconExternalLink size={12} /> VK
+                          </a>
+                        )}
+                      </div>
+
+                      {participant.groups && participant.groups.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                          {participant.groups.map((group) => (
+                            <span
+                              key={group.id}
+                              className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1 text-xs text-gray-700"
+                            >
+                              {group.name}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      onClick={() => handleEditParticipant(participant)}
+                      className="inline-flex items-center justify-center rounded-lg border border-gray-200 p-2 text-gray-500 transition-colors hover:border-blue-500 hover:text-blue-600"
+                      title="Редактировать"
+                    >
+                      <IconPencil size={16} />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteParticipant(participant)}
+                      disabled={deletingParticipantId === participant.id}
+                      className={`inline-flex items-center justify-center rounded-lg border p-2 text-red-500 transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                        deletingParticipantId === participant.id
+                          ? 'border-red-200 bg-red-50'
+                          : 'border-red-100 hover:border-red-300 hover:bg-red-50'
+                      }`}
+                      title="Удалить"
+                    >
+                      {deletingParticipantId === participant.id ? (
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-red-400 border-t-transparent" />
+                      ) : (
+                        <IconTrash size={16} />
+                      )}
+                    </button>
+                  </div>
               </li>
             );
           })}
