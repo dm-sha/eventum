@@ -16,22 +16,7 @@ export const createParticipant = async (eventumSlug: string, participantData: {
     return response.data;
 };
 
-// Получить участника для текущего пользователя
-export const getMyParticipant = async (eventumSlug: string): Promise<Participant> => {
-    const response = await apiClient.get(`/eventums/${eventumSlug}/participants/me/`);
-    return response.data;
-};
 
-// Присоединиться к eventum как участник
-export const joinEventum = async (eventumSlug: string): Promise<Participant> => {
-    const response = await apiClient.post(`/eventums/${eventumSlug}/participants/join/`);
-    return response.data;
-};
-
-// Покинуть eventum
-export const leaveEventum = async (eventumSlug: string): Promise<void> => {
-    await apiClient.delete(`/eventums/${eventumSlug}/participants/leave/`);
-};
 
 // Обновить участника
 export const updateParticipant = async (

@@ -1,61 +1,16 @@
-import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { getEventumBySlug } from "../api/eventum";
-import type { Eventum } from "../types";
-import LoadingSpinner from "../components/LoadingSpinner";
-import NotFoundPage from "./NotFoundPage";
-import ParticipantList from "../components/participant/ParticipantList";
-import EventList from "../components/event/EventList";
-
-type Tab = 'participants' | 'events';
 
 const EventumPage = () => {
   const { eventumSlug } = useParams<{ eventumSlug: string }>();
-  const [eventum, setEventum] = useState<Eventum | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<Tab>('participants'); // Состояние для вкладок
-
-  useEffect(() => {
-    if (!eventumSlug) return;
-    const fetchEventum = async () => {
-      try {
-        setLoading(true);
-        const data = await getEventumBySlug(eventumSlug);
-        setEventum(data);
-      } catch (err) {
-        setError("Мероприятие не найдено.");
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchEventum();
-  }, [eventumSlug]);
-
-  if (loading) return <LoadingSpinner />;
-  if (!eventum || !eventumSlug) return <NotFoundPage />; // Добавил !eventumSlug для TS
-  if (error) return <p className="text-center text-red-400">{error}</p>;
-
-  // Стили для вкладок (используем Tailwind CSS)
-  const getTabClassName = (tabName: Tab) => {
-    return `px-4 py-2 text-sm font-medium rounded-md focus:outline-none ${
-      activeTab === tabName
-        ? 'bg-blue-600 text-white'
-        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-    }`;
-  };
 
   return (
     <main className="min-h-screen bg-gray-50 px-4 py-6 sm:px-6 lg:px-8 lg:py-10">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-2">
-            <p className="text-sm font-medium uppercase tracking-wide text-blue-600">
-              Группа мероприятий
-            </p>
+
             <h1 className="text-3xl font-bold text-gray-900 sm:text-4xl">
-              {eventum.name}
+              {eventumSlug}
             </h1>
           </div>
           <Link
@@ -67,29 +22,29 @@ const EventumPage = () => {
         </div>
 
         <section className="rounded-2xl bg-white shadow-sm ring-1 ring-gray-100">
-          <div className="space-y-6 px-4 py-6 sm:px-8 sm:py-8">
-            <div className="flex flex-wrap items-center gap-3 border-b border-gray-100 pb-4">
-              <button
-                onClick={() => setActiveTab('participants')}
-                className={getTabClassName('participants')}
-              >
-                Участники
-              </button>
-              <button
-                onClick={() => setActiveTab('events')}
-                className={getTabClassName('events')}
-              >
-                Мероприятия
-              </button>
-            </div>
-
-            <div className="space-y-6">
-              <div className={activeTab === 'participants' ? 'block' : 'hidden'}>
-                <ParticipantList eventumSlug={eventumSlug} />
+          <div className="px-4 py-6 sm:px-8 sm:py-8">
+            <div className="text-center">
+              <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-blue-100">
+                <svg
+                  className="h-12 w-12 text-blue-600"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth="1.5"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"
+                  />
+                </svg>
               </div>
-              <div className={activeTab === 'events' ? 'block' : 'hidden'}>
-                <EventList eventumSlug={eventumSlug} />
-              </div>
+              <h2 className="mt-6 text-2xl font-bold text-gray-900">
+                Скоро здесь будет полезная информация
+              </h2>
+              <p className="mt-4 text-lg text-gray-600">
+                На этой странице будет размещена вся необходимая информация для участников событий.
+              </p>
             </div>
           </div>
         </section>
