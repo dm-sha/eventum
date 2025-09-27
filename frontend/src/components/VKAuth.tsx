@@ -58,7 +58,7 @@ const VKAuth: React.FC = () => {
 
         VKID.Config.init({
           app: 54178494,
-          redirectUrl: 'https://eventum-web-ui.vercel.app',
+          redirectUrl: 'https://merup.ru',
           responseMode: VKID.ConfigResponseMode.Callback,
           source: VKID.ConfigSource.LOWCODE,
           scope: '',
