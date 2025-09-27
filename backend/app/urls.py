@@ -18,7 +18,6 @@ from .views import (
     check_slug_availability,
     eventum_details,
     eventum_organizers,
-    add_eventum_organizer,
     remove_eventum_organizer,
     search_users
 )
@@ -55,7 +54,6 @@ urlpatterns = [
     
     # Управление организаторами
     path('eventums/<slug:slug>/organizers/', eventum_organizers, name='eventum_organizers'),
-    path('eventums/<slug:slug>/organizers/', add_eventum_organizer, name='add_eventum_organizer'),
     path('eventums/<slug:slug>/organizers/<int:role_id>/', remove_eventum_organizer, name='remove_eventum_organizer'),
     
     # Поиск пользователей
