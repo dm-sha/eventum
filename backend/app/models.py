@@ -40,8 +40,8 @@ class Participant(models.Model):
         ]
     
     def clean(self):
-        # Валидация: если указан пользователь, то имя должно соответствовать имени пользователя
-        if self.user and self.name != self.user.name:
+        # Валидация: если указан пользователь, но имя не задано, используем имя пользователя
+        if self.user and not self.name:
             self.name = self.user.name
     
     def save(self, *args, **kwargs):

@@ -7,7 +7,7 @@ import {
   getParticipantsForEventum,
 } from '../../api';
 import type { ParticipantGroup, Participant } from '../../types';
-import { IconPencil, IconX, IconPlus, IconInformationCircle } from '../../components/icons';
+import { IconPencil, IconX, IconPlus, IconInformationCircle, IconTrash } from '../../components/icons';
 
 const AdminGroupsPage = () => {
   const { eventumSlug } = useParams();
@@ -134,6 +134,18 @@ const AdminGroupsPage = () => {
     setGroupName('');
     setEditingParticipants([]);
     setParticipantQuery('');
+  };
+
+  const handleDeleteGroup = async (groupId: number) => {
+    if (!confirm('Вы уверены, что хотите удалить эту группу?')) return;
+    
+    try {
+      // Здесь нужно добавить API для удаления группы
+      // await deleteGroup(eventumSlug, groupId);
+      setGroups(groups.filter(g => g.id !== groupId));
+    } catch (error) {
+      console.error('Error deleting group:', error);
+    }
   };
 
   const LoadingSpinner = () => (
@@ -292,12 +304,21 @@ const AdminGroupsPage = () => {
                 ) : (
                   <h3 className="text-lg font-semibold text-gray-900">{group.name}</h3>
                 )}
-                <button
-                  onClick={() => handleEditGroup(group)}
-                  className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
-                >
-                  <IconPencil size={16} />
-                </button>
+                  {isEditing ? (
+                    <button
+                      onClick={() => handleDeleteGroup(group.id)}
+                      className="rounded-lg p-1 text-red-400 hover:bg-red-100 hover:text-red-600"
+                    >
+                      <IconTrash size={16} />
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleEditGroup(group)}
+                      className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                    >
+                      <IconPencil size={16} />
+                    </button>
+                  )}
               </div>
 
               <div className="space-y-2">

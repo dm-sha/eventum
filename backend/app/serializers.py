@@ -75,13 +75,15 @@ class ParticipantSerializer(serializers.ModelSerializer):
         return super().create(validated_data)
     
     def update(self, instance, validated_data):
-        """Переопределяем update для автоматического заполнения имени из пользователя"""
+        """Переопределяем update для обработки пользователя"""
         user_id = validated_data.pop('user_id', None)
         if user_id:
             try:
                 user = UserProfile.objects.get(id=user_id)
                 validated_data['user'] = user
-                validated_data['name'] = user.name  # Автоматически заполняем имя
+                # Не перезаписываем имя, если оно явно передано в запросе
+                if 'name' not in validated_data:
+                    validated_data['name'] = user.name
             except UserProfile.DoesNotExist:
                 raise serializers.ValidationError(f"Пользователь с ID {user_id} не найден")
         
