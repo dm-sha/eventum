@@ -241,12 +241,6 @@ const AdminEventsPage = () => {
       <header className="space-y-2">
         <div className="flex items-center gap-2">
           <h2 className="text-2xl font-semibold text-gray-900">Мероприятия</h2>
-          <div className="group relative">
-            <IconInformationCircle size={20} className="text-gray-400 cursor-help" />
-            <div className="absolute top-full left-0 mt-2 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-normal w-80 z-50">
-              Тут будет полезная подсказка.
-            </div>
-          </div>
         </div>
       </header>
 
