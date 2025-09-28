@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
 import { useDelayedLoading } from "../../hooks/useDelayedLoading";
 import { getParticipantsForEventum, createParticipant, updateParticipant, deleteParticipant } from "../../api/participant";
 import { getGroupsForEventum } from "../../api/group";
@@ -8,9 +7,10 @@ import { IconUser, IconExternalLink, IconPencil, IconTrash, IconPlus } from "../
 import ParticipantModal from "../../components/participant/ParticipantModal";
 import ParticipantsLoadingSkeleton from "../../components/participant/ParticipantsLoadingSkeleton";
 import type { Participant, ParticipantGroup, GroupTag } from "../../types";
+import { useEventumSlug } from "../../hooks/useEventumSlug";
 
 const AdminParticipantsPage = () => {
-  const { eventumSlug } = useParams();
+  const eventumSlug = useEventumSlug();
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [groups, setGroups] = useState<ParticipantGroup[]>([]);
   const [groupTags, setGroupTags] = useState<GroupTag[]>([]);

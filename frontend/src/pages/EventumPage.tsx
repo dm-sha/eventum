@@ -1,11 +1,13 @@
-import { Link, useParams } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { getEventumBySlug } from "../api/eventum";
 import type { Eventum } from "../types";
 import LoadingSpinner from "../components/LoadingSpinner";
+import { useEventumSlug } from "../hooks/useEventumSlug";
+import { getEventumScopedPath } from "../utils/eventumSlug";
 
 const EventumPage = () => {
-  const { eventumSlug } = useParams<{ eventumSlug: string }>();
+  const eventumSlug = useEventumSlug();
   const [eventum, setEventum] = useState<Eventum | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -70,7 +72,7 @@ const EventumPage = () => {
             </h1>
           </div>
           <Link
-            to={`/${eventumSlug}/admin`}
+            to={eventumSlug ? getEventumScopedPath(eventumSlug, "/admin") : "/"}
             className="inline-flex items-center justify-center rounded-lg border border-blue-200 px-4 py-2 text-sm font-semibold text-blue-700 transition-colors hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
           >
             Админка

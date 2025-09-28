@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
 import {
   getGroupsForEventum,
   updateGroup,
@@ -7,9 +6,10 @@ import {
 import { groupTagApi } from '../../api/groupTag';
 import type { GroupTag, ParticipantGroup } from '../../types';
 import { IconPencil, IconX, IconPlus, IconInformationCircle, IconTrash } from '../../components/icons';
+import { useEventumSlug } from '../../hooks/useEventumSlug';
 
 const AdminGroupTagsPage = () => {
-  const { eventumSlug } = useParams();
+  const eventumSlug = useEventumSlug();
   const [tags, setTags] = useState<GroupTag[]>([]);
   const [groups, setGroups] = useState<ParticipantGroup[]>([]);
   const [isLoading, setIsLoading] = useState(true);

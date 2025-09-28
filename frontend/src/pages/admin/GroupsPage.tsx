@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
 import {
   getGroupsForEventum,
   createGroup,
@@ -8,9 +7,10 @@ import {
 } from '../../api';
 import type { ParticipantGroup, Participant } from '../../types';
 import { IconPencil, IconX, IconPlus, IconInformationCircle, IconTrash } from '../../components/icons';
+import { useEventumSlug } from '../../hooks/useEventumSlug';
 
 const AdminGroupsPage = () => {
-  const { eventumSlug } = useParams();
+  const eventumSlug = useEventumSlug();
   const [groups, setGroups] = useState<ParticipantGroup[]>([]);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [isLoading, setIsLoading] = useState(true);
