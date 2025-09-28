@@ -18,13 +18,6 @@ const KIND_LABELS = {
   other: 'Другое'
 } as const;
 
-const KIND_COLORS = {
-  venue: 'bg-green-100 text-green-800',
-  building: 'bg-blue-100 text-blue-800',
-  room: 'bg-purple-100 text-purple-800',
-  area: 'bg-yellow-100 text-yellow-800',
-  other: 'bg-gray-100 text-gray-800'
-} as const;
 
 interface LocationNodeProps {
   location: Location;
@@ -89,21 +82,21 @@ const LocationNode: React.FC<LocationNodeProps> = ({
         </div>
 
         {/* Информация о локации */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
+        <div className="flex-1 min-w-0 flex flex-col">
+          <div className="flex items-center justify-between">
             <span className="font-medium text-gray-900 truncate">
               {location.name}
             </span>
-            <span className={`px-2 py-1 text-xs rounded-full ${KIND_COLORS[location.kind]}`}>
-              {KIND_LABELS[location.kind]}
-            </span>
+            {(location.address) && (
+              <span className="text-sm text-gray-500 truncate ml-4 text-right">
+                {[location.address].filter(Boolean).join(', ')}
+              </span>
+            )}
           </div>
           
-          {(location.address) && (
-            <div className="text-sm text-gray-500 truncate mt-1">
-              {[location.address].filter(Boolean).join(', ')}
-            </div>
-          )}
+          <div className="text-xs text-gray-400 mt-1">
+            {KIND_LABELS[location.kind]}
+          </div>
         </div>
 
         {/* Кнопки действий */}
