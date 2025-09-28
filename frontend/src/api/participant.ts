@@ -10,7 +10,7 @@ export const getParticipantsForEventum = async (eventumSlug: string): Promise<Pa
 // Создать нового участника.
 export const createParticipant = async (eventumSlug: string, participantData: { 
     name: string; 
-    user_id?: number; 
+    user_id?: number | null; 
 }): Promise<Participant> => {
     const response = await apiClient.post(`/eventums/${eventumSlug}/participants/`, participantData);
     return response.data;
@@ -22,7 +22,7 @@ export const updateParticipant = async (
     participantId: number, 
     participantData: { 
         name?: string; 
-        user_id?: number; 
+        user_id?: number | null; 
     }
 ): Promise<Participant> => {
     const response = await apiClient.patch(`/eventums/${eventumSlug}/participants/${participantId}/`, participantData);

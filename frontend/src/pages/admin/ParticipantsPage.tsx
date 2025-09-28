@@ -81,7 +81,7 @@ const AdminParticipantsPage = () => {
     setIsModalOpen(true);
   };
 
-  const handleSaveParticipant = async (data: { name: string }) => {
+  const handleSaveParticipant = async (data: { name: string; user_id?: number | null }) => {
     if (!eventumSlug) return;
     
     setIsSaving(true);

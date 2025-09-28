@@ -168,16 +168,21 @@ class ParticipantSerializer(serializers.ModelSerializer):
     
     def update(self, instance, validated_data):
         """Переопределяем update для обработки пользователя"""
-        user_id = validated_data.pop('user_id', None)
-        if user_id:
-            try:
-                user = UserProfile.objects.get(id=user_id)
-                validated_data['user'] = user
-                # Не перезаписываем имя, если оно явно передано в запросе
-                if 'name' not in validated_data:
-                    validated_data['name'] = user.name
-            except UserProfile.DoesNotExist:
-                raise serializers.ValidationError(f"Пользователь с ID {user_id} не найден")
+        user_id = validated_data.pop('user_id', 'NOT_PROVIDED')
+        
+        if user_id != 'NOT_PROVIDED':  # user_id был явно передан в запросе
+            if user_id:
+                try:
+                    user = UserProfile.objects.get(id=user_id)
+                    validated_data['user'] = user
+                    # Не перезаписываем имя, если оно явно передано в запросе
+                    if 'name' not in validated_data:
+                        validated_data['name'] = user.name
+                except UserProfile.DoesNotExist:
+                    raise serializers.ValidationError(f"Пользователь с ID {user_id} не найден")
+            else:
+                # user_id = null - удаляем связь с пользователем
+                validated_data['user'] = None
         
         return super().update(instance, validated_data)
 
