@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useEventumSlug } from "../../hooks/useEventumSlug";
 import { getEventumDetails, updateEventumName, updateEventumDescription } from "../../api/eventum";
 import { addEventumOrganizer, removeEventumOrganizer, searchUsers } from "../../api/organizers";
 import { useAuth } from "../../contexts/AuthContext";
 import type { EventumDetails, User } from "../../types";
-import { 
-  IconPencil, 
-  IconPlus, 
+import {
+  IconPencil,
+  IconPlus,
   IconTrash,
   IconUsers,
   IconCalendar,
@@ -14,9 +14,8 @@ import {
   IconX
 } from "../../components/icons";
 
-
 const EventumInfoPage = () => {
-  const { eventumSlug } = useParams();
+  const eventumSlug = useEventumSlug();
   const { user } = useAuth();
   const [eventum, setEventum] = useState<EventumDetails | null>(null);
   const [isLoading, setIsLoading] = useState(true);

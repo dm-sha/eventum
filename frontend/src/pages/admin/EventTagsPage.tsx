@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
 import {
   getEventsForEventum,
   updateEvent,
@@ -7,9 +6,10 @@ import {
 import { eventTagApi } from '../../api/eventTag';
 import type { EventTag, Event } from '../../types';
 import { IconPencil, IconX, IconPlus, IconInformationCircle, IconTrash } from '../../components/icons';
+import { useEventumSlug } from '../../hooks/useEventumSlug';
 
 const AdminEventTagsPage = () => {
-  const { eventumSlug } = useParams();
+  const eventumSlug = useEventumSlug();
   const [tags, setTags] = useState<EventTag[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
   const [isLoading, setIsLoading] = useState(true);
