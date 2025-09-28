@@ -201,11 +201,11 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Europe/Moscow'  # Устанавливаем московское время как локальную таймзону
 
 USE_I18N = True
 
-USE_TZ = True
+USE_TZ = False  # Отключаем поддержку таймзон - работаем только с локальным временем
 
 
 # Static files (CSS, JavaScript, Images)
@@ -319,8 +319,7 @@ CSRF_COOKIE_HTTPONLY = True
 CSRF_COOKIE_SAMESITE = 'Lax'
 
 # Настройки для оптимизации запросов
-USE_TZ = True
-TIME_ZONE = 'UTC'
+# USE_TZ и TIME_ZONE уже настроены выше
 
 # Настройки админки Django
 ADMIN_SITE_HEADER = "Merup"

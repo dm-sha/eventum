@@ -2,6 +2,8 @@ from rest_framework import serializers
 from rest_framework.relations import MANY_RELATION_KWARGS
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.utils.text import slugify
+from django.utils import timezone
+from datetime import datetime
 from transliterate import translit
 from .models import (
     Eventum, Participant, ParticipantGroup,
@@ -449,6 +451,10 @@ class EventSerializer(serializers.ModelSerializer):
         allow_empty=True,
         select_related="eventum",
     )
+    
+    # Обычные поля времени - работаем без таймзон
+    start_time = serializers.DateTimeField()
+    end_time = serializers.DateTimeField()
 
     class Meta:
         model = Event
