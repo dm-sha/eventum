@@ -74,6 +74,7 @@ CSRF_TRUSTED_ORIGINS = [
     'http://localhost:5174',
     'https://eventum-web-ui.vercel.app',
     'https://merup.ru',
+    'https://*.merup.ru',
     'https://bbapo5ibqs4eg6dail89.containers.yandexcloud.net',
 ]
 
@@ -98,6 +99,9 @@ if DEBUG:
     ]
 else:
     CORS_ALLOW_ALL_ORIGINS = False  # Безопасность: разрешаем только указанные домены
+    CORS_ALLOWED_ORIGIN_REGEXES = [
+        r"^https://([a-zA-Z0-9-]+\.)?merup\.ru$",  # Разрешаем поддомены *.merup.ru
+    ]
 CORS_ALLOWED_HEADERS = [
     'accept',
     'accept-encoding',

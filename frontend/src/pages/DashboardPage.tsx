@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { getUserEventums } from '../api/event';
 import { createEventum } from '../api/eventum';
 import Header from '../components/Header';
 import LoadingSpinner from '../components/LoadingSpinner';
 import CreateEventumModal from '../components/CreateEventumModal';
+import { getEventumScopedPath, getEventumUrl, shouldUseSubdomainRouting } from '../utils/eventumSlug';
+import { useNavigate } from 'react-router-dom';
 
 interface UserEventum {
   id: number;
@@ -143,7 +144,13 @@ const DashboardPage: React.FC = () => {
                 {eventums.map((eventum) => (
                   <article
                     key={eventum.id}
-                    onClick={() => navigate(`/${eventum.slug}`)}
+                    onClick={() => {
+                      if (shouldUseSubdomainRouting()) {
+                        window.location.href = getEventumUrl(eventum.slug);
+                      } else {
+                        navigate(getEventumScopedPath(eventum.slug));
+                      }
+                    }}
                     className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md cursor-pointer sm:p-6"
                   >
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -175,7 +182,11 @@ const DashboardPage: React.FC = () => {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              navigate(`/${eventum.slug}/admin`);
+                              if (shouldUseSubdomainRouting()) {
+                                window.location.href = getEventumUrl(eventum.slug, '/admin');
+                              } else {
+                                navigate(getEventumScopedPath(eventum.slug, '/admin'));
+                              }
                             }}
                             className="inline-flex items-center justify-center rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2"
                           >

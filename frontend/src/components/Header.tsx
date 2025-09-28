@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { useState, useRef, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { IconBars3, IconUser, IconLogout, IconX } from "./icons";
+import { getApplicationBaseUrl, shouldUseSubdomainRouting } from "../utils/eventumSlug";
 
 interface HeaderProps {
   variant?: 'default' | 'admin';
@@ -24,6 +25,8 @@ const Header = ({
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const isAdmin = variant === 'admin';
+  const isSubdomainRouting = shouldUseSubdomainRouting();
+  const dashboardHref = isSubdomainRouting ? `${getApplicationBaseUrl()}/dashboard` : '/dashboard';
 
   // Закрытие меню при клике вне его
   useEffect(() => {
@@ -69,14 +72,25 @@ const Header = ({
                 <p className="text-sm font-medium text-gray-900">{user.name}</p>
               </div>
 
-              <Link
-                to="/dashboard"
-                className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
-                onClick={() => setIsUserMenuOpen(false)}
-              >
-                <IconUser size={16} className="mr-3 text-gray-400" />
-                Личный кабинет
-              </Link>
+              {isSubdomainRouting ? (
+                <a
+                  href={dashboardHref}
+                  className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                  onClick={() => setIsUserMenuOpen(false)}
+                >
+                  <IconUser size={16} className="mr-3 text-gray-400" />
+                  Личный кабинет
+                </a>
+              ) : (
+                <Link
+                  to={dashboardHref}
+                  className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                  onClick={() => setIsUserMenuOpen(false)}
+                >
+                  <IconUser size={16} className="mr-3 text-gray-400" />
+                  Личный кабинет
+                </Link>
+              )}
 
               <button
                 onClick={() => {

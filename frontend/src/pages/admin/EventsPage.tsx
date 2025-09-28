@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
 import { getEventsForEventum, createEvent, updateEvent, deleteEvent } from "../../api/event";
 import { eventTagApi } from "../../api/eventTag";
 import { groupTagApi } from "../../api/groupTag";
@@ -7,14 +6,15 @@ import { getLocationsForEventum } from "../../api/location";
 import { getParticipantsForEventum } from "../../api/participant";
 import { getGroupsForEventum } from "../../api/group";
 import type { Event, EventTag, GroupTag, Location, Participant, ParticipantGroup } from "../../types";
-import { 
-  IconPencil, 
-  IconTrash, 
-  IconPlus, 
+import {
+  IconPencil,
+  IconTrash,
+  IconPlus,
   IconEllipsisHorizontal,
   IconChevronDown
 } from "../../components/icons";
 import EventEditModal from "../../components/event/EventEditModal";
+import { useEventumSlug } from "../../hooks/useEventumSlug";
 
 interface EventWithTags extends Event {
   tags_data: EventTag[];
@@ -22,7 +22,7 @@ interface EventWithTags extends Event {
 }
 
 const AdminEventsPage = () => {
-  const { eventumSlug } = useParams();
+  const eventumSlug = useEventumSlug();
   const [events, setEvents] = useState<EventWithTags[]>([]);
   const [eventTags, setEventTags] = useState<EventTag[]>([]);
   const [groupTags, setGroupTags] = useState<GroupTag[]>([]);

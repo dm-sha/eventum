@@ -1,18 +1,18 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
-import { 
-  getLocationTree, 
-  createLocation, 
-  updateLocation, 
-  deleteLocation 
+import {
+  getLocationTree,
+  createLocation,
+  updateLocation,
+  deleteLocation
 } from '../../api/location';
 import { LocationTree } from '../../components/location/LocationTree';
 import { LocationForm } from '../../components/location/LocationForm';
 import { IconInformationCircle } from '../../components/icons';
 import type { Location, CreateLocationData } from '../../types';
+import { useEventumSlug } from '../../hooks/useEventumSlug';
 
 const LocationsPage = () => {
-  const { eventumSlug } = useParams();
+  const eventumSlug = useEventumSlug();
   const [locations, setLocations] = useState<Location[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
