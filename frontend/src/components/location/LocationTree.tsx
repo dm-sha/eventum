@@ -40,6 +40,9 @@ const LocationNode: React.FC<LocationNodeProps> = ({
   const handleToggle = () => {
     if (hasChildren) {
       setIsExpanded(!isExpanded);
+    } else {
+      // Если нет детей, открываем окно редактирования
+      onEdit(location);
     }
   };
 
@@ -83,12 +86,12 @@ const LocationNode: React.FC<LocationNodeProps> = ({
 
         {/* Информация о локации */}
         <div className="flex-1 min-w-0 flex flex-col">
-          <div className="flex items-center justify-between">
-            <span className="font-medium text-gray-900 truncate">
+          <div className="flex items-center">
+            <span className="font-medium text-gray-900 truncate flex-1">
               {location.name}
             </span>
             {(location.address) && (
-              <span className="text-sm text-gray-500 truncate ml-4 text-right">
+              <span className="text-sm text-gray-500 truncate ml-8 select-text w-48">
                 {[location.address].filter(Boolean).join(', ')}
               </span>
             )}
