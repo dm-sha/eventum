@@ -8,7 +8,6 @@ import { getParticipantsForEventum } from "../../api/participant";
 import { getGroupsForEventum } from "../../api/group";
 import type { Event, EventTag, GroupTag, Location, Participant, ParticipantGroup } from "../../types";
 import { 
-  IconInformationCircle, 
   IconPencil, 
   IconTrash, 
   IconPlus, 
@@ -317,25 +316,25 @@ const AdminEventsPage = () => {
             return (
               <div
                 key={event.id}
-                className={`rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm transition-all duration-200 ${
-                  isExpanded ? 'min-h-[100px]' : 'h-16'
+                onClick={() => openEditModal(event)}
+                className={`rounded-xl border border-gray-200 bg-white px-4 py-4 shadow-sm transition-all duration-200 cursor-pointer hover:shadow-md hover:border-gray-300 ${
+                  isExpanded ? 'min-h-[120px]' : 'min-h-[80px]'
                 }`}
               >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4 flex-1 min-w-0">
+                <div className="flex items-start justify-between h-full">
+                  <div className="flex items-start gap-4 flex-1 min-w-0">
                     {/* Время */}
-                    <div className="text-sm text-gray-600 flex-shrink-0">
+                    <div className="text-sm text-gray-600 flex-shrink-0 mt-1">
                       <span className="whitespace-nowrap">{formatEventTime(event.start_time, event.end_time)}</span>
                     </div>
                     
-                    {/* Название */}
+                    {/* Основной контент */}
                     <div className="flex-1 min-w-0">
-                      <h3 className="text-sm font-medium text-gray-900 truncate">{event.name}</h3>
-                    </div>
-                    
-                    {/* Теги */}
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                      <div className="flex items-center gap-1">
+                      {/* Название */}
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2 leading-tight">{event.name}</h3>
+                      
+                      {/* Теги */}
+                      <div className="flex items-center gap-2 flex-wrap">
                         {displayTags.length > 0 ? (
                           displayTags.map((tag) => (
                             <span
@@ -350,7 +349,10 @@ const AdminEventsPage = () => {
                         )}
                         {hasMoreTags && !isExpanded && (
                           <button
-                            onClick={() => toggleEventExpansion(event.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleEventExpansion(event.id);
+                            }}
                             className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200"
                           >
                             <IconEllipsisHorizontal size={12} />
@@ -358,7 +360,10 @@ const AdminEventsPage = () => {
                         )}
                         {isExpanded && (
                           <button
-                            onClick={() => toggleEventExpansion(event.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleEventExpansion(event.id);
+                            }}
                             className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200"
                           >
                             Скрыть
@@ -371,15 +376,21 @@ const AdminEventsPage = () => {
                   {/* Действия */}
                   <div className="flex items-center gap-2 ml-4 flex-shrink-0">
                     <button
-                      onClick={() => openEditModal(event)}
-                      className="p-1 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openEditModal(event);
+                      }}
+                      className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
                       title="Редактировать"
                     >
                       <IconPencil size={16} />
                     </button>
                     <button
-                      onClick={() => handleDeleteEvent(event.id)}
-                      className="p-1 rounded text-gray-400 hover:text-red-600 hover:bg-red-50"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteEvent(event.id);
+                      }}
+                      className="p-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
                       title="Удалить"
                     >
                       <IconTrash size={16} />
