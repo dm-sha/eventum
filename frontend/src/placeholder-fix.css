@@ -1,0 +1,86 @@
+/* Исправление проблем с плейсхолдерами на мобильных устройствах */
+
+/* Основные стили для плейсхолдеров */
+input::placeholder,
+textarea::placeholder {
+  color: #9ca3af !important; /* gray-400 */
+  opacity: 1 !important;
+  transition: color 0.2s ease-in-out;
+}
+
+/* Убеждаемся, что введенный текст имеет правильный цвет */
+input:not(:placeholder-shown),
+textarea:not(:placeholder-shown) {
+  color: #111827 !important; /* gray-900 */
+}
+
+/* Стили для фокуса */
+input:focus::placeholder,
+textarea:focus::placeholder {
+  color: #9ca3af !important;
+  opacity: 0.8 !important;
+}
+
+/* Стили для полей с ошибками */
+input.border-red-300::placeholder,
+textarea.border-red-300::placeholder {
+  color: #9ca3af !important;
+}
+
+/* Стили для отключенных полей */
+input:disabled::placeholder,
+textarea:disabled::placeholder {
+  color: #9ca3af !important;
+  opacity: 0.5 !important;
+}
+
+/* Поддержка для WebKit браузеров (Safari, Chrome, мобильные браузеры) */
+input::-webkit-input-placeholder,
+textarea::-webkit-input-placeholder {
+  color: #9ca3af !important;
+  opacity: 1 !important;
+}
+
+/* Поддержка для Firefox */
+input::-moz-placeholder,
+textarea::-moz-placeholder {
+  color: #9ca3af !important;
+  opacity: 1 !important;
+}
+
+/* Поддержка для старых версий Internet Explorer */
+input:-ms-input-placeholder,
+textarea:-ms-input-placeholder {
+  color: #9ca3af !important;
+  opacity: 1 !important;
+}
+
+/* Специальные стили для мобильных устройств */
+@media (max-width: 768px) {
+  input::placeholder,
+  textarea::placeholder {
+    color: #9ca3af !important;
+    opacity: 1 !important;
+    font-size: 16px; /* Предотвращает зум на iOS */
+  }
+  
+  input:not(:placeholder-shown),
+  textarea:not(:placeholder-shown) {
+    color: #111827 !important;
+    font-size: 16px;
+  }
+}
+
+/* Дополнительная поддержка для iOS Safari */
+@supports (-webkit-touch-callout: none) {
+  input::placeholder,
+  textarea::placeholder {
+    color: #9ca3af !important;
+    opacity: 1 !important;
+  }
+  
+  input:not(:placeholder-shown),
+  textarea:not(:placeholder-shown) {
+    color: #111827 !important;
+  }
+}

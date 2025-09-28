@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./placeholder-fix.css";
 
 :root {
   --background: #ffffff;

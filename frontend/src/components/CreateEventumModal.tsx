@@ -133,7 +133,7 @@ const CreateEventumModal: React.FC<CreateEventumModalProps> = ({
                   value={name}
                   onChange={(e) => handleNameChange(e.target.value)}
                   disabled={isSubmitting}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-500"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-500"
                   placeholder="Введите название события"
                   required
                 />
@@ -158,7 +158,7 @@ const CreateEventumModal: React.FC<CreateEventumModalProps> = ({
                   value={slug}
                   onChange={(e) => handleSlugChange(e.target.value)}
                   disabled={isSubmitting}
-                  className={`w-full rounded-lg border px-3 py-2 text-sm placeholder-gray-400 focus:outline-none focus:ring-1 disabled:bg-gray-50 disabled:text-gray-500 ${
+                  className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-1 disabled:bg-gray-50 disabled:text-gray-500 ${
                     slugError 
                       ? 'border-red-300 focus:border-red-500 focus:ring-red-500' 
                       : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
