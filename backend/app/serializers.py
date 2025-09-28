@@ -409,6 +409,37 @@ class EventSerializer(serializers.ModelSerializer):
                     'max_participants': 'max_participants should not be set for all or manual type events'
                 })
         
+        # Check if trying to change participant_type from manual when there are existing connections
+        if self.instance and self.instance.pk:
+            original_participant_type = self.instance.participant_type
+            new_participant_type = participant_type or original_participant_type
+            
+            # If changing from manual to another type, check for existing connections
+            if (original_participant_type == 'manual' and 
+                new_participant_type != 'manual'):
+                
+                # Check for participants
+                if self.instance.participants.exists():
+                    raise serializers.ValidationError({
+                        'participant_type': 'Нельзя изменить тип участников с "manual" на другой тип, '
+                                          'пока не удалены все связи с участниками'
+                    })
+                
+                # Check for groups
+                if self.instance.groups.exists():
+                    raise serializers.ValidationError({
+                        'participant_type': 'Нельзя изменить тип участников с "manual" на другой тип, '
+                                          'пока не удалены все связи с группами'
+                    })
+                
+                # Check for group tags
+                if self.instance.group_tags.exists():
+                    raise serializers.ValidationError({
+                        'participant_type': 'Нельзя изменить тип участников с "manual" на другой тип, '
+                                          'пока не удалены все связи с тегами групп'
+                    })
+                
+        
         return data
 
     def validate_location_id(self, value):

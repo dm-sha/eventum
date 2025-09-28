@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import type { Event, EventTag, GroupTag, Location, Participant, ParticipantGroup, ParticipantType } from "../../types";
+import type { Event, EventTag, GroupTag, Location, Participant, ParticipantGroup, ParticipantType, ValidationError } from "../../types";
 import { LocationSelector } from "../location/LocationSelector";
 
 // Компонент для вкладки "Общее"
@@ -235,7 +235,10 @@ const ParticipantsTab = ({
   getTotalParticipantsCount,
   participantInputRef,
   groupInputRef,
-  groupTagInputRef
+  groupTagInputRef,
+  checkParticipantTypeValidation,
+  participantTypeError,
+  setParticipantTypeError
 }: {
   eventForm: any;
   setEventForm: any;
@@ -267,13 +270,13 @@ const ParticipantsTab = ({
   participantInputRef: React.RefObject<HTMLDivElement | null>;
   groupInputRef: React.RefObject<HTMLDivElement | null>;
   groupTagInputRef: React.RefObject<HTMLDivElement | null>;
+  checkParticipantTypeValidation: (newParticipantType: ParticipantType) => string | null;
+  participantTypeError: string | null;
+  setParticipantTypeError: (error: string | null) => void;
 }) => (
   <div className="space-y-4">
     {/* Выбор типа участников */}
     <div>
-      <label className="block text-sm font-medium text-gray-700 mb-2">
-        Тип участников
-      </label>
       <div className="space-y-2">
         <label className="flex items-center">
           <input
@@ -281,14 +284,24 @@ const ParticipantsTab = ({
             name="participant_type"
             value="all"
             checked={eventForm.participant_type === 'all'}
-            onChange={(e) => setEventForm((prev: any) => ({ 
-              ...prev, 
-              participant_type: e.target.value,
-              max_participants: undefined,
-              participants: [],
-              groups: [],
-              group_tags: []
-            }))}
+            onChange={(e) => {
+              const newType = e.target.value as ParticipantType;
+              const error = checkParticipantTypeValidation(newType);
+              if (error) {
+                // Показываем ошибку красным текстом
+                setParticipantTypeError("Нельзя изменить тип участников, пока не удалены все связи с участниками, группами или тегами групп");
+                return;
+              }
+              setParticipantTypeError(null);
+              setEventForm((prev: any) => ({ 
+                ...prev, 
+                participant_type: newType,
+                max_participants: undefined,
+                participants: [],
+                groups: [],
+                group_tags: []
+              }));
+            }}
             className="mr-2"
           />
           <span className="text-sm">Для всех</span>
@@ -299,13 +312,23 @@ const ParticipantsTab = ({
             name="participant_type"
             value="registration"
             checked={eventForm.participant_type === 'registration'}
-            onChange={(e) => setEventForm((prev: any) => ({ 
-              ...prev, 
-              participant_type: e.target.value,
-              participants: [],
-              groups: [],
-              group_tags: []
-            }))}
+            onChange={(e) => {
+              const newType = e.target.value as ParticipantType;
+              const error = checkParticipantTypeValidation(newType);
+              if (error) {
+                // Показываем ошибку красным текстом
+                setParticipantTypeError("Нельзя изменить тип участников, пока не удалены все связи с участниками, группами или тегами групп");
+                return;
+              }
+              setParticipantTypeError(null);
+              setEventForm((prev: any) => ({ 
+                ...prev, 
+                participant_type: newType,
+                participants: [],
+                groups: [],
+                group_tags: []
+              }));
+            }}
             className="mr-2"
           />
           <span className="text-sm">По записи</span>
@@ -326,6 +349,13 @@ const ParticipantsTab = ({
           <span className="text-sm">Вручную</span>
         </label>
       </div>
+      
+      {/* Отображение ошибки валидации для participant_type */}
+      {participantTypeError && (
+        <div className="text-sm text-red-600 mt-2">
+          {participantTypeError}
+        </div>
+      )}
     </div>
 
     {/* Поле для максимального количества участников (только для типа registration) */}
@@ -614,6 +644,8 @@ const EventEditModal = ({
   const [showParticipantSuggestions, setShowParticipantSuggestions] = useState(false);
   const [showGroupSuggestions, setShowGroupSuggestions] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<ValidationError>({});
+  const [participantTypeError, setParticipantTypeError] = useState<string | null>(null);
   const tagInputRef = useRef<HTMLDivElement>(null);
   const groupTagInputRef = useRef<HTMLDivElement>(null);
   const participantInputRef = useRef<HTMLDivElement>(null);
@@ -780,6 +812,13 @@ const EventEditModal = ({
       ...prev,
       group_tags: prev.group_tags.filter(id => id !== groupTagId)
     }));
+    // Очищаем ошибки валидации при изменении связей
+    setValidationErrors(prev => {
+      const newErrors = { ...prev };
+      delete newErrors.participant_type;
+      return newErrors;
+    });
+    setParticipantTypeError(null);
   }, []);
 
   const getGroupTagSuggestions = useCallback(() => {
@@ -808,6 +847,13 @@ const EventEditModal = ({
       ...prev,
       participants: prev.participants.filter(id => id !== participantId)
     }));
+    // Очищаем ошибки валидации при изменении связей
+    setValidationErrors(prev => {
+      const newErrors = { ...prev };
+      delete newErrors.participant_type;
+      return newErrors;
+    });
+    setParticipantTypeError(null);
   }, []);
 
   const getParticipantSuggestions = useCallback(() => {
@@ -836,6 +882,13 @@ const EventEditModal = ({
       ...prev,
       groups: prev.groups.filter(id => id !== groupId)
     }));
+    // Очищаем ошибки валидации при изменении связей
+    setValidationErrors(prev => {
+      const newErrors = { ...prev };
+      delete newErrors.participant_type;
+      return newErrors;
+    });
+    setParticipantTypeError(null);
   }, []);
 
   const getGroupSuggestions = useCallback(() => {
@@ -879,6 +932,22 @@ const EventEditModal = ({
     return participantIds.size;
   }, [eventForm.participants, eventForm.groups, eventForm.group_tags, participantGroups, groupTags]);
 
+  // Проверка валидации для изменения participant_type
+  const checkParticipantTypeValidation = useCallback((newParticipantType: ParticipantType) => {
+    // Если событие существует и пытаемся изменить с manual на другой тип
+    if (event && event.participant_type === 'manual' && newParticipantType !== 'manual') {
+      const hasBlockingConnections = 
+        eventForm.participants.length > 0 || 
+        eventForm.groups.length > 0 || 
+        eventForm.group_tags.length > 0;
+      
+      if (hasBlockingConnections) {
+        return "Нельзя изменить тип участников с 'manual' на другой тип, пока не удалены все связи с участниками, группами или тегами групп";
+      }
+    }
+    return null;
+  }, [event, eventForm.participants, eventForm.groups, eventForm.group_tags]);
+
   const handleSave = async () => {
     if (!eventForm.name.trim() || !eventForm.start_time || !eventForm.end_time) return;
     
@@ -891,6 +960,16 @@ const EventEditModal = ({
     if (eventForm.participant_type === 'registration' && (!eventForm.max_participants || eventForm.max_participants <= 0)) {
       return;
     }
+    
+    // Проверка валидации participant_type
+    const participantTypeError = checkParticipantTypeValidation(eventForm.participant_type);
+    if (participantTypeError) {
+      setValidationErrors({ participant_type: participantTypeError });
+      return;
+    }
+    
+    // Очищаем ошибки валидации
+    setValidationErrors({});
     
     setIsSaving(true);
     try {
@@ -911,8 +990,30 @@ const EventEditModal = ({
       };
       await onSave(eventData);
       onClose();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Ошибка сохранения мероприятия:', error);
+      
+      // Обработка ошибок валидации с сервера
+      if (error.response?.status === 400 && error.response?.data) {
+        const serverErrors: ValidationError = {};
+        
+        // Обрабатываем ошибки валидации
+        Object.keys(error.response.data).forEach(field => {
+          const fieldError = error.response.data[field];
+          if (Array.isArray(fieldError)) {
+            serverErrors[field] = fieldError.join(' ');
+          } else if (typeof fieldError === 'string') {
+            serverErrors[field] = fieldError;
+          }
+        });
+        
+        setValidationErrors(serverErrors);
+      } else {
+        // Общая ошибка
+        setValidationErrors({ 
+          non_field_errors: ['Произошла ошибка при сохранении мероприятия'] 
+        });
+      }
     } finally {
       setIsSaving(false);
     }
@@ -1013,7 +1114,22 @@ const EventEditModal = ({
               participantInputRef={participantInputRef}
               groupInputRef={groupInputRef}
               groupTagInputRef={groupTagInputRef}
+              checkParticipantTypeValidation={checkParticipantTypeValidation}
+              participantTypeError={participantTypeError}
+              setParticipantTypeError={setParticipantTypeError}
             />
+          )}
+          
+          {/* Отображение общих ошибок валидации */}
+          {validationErrors.non_field_errors && (
+            <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+              <div className="text-sm text-red-600">
+                {Array.isArray(validationErrors.non_field_errors) 
+                  ? validationErrors.non_field_errors.join(' ')
+                  : validationErrors.non_field_errors
+                }
+              </div>
+            </div>
           )}
           
           <div className="flex gap-3 mt-6">

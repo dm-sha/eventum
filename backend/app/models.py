@@ -197,8 +197,41 @@ class Event(models.Model):
             if self.max_participants is not None:
                 raise ValidationError("max_participants should not be set for 'all' or 'manual' type events")
         
-        # Ensure all participants belong to the same eventum (only if object is saved)
+        # Check if trying to change participant_type from manual when there are existing connections
         if self.pk:
+            # Get the original instance from database
+            try:
+                original = Event.objects.get(pk=self.pk)
+                # If changing from manual to another type, check for existing connections
+                if (original.participant_type == self.ParticipantType.MANUAL and 
+                    self.participant_type != self.ParticipantType.MANUAL):
+                    
+                    # Check for participants
+                    if self.participants.exists():
+                        raise ValidationError(
+                            "Нельзя изменить тип участников с 'manual' на другой тип, "
+                            "пока не удалены все связи с участниками"
+                        )
+                    
+                    # Check for groups
+                    if self.groups.exists():
+                        raise ValidationError(
+                            "Нельзя изменить тип участников с 'manual' на другой тип, "
+                            "пока не удалены все связи с группами"
+                        )
+                    
+                    # Check for group tags
+                    if self.group_tags.exists():
+                        raise ValidationError(
+                            "Нельзя изменить тип участников с 'manual' на другой тип, "
+                            "пока не удалены все связи с тегами групп"
+                        )
+                    
+            except Event.DoesNotExist:
+                # Object doesn't exist yet, no need to check
+                pass
+            
+            # Ensure all participants belong to the same eventum (only if object is saved)
             for participant in self.participants.all():
                 if participant.eventum != self.eventum:
                     raise ValidationError(

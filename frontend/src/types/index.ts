@@ -120,3 +120,13 @@ export interface CreateLocationData {
   notes?: string;
   parent_id?: number | null;
 }
+
+export interface ValidationError {
+  [field: string]: string | string[];
+}
+
+export interface ApiError {
+  detail?: string;
+  non_field_errors?: string[];
+  [field: string]: string | string[] | undefined;
+}

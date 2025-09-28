@@ -30,6 +30,10 @@ export const updateEvent = async (eventumSlug: string, eventId: number, data: {
   description: string;
   start_time: string;
   end_time: string;
+  participant_type?: string;
+  max_participants?: number;
+  participants?: number[];
+  groups?: number[];
   tags?: number[];
   tag_ids?: number[];
   group_tags?: number[];
