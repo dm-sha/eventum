@@ -18,6 +18,7 @@ const LocationsPage = () => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingLocation, setEditingLocation] = useState<Location | null>(null);
   const [parentLocation, setParentLocation] = useState<Location | null>(null);
+  const [expandedNodes, setExpandedNodes] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     if (eventumSlug) {
@@ -141,6 +142,18 @@ const LocationsPage = () => {
     setIsFormOpen(true);
   };
 
+  const handleToggleExpanded = (locationId: number) => {
+    setExpandedNodes(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(locationId)) {
+        newSet.delete(locationId);
+      } else {
+        newSet.add(locationId);
+      }
+      return newSet;
+    });
+  };
+
   const handleFormCancel = () => {
     setIsFormOpen(false);
     setEditingLocation(null);
@@ -190,6 +203,8 @@ const LocationsPage = () => {
         onDelete={handleDeleteLocation}
         onAddChild={handleAddChild}
         onAddRoot={handleAddRoot}
+        expandedNodes={expandedNodes}
+        onToggleExpanded={handleToggleExpanded}
       />
 
       <LocationForm

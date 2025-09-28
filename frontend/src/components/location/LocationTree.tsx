@@ -1,6 +1,21 @@
-import { useState } from 'react';
+import React from 'react';
 import type { Location } from '../../types';
 import { IconChevronRight, IconChevronDown, IconPencil, IconTrash, IconPlus } from '../icons';
+
+// Функция для сортировки локаций по названию
+const sortLocationsByName = (locations: Location[]): Location[] => {
+  return [...locations].sort((a, b) => {
+    const nameA = a.name.toLowerCase();
+    const nameB = b.name.toLowerCase();
+    
+    if (nameA < nameB) return -1;
+    if (nameA > nameB) return 1;
+    return 0;
+  }).map(location => ({
+    ...location,
+    children: location.children ? sortLocationsByName(location.children) : undefined
+  }));
+};
 
 interface LocationTreeProps {
   locations: Location[];
@@ -8,6 +23,8 @@ interface LocationTreeProps {
   onDelete: (location: Location) => void;
   onAddChild: (parent: Location) => void;
   onAddRoot: () => void;
+  expandedNodes: Set<number>;
+  onToggleExpanded: (locationId: number) => void;
 }
 
 const KIND_LABELS = {
@@ -25,6 +42,8 @@ interface LocationNodeProps {
   onEdit: (location: Location) => void;
   onDelete: (location: Location) => void;
   onAddChild: (parent: Location) => void;
+  expandedNodes: Set<number>;
+  onToggleExpanded: (locationId: number) => void;
 }
 
 const LocationNode: React.FC<LocationNodeProps> = ({
@@ -32,14 +51,16 @@ const LocationNode: React.FC<LocationNodeProps> = ({
   level,
   onEdit,
   onDelete,
-  onAddChild
+  onAddChild,
+  expandedNodes,
+  onToggleExpanded
 }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
   const hasChildren = location.children && location.children.length > 0;
+  const isExpanded = expandedNodes.has(location.id);
 
   const handleToggle = () => {
     if (hasChildren) {
-      setIsExpanded(!isExpanded);
+      onToggleExpanded(location.id);
     } else {
       // Если нет детей, открываем окно редактирования
       onEdit(location);
@@ -139,6 +160,8 @@ const LocationNode: React.FC<LocationNodeProps> = ({
                 onEdit={onEdit}
                 onDelete={onDelete}
                 onAddChild={onAddChild}
+                expandedNodes={expandedNodes}
+                onToggleExpanded={onToggleExpanded}
               />
               {/* Разделитель между дочерними элементами */}
               {index < location.children!.length - 1 && (
@@ -159,8 +182,13 @@ export const LocationTree: React.FC<LocationTreeProps> = ({
   onEdit,
   onDelete,
   onAddChild,
-  onAddRoot
+  onAddRoot,
+  expandedNodes,
+  onToggleExpanded
 }) => {
+  // Сортируем локации по названию
+  const sortedLocations = sortLocationsByName(locations);
+
   return (
     <div className="space-y-2">
       {/* Кнопка добавления корневой локации */}
@@ -176,9 +204,9 @@ export const LocationTree: React.FC<LocationTreeProps> = ({
       </div>
 
       {/* Список локаций */}
-      {locations.length > 0 ? (
+      {sortedLocations.length > 0 ? (
         <div className="space-y-4">
-          {locations.map((location) => (
+          {sortedLocations.map((location) => (
             <div key={location.id} className="bg-white border border-gray-200 rounded-lg p-4">
               <LocationNode
                 location={location}
@@ -186,6 +214,8 @@ export const LocationTree: React.FC<LocationTreeProps> = ({
                 onEdit={onEdit}
                 onDelete={onDelete}
                 onAddChild={onAddChild}
+                expandedNodes={expandedNodes}
+                onToggleExpanded={onToggleExpanded}
               />
             </div>
           ))}
