@@ -127,6 +127,7 @@ export const MultiLocationSelector: React.FC<MultiLocationSelectorProps> = ({
         <input
           ref={inputRef}
           type="text"
+          role="combobox"
           value={getDisplayValue()}
           onChange={(e) => {
             const value = e.target.value;

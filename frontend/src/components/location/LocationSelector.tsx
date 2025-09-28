@@ -117,6 +117,7 @@ export const LocationSelector: React.FC<LocationSelectorProps> = ({
         <input
           ref={inputRef}
           type="text"
+          role="combobox"
           value={getDisplayValue()}
           onChange={(e) => {
             const value = e.target.value;
