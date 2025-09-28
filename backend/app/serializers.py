@@ -287,222 +287,6 @@ class EventTagSerializer(serializers.ModelSerializer):
         model = EventTag
         fields = ['id', 'name', 'slug']
 
-class EventSerializer(serializers.ModelSerializer):
-    participants = BulkPrimaryKeyRelatedField(
-        many=True,
-        queryset=Participant.objects.all(),
-        required=False,
-        allow_empty=True,
-        select_related=("eventum", "user"),
-    )
-    groups = BulkPrimaryKeyRelatedField(
-        many=True,
-        queryset=ParticipantGroup.objects.all(),
-        required=False,
-        allow_empty=True,
-        select_related="eventum",
-    )
-    tags = EventTagSerializer(many=True, read_only=True)
-    tag_ids = BulkPrimaryKeyRelatedField(
-        many=True,
-        write_only=True,
-        source='tags',
-        queryset=EventTag.objects.all(),
-        required=False,
-        allow_empty=True,
-        select_related="eventum",
-    )
-    group_tags = GroupTagSerializer(many=True, read_only=True)
-    group_tag_ids = BulkPrimaryKeyRelatedField(
-        many=True,
-        write_only=True,
-        source='group_tags',
-        queryset=GroupTag.objects.all(),
-        required=False,
-        allow_empty=True,
-        select_related="eventum",
-    )
-    location_id = serializers.PrimaryKeyRelatedField(
-        write_only=True,
-        source='location',
-        queryset=Location.objects.all(),
-        required=False,
-        allow_null=True
-    )
-
-    class Meta:
-        model = Event
-        fields = [
-            'id', 'name', 'description', 'start_time', 'end_time',
-            'participant_type', 'max_participants', 'image_url',
-            'participants', 'groups', 'tags', 'tag_ids', 'group_tags', 'group_tag_ids', 'location_id'
-        ]
-
-    def validate_participants(self, value):
-        if not value:
-            return value
-
-        eventum = self.context.get('eventum')
-        if eventum:
-            eventum_id = getattr(eventum, 'id', eventum)
-            invalid = [
-                participant
-                for participant in value
-                if participant.eventum_id != eventum_id
-            ]
-            if invalid:
-                names = ', '.join(participant.name for participant in invalid)
-                raise serializers.ValidationError(
-                    f"Участники {names} принадлежат другому мероприятию"
-                )
-
-        return value
-
-    def validate_groups(self, value):
-        if not value:
-            return value
-
-        eventum = self.context.get('eventum')
-        if eventum:
-            eventum_id = getattr(eventum, 'id', eventum)
-            invalid = [
-                group
-                for group in value
-                if group.eventum_id != eventum_id
-            ]
-            if invalid:
-                names = ', '.join(group.name for group in invalid)
-                raise serializers.ValidationError(
-                    f"Группы {names} принадлежат другому мероприятию"
-                )
-
-        return value
-
-    def validate_group_tag_ids(self, value):
-        if not value:
-            return value
-
-        eventum = self.context.get('eventum')
-        if eventum:
-            eventum_id = getattr(eventum, 'id', eventum)
-            invalid = [
-                group_tag
-                for group_tag in value
-                if group_tag.eventum_id != eventum_id
-            ]
-            if invalid:
-                names = ', '.join(group_tag.name for group_tag in invalid)
-                raise serializers.ValidationError(
-                    f"Теги групп {names} принадлежат другому мероприятию"
-                )
-
-        return value
-
-    def validate(self, data):
-        """Валидация на уровне объекта для проверки participant_type и max_participants"""
-        participant_type = data.get('participant_type')
-        max_participants = data.get('max_participants')
-        
-        if participant_type == 'registration':
-            if not max_participants or max_participants <= 0:
-                raise serializers.ValidationError({
-                    'max_participants': 'max_participants must be specified and greater than 0 for registration type events'
-                })
-        elif participant_type in ['all', 'manual']:
-            if max_participants is not None:
-                raise serializers.ValidationError({
-                    'max_participants': 'max_participants should not be set for all or manual type events'
-                })
-        
-        # Check if trying to change participant_type from manual when there are existing connections
-        if self.instance and self.instance.pk:
-            original_participant_type = self.instance.participant_type
-            new_participant_type = participant_type or original_participant_type
-            
-            # If changing from manual to another type, check for existing connections
-            if (original_participant_type == 'manual' and 
-                new_participant_type != 'manual'):
-                
-                # Check for participants
-                if self.instance.participants.exists():
-                    raise serializers.ValidationError({
-                        'participant_type': 'Нельзя изменить тип участников с "manual" на другой тип, '
-                                          'пока не удалены все связи с участниками'
-                    })
-                
-                # Check for groups
-                if self.instance.groups.exists():
-                    raise serializers.ValidationError({
-                        'participant_type': 'Нельзя изменить тип участников с "manual" на другой тип, '
-                                          'пока не удалены все связи с группами'
-                    })
-                
-                # Check for group tags
-                if self.instance.group_tags.exists():
-                    raise serializers.ValidationError({
-                        'participant_type': 'Нельзя изменить тип участников с "manual" на другой тип, '
-                                          'пока не удалены все связи с тегами групп'
-                    })
-                
-        
-        return data
-
-    def validate_location_id(self, value):
-        """Валидация location_id - локация должна принадлежать тому же eventum"""
-        if value is None:
-            return value
-        
-        # Получаем eventum из контекста
-        eventum = self.context.get('eventum')
-        if eventum and value.eventum != eventum:
-            raise serializers.ValidationError(
-                f"Локация '{value.name}' не принадлежит данному eventum"
-            )
-        
-        return value
-
-    def validate_tag_ids(self, value):
-        """Валидация tag_ids - теги должны принадлежать тому же eventum"""
-        if not value:
-            return value
-
-        # Получаем eventum из контекста
-        eventum = self.context.get('eventum')
-        if eventum:
-            eventum_id = getattr(eventum, 'id', eventum)
-            invalid_tags = [tag for tag in value if tag.eventum_id != eventum_id]
-            if invalid_tags:
-                names = ', '.join(tag.name for tag in invalid_tags)
-                raise serializers.ValidationError(
-                    f"Теги {names} не принадлежат данному eventum"
-                )
-
-        return value
-
-
-class UserProfileSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = UserProfile
-        fields = ['id', 'vk_id', 'name', 'avatar_url', 'email', 'date_joined', 'last_login']
-        read_only_fields = ['id', 'date_joined', 'last_login']
-
-
-class UserRoleSerializer(serializers.ModelSerializer):
-    user = UserProfileSerializer(read_only=True)
-    eventum = EventumSerializer(read_only=True)
-    
-    class Meta:
-        model = UserRole
-        fields = ['id', 'user', 'eventum', 'role', 'created_at']
-        read_only_fields = ['id', 'created_at']
-
-
-class VKAuthSerializer(serializers.Serializer):
-    """Сериализатор для авторизации через VK"""
-    code = serializers.CharField()
-    state = serializers.CharField(required=False)
-
-
 class LocationSerializer(serializers.ModelSerializer):
     parent = serializers.SerializerMethodField(read_only=True)
     parent_id = serializers.IntegerField(write_only=True, required=False, allow_null=True)
@@ -620,13 +404,228 @@ class LocationSerializer(serializers.ModelSerializer):
         
         return super().update(instance, validated_data)
 
+class EventSerializer(serializers.ModelSerializer):
+    participants = BulkPrimaryKeyRelatedField(
+        many=True,
+        queryset=Participant.objects.all(),
+        required=False,
+        allow_empty=True,
+        select_related=("eventum", "user"),
+    )
+    groups = BulkPrimaryKeyRelatedField(
+        many=True,
+        queryset=ParticipantGroup.objects.all(),
+        required=False,
+        allow_empty=True,
+        select_related="eventum",
+    )
+    tags = EventTagSerializer(many=True, read_only=True)
+    tag_ids = BulkPrimaryKeyRelatedField(
+        many=True,
+        write_only=True,
+        source='tags',
+        queryset=EventTag.objects.all(),
+        required=False,
+        allow_empty=True,
+        select_related="eventum",
+    )
+    group_tags = GroupTagSerializer(many=True, read_only=True)
+    group_tag_ids = BulkPrimaryKeyRelatedField(
+        many=True,
+        write_only=True,
+        source='group_tags',
+        queryset=GroupTag.objects.all(),
+        required=False,
+        allow_empty=True,
+        select_related="eventum",
+    )
+    locations = LocationSerializer(many=True, read_only=True)
+    location_ids = BulkPrimaryKeyRelatedField(
+        many=True,
+        write_only=True,
+        source='locations',
+        queryset=Location.objects.all(),
+        required=False,
+        allow_empty=True,
+        select_related="eventum",
+    )
 
-# Добавляем поле location в EventSerializer после определения LocationSerializer
-class EventWithLocationSerializer(EventSerializer):
-    location = LocationSerializer(read_only=True)
+    class Meta:
+        model = Event
+        fields = [
+            'id', 'name', 'description', 'start_time', 'end_time',
+            'participant_type', 'max_participants', 'image_url',
+            'participants', 'groups', 'tags', 'tag_ids', 'group_tags', 'group_tag_ids', 
+            'locations', 'location_ids'
+        ]
+
+    def validate_participants(self, value):
+        if not value:
+            return value
+
+        eventum = self.context.get('eventum')
+        if eventum:
+            eventum_id = getattr(eventum, 'id', eventum)
+            invalid = [
+                participant
+                for participant in value
+                if participant.eventum_id != eventum_id
+            ]
+            if invalid:
+                names = ', '.join(participant.name for participant in invalid)
+                raise serializers.ValidationError(
+                    f"Участники {names} принадлежат другому мероприятию"
+                )
+
+        return value
+
+    def validate_groups(self, value):
+        if not value:
+            return value
+
+        eventum = self.context.get('eventum')
+        if eventum:
+            eventum_id = getattr(eventum, 'id', eventum)
+            invalid = [
+                group
+                for group in value
+                if group.eventum_id != eventum_id
+            ]
+            if invalid:
+                names = ', '.join(group.name for group in invalid)
+                raise serializers.ValidationError(
+                    f"Группы {names} принадлежат другому мероприятию"
+                )
+
+        return value
+
+    def validate_group_tag_ids(self, value):
+        if not value:
+            return value
+
+        eventum = self.context.get('eventum')
+        if eventum:
+            eventum_id = getattr(eventum, 'id', eventum)
+            invalid = [
+                group_tag
+                for group_tag in value
+                if group_tag.eventum_id != eventum_id
+            ]
+            if invalid:
+                names = ', '.join(group_tag.name for group_tag in invalid)
+                raise serializers.ValidationError(
+                    f"Теги групп {names} принадлежат другому мероприятию"
+                )
+
+        return value
+
+    def validate(self, data):
+        """Валидация на уровне объекта для проверки participant_type и max_participants"""
+        participant_type = data.get('participant_type')
+        max_participants = data.get('max_participants')
+        
+        if participant_type == 'registration':
+            if not max_participants or max_participants <= 0:
+                raise serializers.ValidationError({
+                    'max_participants': 'max_participants must be specified and greater than 0 for registration type events'
+                })
+        elif participant_type in ['all', 'manual']:
+            if max_participants is not None:
+                raise serializers.ValidationError({
+                    'max_participants': 'max_participants should not be set for all or manual type events'
+                })
+        
+        # Check if trying to change participant_type from manual when there are existing connections
+        if self.instance and self.instance.pk:
+            original_participant_type = self.instance.participant_type
+            new_participant_type = participant_type or original_participant_type
+            
+            # If changing from manual to another type, check for existing connections
+            if (original_participant_type == 'manual' and 
+                new_participant_type != 'manual'):
+                
+                # Check for participants
+                if self.instance.participants.exists():
+                    raise serializers.ValidationError({
+                        'participant_type': 'Нельзя изменить тип участников с "manual" на другой тип, '
+                                          'пока не удалены все связи с участниками'
+                    })
+                
+                # Check for groups
+                if self.instance.groups.exists():
+                    raise serializers.ValidationError({
+                        'participant_type': 'Нельзя изменить тип участников с "manual" на другой тип, '
+                                          'пока не удалены все связи с группами'
+                    })
+                
+                # Check for group tags
+                if self.instance.group_tags.exists():
+                    raise serializers.ValidationError({
+                        'participant_type': 'Нельзя изменить тип участников с "manual" на другой тип, '
+                                          'пока не удалены все связи с тегами групп'
+                    })
+                
+        
+        return data
+
+    def validate_location_ids(self, value):
+        """Валидация location_ids - локации должны принадлежать тому же eventum"""
+        if not value:
+            return value
+        
+        # Получаем eventum из контекста
+        eventum = self.context.get('eventum')
+        if eventum:
+            eventum_id = getattr(eventum, 'id', eventum)
+            invalid_locations = [location for location in value if location.eventum_id != eventum_id]
+            if invalid_locations:
+                names = ', '.join(location.name for location in invalid_locations)
+                raise serializers.ValidationError(
+                    f"Локации {names} не принадлежат данному eventum"
+                )
+        
+        return value
+
+    def validate_tag_ids(self, value):
+        """Валидация tag_ids - теги должны принадлежать тому же eventum"""
+        if not value:
+            return value
+
+        # Получаем eventum из контекста
+        eventum = self.context.get('eventum')
+        if eventum:
+            eventum_id = getattr(eventum, 'id', eventum)
+            invalid_tags = [tag for tag in value if tag.eventum_id != eventum_id]
+            if invalid_tags:
+                names = ', '.join(tag.name for tag in invalid_tags)
+                raise serializers.ValidationError(
+                    f"Теги {names} не принадлежат данному eventum"
+                )
+
+        return value
+
+
+class UserProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserProfile
+        fields = ['id', 'vk_id', 'name', 'avatar_url', 'email', 'date_joined', 'last_login']
+        read_only_fields = ['id', 'date_joined', 'last_login']
+
+
+class UserRoleSerializer(serializers.ModelSerializer):
+    user = UserProfileSerializer(read_only=True)
+    eventum = EventumSerializer(read_only=True)
     
-    class Meta(EventSerializer.Meta):
-        fields = EventSerializer.Meta.fields + ['location']
+    class Meta:
+        model = UserRole
+        fields = ['id', 'user', 'eventum', 'role', 'created_at']
+        read_only_fields = ['id', 'created_at']
+
+
+class VKAuthSerializer(serializers.Serializer):
+    """Сериализатор для авторизации через VK"""
+    code = serializers.CharField()
+    state = serializers.CharField(required=False)
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):

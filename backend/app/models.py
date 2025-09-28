@@ -145,7 +145,7 @@ class Event(models.Model):
         MANUAL = "manual", "Вручную"
     
     eventum = models.ForeignKey(Eventum, on_delete=models.CASCADE, related_name='events')
-    location = models.ForeignKey('Location', on_delete=models.SET_NULL, related_name='events', null=True, blank=True)
+    locations = models.ManyToManyField('Location', related_name='events', blank=True)
     name = models.CharField(max_length=200)
     description = models.TextField(blank=True)
     start_time = models.DateTimeField()
@@ -252,6 +252,13 @@ class Event(models.Model):
                 if group_tag.eventum != self.eventum:
                     raise ValidationError(
                         f"Group tag {group_tag.name} belongs to a different eventum"
+                    )
+            
+            # Ensure all locations belong to the same eventum (only if object is saved)
+            for location in self.locations.all():
+                if location.eventum != self.eventum:
+                    raise ValidationError(
+                        f"Location {location.name} belongs to a different eventum"
                     )
     
     def __str__(self):

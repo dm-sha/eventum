@@ -54,8 +54,8 @@ export interface Event {
   start_time: string; // ISO 8601 string date
   end_time: string;   // ISO 8601 string date
   eventum: number;    // ID of the eventum
-  location?: Location; // Локация проведения мероприятия
-  location_id?: number; // ID локации для записи
+  locations?: Location[]; // Локации проведения мероприятия (many-to-many)
+  location_ids?: number[]; // ID локаций для записи (many-to-many)
   participant_type: ParticipantType; // Тип определения участников
   max_participants?: number; // Максимальное количество участников (для типа registration)
   image_url?: string; // URL изображения события
@@ -78,7 +78,7 @@ export interface CreateEventData {
   event_description?: string;
   start_time: string;
   end_time: string;
-  location_id?: number;
+  location_ids?: number[];
 }
 
 export interface UserRole {

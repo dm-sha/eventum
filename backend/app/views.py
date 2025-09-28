@@ -16,7 +16,7 @@ import json
 from .models import Eventum, Participant, ParticipantGroup, GroupTag, Event, EventTag, UserProfile, UserRole, Location
 from .serializers import (
     EventumSerializer, ParticipantSerializer, ParticipantGroupSerializer,
-    GroupTagSerializer, EventSerializer, EventWithLocationSerializer, EventTagSerializer,
+    GroupTagSerializer, EventSerializer, EventTagSerializer,
     UserProfileSerializer, UserRoleSerializer, VKAuthSerializer, CustomTokenObtainPairSerializer,
     LocationSerializer
 )
@@ -363,7 +363,7 @@ class EventTagViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
 
 @csrf_exempt_class_api
 class EventViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
-    queryset = Event.objects.all().select_related('eventum', 'location').prefetch_related(
+    queryset = Event.objects.all().select_related('eventum').prefetch_related(
         'participants',
         'participants__user',  # Добавляем prefetch для пользователей участников
         'groups',
@@ -372,15 +372,16 @@ class EventViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
         'groups__tags',
         'tags',
         'group_tags',
+        'locations',  # Добавляем prefetch для локаций
     )
-    serializer_class = EventWithLocationSerializer
+    serializer_class = EventSerializer
     permission_classes = [IsEventumOrganizerOrReadOnly]  # Организаторы CRUD, участники только чтение
     
     def get_queryset(self):
         """Оптимизированный queryset для списка событий с сохранением всех prefetch_related"""
         eventum = self.get_eventum()
         return Event.objects.filter(eventum=eventum).select_related(
-            'eventum', 'location'
+            'eventum'
         ).prefetch_related(
             'participants',
             'participants__user',  # Добавляем prefetch для пользователей участников
@@ -390,6 +391,7 @@ class EventViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
             'groups__tags',
             'tags',
             'group_tags',
+            'locations',  # Добавляем prefetch для локаций
         )
 
     @action(detail=False, methods=['get'])

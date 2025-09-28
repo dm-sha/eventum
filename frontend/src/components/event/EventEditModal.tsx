@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import type { Event, EventTag, GroupTag, Location, Participant, ParticipantGroup, ParticipantType, ValidationError } from "../../types";
-import { LocationSelector } from "../location/LocationSelector";
+import { MultiLocationSelector } from "../location/MultiLocationSelector";
 
 // Компонент для вкладки "Общее"
 const GeneralTab = ({ 
@@ -111,16 +111,16 @@ const GeneralTab = ({
     
     <div>
       <label className="block text-sm font-medium text-gray-700 mb-2">
-        Локация
+        Локации
       </label>
-      <LocationSelector
+      <MultiLocationSelector
         locations={locations}
-        selectedLocationId={eventForm.location_id}
-        onLocationChange={(locationId) => setEventForm((prev: any) => ({
+        selectedLocationIds={eventForm.location_ids}
+        onLocationChange={(locationIds) => setEventForm((prev: any) => ({
           ...prev,
-          location_id: locationId
+          location_ids: locationIds
         }))}
-        placeholder="Выберите локацию (необязательно)"
+        placeholder="Выберите локации (необязательно)"
       />
     </div>
     
@@ -597,7 +597,7 @@ interface EventEditModalProps {
     tag_ids?: number[];
     group_tags?: number[];
     group_tag_ids?: number[];
-    location_id?: number;
+    location_ids?: number[];
   }) => Promise<void>;
   event?: Event | null;
   eventTags: EventTag[];
@@ -633,7 +633,7 @@ const EventEditModal = ({
     groups: [] as number[],
     tags: [] as number[],
     group_tags: [] as number[],
-    location_id: undefined as number | undefined
+    location_ids: [] as number[]
   });
   const [tagSearchQuery, setTagSearchQuery] = useState("");
   const [groupTagSearchQuery, setGroupTagSearchQuery] = useState("");
@@ -682,12 +682,12 @@ const EventEditModal = ({
   useEffect(() => {
     if (isOpen) {
       if (event) {
-        // Извлекаем ID из объектов тегов, участников, групп и локации
+        // Извлекаем ID из объектов тегов, участников, групп и локаций
         const tagIds = event.tags.map(tag => tag.id);
         const groupTagIds = event.group_tags?.map(tag => tag.id) || [];
         const participantIds = (event.participants ?? []).map((p: any) => typeof p === 'number' ? p : p.id);
         const groupIds = (event.groups ?? []).map((g: any) => typeof g === 'number' ? g : g.id);
-        const locationId = event.location?.id || event.location_id;
+        const locationIds = event.locations?.map(loc => loc.id) || event.location_ids || [];
         setEventForm({
           name: event.name,
           description: event.description,
@@ -700,7 +700,7 @@ const EventEditModal = ({
           groups: groupIds,
           tags: tagIds,
           group_tags: groupTagIds,
-          location_id: locationId
+          location_ids: locationIds
         });
       } else {
         setEventForm({
@@ -715,7 +715,7 @@ const EventEditModal = ({
           groups: [],
           tags: [],
           group_tags: [],
-          location_id: undefined
+          location_ids: []
         });
       }
       setTagSearchQuery("");
@@ -984,7 +984,7 @@ const EventEditModal = ({
         image_url: eventForm.image_url || undefined,
         participants: eventForm.participants,
         groups: eventForm.groups,
-        location_id: eventForm.location_id,
+        location_ids: eventForm.location_ids,
         tag_ids: eventForm.tags,
         group_tag_ids: eventForm.group_tags
       };

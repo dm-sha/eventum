@@ -200,7 +200,7 @@ const AdminEventsPage = () => {
     tag_ids?: number[];
     group_tags?: number[];
     group_tag_ids?: number[];
-    location_id?: number;
+    location_ids?: number[];
   }) => {
     if (!eventumSlug) return;
     

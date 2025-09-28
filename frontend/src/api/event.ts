@@ -18,7 +18,7 @@ export const createEvent = async (eventumSlug: string, data: {
   tag_ids?: number[];
   group_tags?: number[];
   group_tag_ids?: number[];
-  location_id?: number;
+  location_ids?: number[];
 }): Promise<Event> => {
     const response = await apiClient.post(`/eventums/${eventumSlug}/events/`, data);
     return response.data;
@@ -38,7 +38,7 @@ export const updateEvent = async (eventumSlug: string, eventId: number, data: {
   tag_ids?: number[];
   group_tags?: number[];
   group_tag_ids?: number[];
-  location_id?: number;
+  location_ids?: number[];
 }): Promise<Event> => {
     const response = await apiClient.put(`/eventums/${eventumSlug}/events/${eventId}/`, data);
     return response.data;

@@ -109,7 +109,7 @@ const AdminEventTagsPage = () => {
             start_time: event.start_time,
             end_time: event.end_time,
             tag_ids: updatedTagIds,
-            location_id: event.location_id,
+            location_ids: event.location_ids,
           });
         }
         
@@ -177,7 +177,7 @@ const AdminEventTagsPage = () => {
             start_time: event.start_time,
             end_time: event.end_time,
             tag_ids: updatedTagIds,
-            location_id: event.location_id,
+            location_ids: event.location_ids,
           });
         }
       }
@@ -194,7 +194,7 @@ const AdminEventTagsPage = () => {
             start_time: event.start_time,
             end_time: event.end_time,
             tag_ids: updatedTagIds,
-            location_id: event.location_id,
+            location_ids: event.location_ids,
           });
         }
       }
