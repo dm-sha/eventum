@@ -121,7 +121,7 @@ export const MultiLocationSelector: React.FC<MultiLocationSelectorProps> = ({
   };
 
   return (
-    <div ref={containerRef} className={`space-y-2 ${className}`}>
+    <div ref={containerRef} className={`relative space-y-2 ${className}`}>
       {/* Поле ввода для поиска */}
       <div className="relative">
         <input
@@ -142,7 +142,7 @@ export const MultiLocationSelector: React.FC<MultiLocationSelectorProps> = ({
           placeholder={placeholder}
           className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
         />
-        
+
         {/* Кнопка очистки всех локаций */}
         {selectedLocations.length > 0 && (
           <button
@@ -154,31 +154,31 @@ export const MultiLocationSelector: React.FC<MultiLocationSelectorProps> = ({
             ×
           </button>
         )}
-      </div>
 
-      {/* Саджесты */}
-      {showSuggestions && isFocused && (
-        <div className="absolute z-10 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg max-h-60 overflow-y-auto">
-          {filteredLocations.length > 0 ? (
-            filteredLocations.map((location) => (
-              <button
-                key={location.id}
-                type="button"
-                onClick={() => handleLocationSelect(location)}
-                className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 transition-colors"
-              >
-                <div className="font-medium">
-                  {buildLocationPath(location, locations)}
-                </div>
-              </button>
-            ))
-          ) : (
-            <div className="px-3 py-2 text-sm text-gray-500">
-              {searchQuery.trim() ? 'Локации не найдены' : 'Все доступные локации уже выбраны'}
-            </div>
-          )}
-        </div>
-      )}
+        {/* Саджесты */}
+        {showSuggestions && isFocused && (
+          <div className="absolute left-0 right-0 z-10 mt-1 max-h-60 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+            {filteredLocations.length > 0 ? (
+              filteredLocations.map((location) => (
+                <button
+                  key={location.id}
+                  type="button"
+                  onClick={() => handleLocationSelect(location)}
+                  className="w-full px-3 py-2 text-left text-sm transition-colors hover:bg-gray-50"
+                >
+                  <div className="font-medium">
+                    {buildLocationPath(location, locations)}
+                  </div>
+                </button>
+              ))
+            ) : (
+              <div className="px-3 py-2 text-sm text-gray-500">
+                {searchQuery.trim() ? 'Локации не найдены' : 'Все доступные локации уже выбраны'}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Показать выбранные локации */}
       {selectedLocations.length > 0 && (
