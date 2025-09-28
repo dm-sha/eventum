@@ -374,6 +374,21 @@ class EventViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
     )
     serializer_class = EventWithLocationSerializer
     permission_classes = [IsEventumOrganizerOrReadOnly]  # Организаторы CRUD, участники только чтение
+    
+    def get_queryset(self):
+        """Оптимизированный queryset для списка событий с сохранением всех prefetch_related"""
+        eventum = self.get_eventum()
+        return Event.objects.filter(eventum=eventum).select_related(
+            'eventum', 'location'
+        ).prefetch_related(
+            'participants',
+            'participants__user',  # Добавляем prefetch для пользователей участников
+            'groups',
+            'groups__participants',
+            'groups__participants__user',  # Добавляем prefetch для пользователей участников в группах
+            'groups__tags',
+            'tags',
+        )
 
     @action(detail=False, methods=['get'])
     def upcoming(self, request, eventum_slug=None):

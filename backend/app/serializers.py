@@ -147,7 +147,10 @@ class ParticipantSerializer(serializers.ModelSerializer):
             'id': group.id,
             'name': group.name,
             'slug': group.slug,
-            'tags': [{'id': tag.id, 'name': tag.name, 'slug': tag.slug} for tag in group.tags.all()]
+            'tags': [
+                {'id': tag.id, 'name': tag.name, 'slug': tag.slug} 
+                for tag in group.tags.all()
+            ]
         } for group in groups]
     
     def create(self, validated_data):
