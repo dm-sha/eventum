@@ -1,16 +1,72 @@
 import { Link, useParams } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { getEventumBySlug } from "../api/eventum";
+import type { Eventum } from "../types";
+import LoadingSpinner from "../components/LoadingSpinner";
 
 const EventumPage = () => {
   const { eventumSlug } = useParams<{ eventumSlug: string }>();
+  const [eventum, setEventum] = useState<Eventum | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchEventum = async () => {
+      if (!eventumSlug) return;
+      
+      try {
+        setLoading(true);
+        setError(null);
+        const eventumData = await getEventumBySlug(eventumSlug);
+        setEventum(eventumData);
+      } catch (err) {
+        console.error('Ошибка загрузки события:', err);
+        setError('Не удалось загрузить информацию о событии');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchEventum();
+  }, [eventumSlug]);
+
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-gray-50 px-4 py-6 sm:px-6 lg:px-8 lg:py-10">
+        <div className="mx-auto flex w-full max-w-5xl items-center justify-center">
+          <LoadingSpinner />
+        </div>
+      </main>
+    );
+  }
+
+  if (error || !eventum) {
+    return (
+      <main className="min-h-screen bg-gray-50 px-4 py-6 sm:px-6 lg:px-8 lg:py-10">
+        <div className="mx-auto flex w-full max-w-5xl flex-col items-center justify-center">
+          <div className="text-center">
+            <h1 className="text-2xl font-bold text-gray-900 mb-4">
+              {error || 'Событие не найдено'}
+            </h1>
+            <Link
+              to="/"
+              className="inline-flex items-center justify-center rounded-lg border border-blue-200 px-4 py-2 text-sm font-semibold text-blue-700 transition-colors hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            >
+              Вернуться на главную
+            </Link>
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-gray-50 px-4 py-6 sm:px-6 lg:px-8 lg:py-10">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-2">
-
             <h1 className="text-3xl font-bold text-gray-900 sm:text-4xl">
-              {eventumSlug}
+              {eventum.name}
             </h1>
           </div>
           <Link
