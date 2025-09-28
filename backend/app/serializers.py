@@ -329,6 +329,7 @@ class EventSerializer(serializers.ModelSerializer):
         model = Event
         fields = [
             'id', 'name', 'description', 'start_time', 'end_time',
+            'participant_type', 'max_participants', 'image_url',
             'participants', 'groups', 'tags', 'tag_ids', 'group_tags', 'group_tag_ids', 'location_id'
         ]
 
@@ -391,6 +392,24 @@ class EventSerializer(serializers.ModelSerializer):
                 )
 
         return value
+
+    def validate(self, data):
+        """Валидация на уровне объекта для проверки participant_type и max_participants"""
+        participant_type = data.get('participant_type')
+        max_participants = data.get('max_participants')
+        
+        if participant_type == 'registration':
+            if not max_participants or max_participants <= 0:
+                raise serializers.ValidationError({
+                    'max_participants': 'max_participants must be specified and greater than 0 for registration type events'
+                })
+        elif participant_type in ['all', 'manual']:
+            if max_participants is not None:
+                raise serializers.ValidationError({
+                    'max_participants': 'max_participants should not be set for all or manual type events'
+                })
+        
+        return data
 
     def validate_location_id(self, value):
         """Валидация location_id - локация должна принадлежать тому же eventum"""

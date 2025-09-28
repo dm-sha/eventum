@@ -137,12 +137,32 @@ class EventTag(models.Model):
         return f"{self.name} ({self.eventum.name})"
 
 class Event(models.Model):
+    class ParticipantType(models.TextChoices):
+        ALL = "all", "Для всех"
+        REGISTRATION = "registration", "По записи"
+        MANUAL = "manual", "Вручную"
+    
     eventum = models.ForeignKey(Eventum, on_delete=models.CASCADE, related_name='events')
     location = models.ForeignKey('Location', on_delete=models.SET_NULL, related_name='events', null=True, blank=True)
     name = models.CharField(max_length=200)
     description = models.TextField(blank=True)
     start_time = models.DateTimeField()
     end_time = models.DateTimeField()
+    participant_type = models.CharField(
+        max_length=20, 
+        choices=ParticipantType.choices, 
+        default=ParticipantType.ALL,
+        help_text="Тип определения участников для мероприятия"
+    )
+    max_participants = models.PositiveIntegerField(
+        null=True, 
+        blank=True,
+        help_text="Максимальное количество участников (используется только при типе 'По записи')"
+    )
+    image_url = models.URLField(
+        blank=True,
+        help_text="URL изображения для события"
+    )
     participants = models.ManyToManyField(
         Participant, 
         related_name='individual_events',
@@ -168,6 +188,14 @@ class Event(models.Model):
         # Ensure end time is after start time
         if self.end_time <= self.start_time:
             raise ValidationError("End time must be after start time")
+        
+        # Validate participant type and max_participants
+        if self.participant_type == self.ParticipantType.REGISTRATION:
+            if not self.max_participants or self.max_participants <= 0:
+                raise ValidationError("max_participants must be specified and greater than 0 for registration type events")
+        elif self.participant_type in [self.ParticipantType.ALL, self.ParticipantType.MANUAL]:
+            if self.max_participants is not None:
+                raise ValidationError("max_participants should not be set for 'all' or 'manual' type events")
         
         # Ensure all participants belong to the same eventum (only if object is saved)
         if self.pk:
