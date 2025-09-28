@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import { getDevUser } from '../api/event';
+import { getCookie, setCookie, deleteCookie, getMerupCookieOptions } from '../utils/cookies';
 
 export interface User {
   id: number;
@@ -48,14 +49,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    console.log('AuthContext: useEffect started');
-    console.log('AuthContext: shouldSkipAuth =', shouldSkipAuth);
-    console.log('AuthContext: DEV mode =', import.meta.env.DEV);
-    console.log('AuthContext: VITE_SKIP_AUTH =', import.meta.env.VITE_SKIP_AUTH);
-    
     // Если включен режим пропуска авторизации, получаем пользователя разработчика из базы
     if (shouldSkipAuth) {
-      console.log('AuthContext: Setting up dev auth');
       const setupDevAuth = async () => {
         try {
           // Получаем реального пользователя разработчика из базы данных
@@ -73,9 +68,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           localStorage.setItem('auth_tokens', JSON.stringify(tokens));
           localStorage.setItem('auth_user', JSON.stringify(devAuth.user));
           
-          console.log('Авторизация пользователя разработчика успешна:', devAuth.user.name);
-          console.log('AuthContext: Tokens saved to localStorage:', localStorage.getItem('auth_tokens'));
-          
           // Небольшая задержка, чтобы дать время API клиенту обновиться
           await new Promise(resolve => setTimeout(resolve, 100));
         } catch (error) {
@@ -91,28 +83,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
 
     // Проверяем, есть ли сохраненные данные аутентификации
-    console.log('AuthContext: Checking saved auth data');
-    const savedTokens = localStorage.getItem('auth_tokens');
-    const savedUser = localStorage.getItem('auth_user');
+    // Сначала пробуем получить из localStorage (для локальной разработки)
+    let savedTokens = localStorage.getItem('auth_tokens');
+    let savedUser = localStorage.getItem('auth_user');
     
-    console.log('AuthContext: Saved tokens:', savedTokens);
-    console.log('AuthContext: Saved user:', savedUser);
+    // Если на поддомене merup.ru и нет данных в localStorage, пробуем cookies
+    if ((!savedTokens || !savedUser) && window.location.hostname.includes('merup.ru')) {
+      savedTokens = getCookie('auth_tokens');
+      savedUser = getCookie('auth_user');
+    }
 
     if (savedTokens && savedUser) {
       try {
         const parsedTokens = JSON.parse(savedTokens);
         const parsedUser = JSON.parse(savedUser);
         
-        console.log('AuthContext: Parsed tokens:', parsedTokens);
-        console.log('AuthContext: Parsed user:', parsedUser);
-        
         // Проверяем, что токены валидны
         if (parsedTokens.access && parsedUser.id) {
-          console.log('AuthContext: Valid tokens found, setting user and tokens');
           setTokens(parsedTokens);
           setUser(parsedUser);
         } else {
-          console.log('Invalid tokens or user data, clearing storage');
           localStorage.removeItem('auth_tokens');
           localStorage.removeItem('auth_user');
         }
@@ -121,21 +111,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         localStorage.removeItem('auth_tokens');
         localStorage.removeItem('auth_user');
       }
-    } else {
-      console.log('AuthContext: No saved auth data found');
     }
     
-    console.log('AuthContext: Setting isLoading to false');
     setIsLoading(false);
   }, []);
 
   const login = (newTokens: AuthTokens, newUser: User) => {
-    console.log('Login function called with:', { newTokens, newUser });
     setTokens(newTokens);
     setUser(newUser);
+    
+    // Сохраняем в localStorage для локальной разработки
     localStorage.setItem('auth_tokens', JSON.stringify(newTokens));
     localStorage.setItem('auth_user', JSON.stringify(newUser));
-    console.log('Tokens saved to localStorage:', localStorage.getItem('auth_tokens'));
+    
+    // Сохраняем в cookies для работы с поддоменами
+    const cookieOptions = getMerupCookieOptions();
+    setCookie('auth_tokens', JSON.stringify(newTokens), cookieOptions);
+    setCookie('auth_user', JSON.stringify(newUser), cookieOptions);
   };
 
   const logout = () => {
@@ -143,6 +135,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setUser(null);
     localStorage.removeItem('auth_tokens');
     localStorage.removeItem('auth_user');
+    
+    // Очищаем cookies
+    const cookieOptions = getMerupCookieOptions();
+    deleteCookie('auth_tokens', cookieOptions);
+    deleteCookie('auth_user', cookieOptions);
   };
 
   const isAuthenticated = !!user && !!tokens && !!tokens.access;

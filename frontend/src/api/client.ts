@@ -1,4 +1,5 @@
 import axios, { type AxiosResponse, type AxiosError } from 'axios';
+import { getCookie, setCookie, deleteCookie, getMerupCookieOptions } from '../utils/cookies';
 
 // Определяем базовый URL API в зависимости от окружения
 const getApiBaseUrl = () => {
@@ -20,40 +21,27 @@ const apiClient = axios.create({
 // Интерцептор для добавления токена аутентификации
 apiClient.interceptors.request.use(
     (config) => {
-        console.log('API Request Interceptor:', {
-            url: config.url,
-            baseURL: config.baseURL,
-            fullURL: `${config.baseURL}${config.url}`,
-            currentParams: config.params
-        });
+        // Сначала пробуем получить из localStorage (для локальной разработки)
+        let tokens = localStorage.getItem('auth_tokens');
         
-        const tokens = localStorage.getItem('auth_tokens');
-        console.log('Tokens from localStorage:', tokens);
+        // Если на поддомене merup.ru и нет данных в localStorage, пробуем cookies
+        if (!tokens && window.location.hostname.includes('merup.ru')) {
+          tokens = getCookie('auth_tokens');
+        }
         
         if (tokens) {
             try {
                 const { access } = JSON.parse(tokens);
-                console.log('Access token found:', access ? 'YES' : 'NO');
                 
                 // Всегда используем query параметры для передачи токена
                 config.params = {
                     ...config.params,
                     access_token: access
                 };
-                
-                console.log('Updated params:', config.params);
             } catch (error) {
                 console.error('Error parsing auth tokens:', error);
             }
-        } else {
-            console.log('No tokens found in localStorage');
         }
-        
-        console.log('Final config:', {
-            url: config.url,
-            params: config.params,
-            fullURL: `${config.baseURL}${config.url}?${new URLSearchParams(config.params).toString()}`
-        });
         
         return config;
     },
@@ -73,7 +61,14 @@ apiClient.interceptors.response.use(
             originalRequest._retry = true;
 
             try {
-                const tokens = localStorage.getItem('auth_tokens');
+                // Сначала пробуем получить из localStorage (для локальной разработки)
+                let tokens = localStorage.getItem('auth_tokens');
+                
+                // Если на поддомене merup.ru и нет данных в localStorage, пробуем cookies
+                if (!tokens && window.location.hostname.includes('merup.ru')) {
+                  tokens = getCookie('auth_tokens');
+                }
+                
                 if (tokens) {
                     const { refresh } = JSON.parse(tokens);
                     
@@ -85,7 +80,12 @@ apiClient.interceptors.response.use(
                     const { access } = response.data;
                     const newTokens = { access, refresh };
                     
+                    // Сохраняем в localStorage для локальной разработки
                     localStorage.setItem('auth_tokens', JSON.stringify(newTokens));
+                    
+                    // Сохраняем в cookies для работы с поддоменами
+                    const cookieOptions = getMerupCookieOptions();
+                    setCookie('auth_tokens', JSON.stringify(newTokens), cookieOptions);
                     
                     // Повторяем оригинальный запрос с новым токеном
                     // Всегда используем query параметры для передачи токена
@@ -100,6 +100,12 @@ apiClient.interceptors.response.use(
                 // Если не удалось обновить токен, очищаем данные аутентификации
                 localStorage.removeItem('auth_tokens');
                 localStorage.removeItem('auth_user');
+                
+                // Очищаем cookies
+                const cookieOptions = getMerupCookieOptions();
+                deleteCookie('auth_tokens', cookieOptions);
+                deleteCookie('auth_user', cookieOptions);
+                
                 window.location.href = '/login';
             }
         }
@@ -108,24 +114,6 @@ apiClient.interceptors.response.use(
     }
 );
 
-// Тестовая функция для проверки интерцептора
-export const testApiCall = async () => {
-    console.log('Testing API call...');
-    try {
-        const response = await apiClient.get('/auth/profile/');
-        console.log('Test API response:', response);
-        return response;
-    } catch (error) {
-        console.error('Test API error:', error);
-        throw error;
-    }
-};
-
-// Добавляем функцию в window для тестирования из консоли браузера
-if (typeof window !== 'undefined') {
-    (window as any).testApiCall = testApiCall;
-    (window as any).apiClient = apiClient;
-}
 
 export { apiClient };
 export default apiClient;
