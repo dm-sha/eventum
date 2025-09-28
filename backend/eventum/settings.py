@@ -309,6 +309,14 @@ SESSION_COOKIE_AGE = 1209600  # 2 недели
 SESSION_COOKIE_SECURE = not DEBUG
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = 'Lax'
+
+BASE_COOKIE_DOMAIN = os.getenv('BASE_COOKIE_DOMAIN') or os.getenv('BASE_DOMAIN')
+
+if BASE_COOKIE_DOMAIN:
+    normalized_domain = BASE_COOKIE_DOMAIN.lstrip('.')
+    if normalized_domain:
+        SESSION_COOKIE_DOMAIN = f".{normalized_domain}"
+        CSRF_COOKIE_DOMAIN = f".{normalized_domain}"
 SESSION_SAVE_EVERY_REQUEST = False
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 SESSION_SERIALIZER = 'django.contrib.sessions.serializers.JSONSerializer'

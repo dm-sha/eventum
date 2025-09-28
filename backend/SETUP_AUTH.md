@@ -10,6 +10,11 @@ VK_APP_ID=your_vk_app_id
 VK_APP_SECRET=your_vk_app_secret
 VK_REDIRECT_URI=http://localhost:5173/auth/vk/callback
 
+# Общий домен для cookie (для продакшена с поддоменами)
+# Например, для some-event.merup.ru используйте BASE_COOKIE_DOMAIN=merup.ru
+# Для локальной разработки оставьте пустым
+BASE_COOKIE_DOMAIN=
+
 # База данных (уже настроена)
 DB_NAME=eventum
 DB_USER=eventum_user
