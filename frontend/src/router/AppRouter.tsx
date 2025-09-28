@@ -17,20 +17,39 @@ import { useAuth } from "../contexts/AuthContext";
 import { getSubdomainSlug } from "../utils/eventumSlug";
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user, tokens } = useAuth();
+  
+  console.log('ProtectedRoute: isAuthenticated =', isAuthenticated);
+  console.log('ProtectedRoute: isLoading =', isLoading);
+  console.log('ProtectedRoute: user =', user);
+  console.log('ProtectedRoute: tokens =', tokens);
   
   if (isLoading) {
+    console.log('ProtectedRoute: Showing loading screen');
     return <div>Загрузка...</div>;
   }
   
-  return isAuthenticated ? <>{children}</> : <Navigate to="/" replace />;
+  if (!isAuthenticated) {
+    console.log('ProtectedRoute: User not authenticated, redirecting to home');
+    return <Navigate to="/" replace />;
+  }
+  
+  console.log('ProtectedRoute: User authenticated, showing protected content');
+  return <>{children}</>;
 };
 
 export const AppRouter = () => {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user, tokens } = useAuth();
   const subdomainSlug = getSubdomainSlug();
 
+  console.log('AppRouter: isAuthenticated =', isAuthenticated);
+  console.log('AppRouter: isLoading =', isLoading);
+  console.log('AppRouter: user =', user);
+  console.log('AppRouter: tokens =', tokens);
+  console.log('AppRouter: subdomainSlug =', subdomainSlug);
+
   if (isLoading) {
+    console.log('AppRouter: Showing loading screen');
     return <div>Загрузка...</div>;
   }
 

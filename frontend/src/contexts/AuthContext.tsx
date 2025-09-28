@@ -48,8 +48,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    console.log('AuthContext: useEffect started');
+    console.log('AuthContext: shouldSkipAuth =', shouldSkipAuth);
+    console.log('AuthContext: DEV mode =', import.meta.env.DEV);
+    console.log('AuthContext: VITE_SKIP_AUTH =', import.meta.env.VITE_SKIP_AUTH);
+    
     // Если включен режим пропуска авторизации, получаем пользователя разработчика из базы
     if (shouldSkipAuth) {
+      console.log('AuthContext: Setting up dev auth');
       const setupDevAuth = async () => {
         try {
           // Получаем реального пользователя разработчика из базы данных
@@ -68,6 +74,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           localStorage.setItem('auth_user', JSON.stringify(devAuth.user));
           
           console.log('Авторизация пользователя разработчика успешна:', devAuth.user.name);
+          console.log('AuthContext: Tokens saved to localStorage:', localStorage.getItem('auth_tokens'));
           
           // Небольшая задержка, чтобы дать время API клиенту обновиться
           await new Promise(resolve => setTimeout(resolve, 100));
@@ -84,16 +91,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
 
     // Проверяем, есть ли сохраненные данные аутентификации
+    console.log('AuthContext: Checking saved auth data');
     const savedTokens = localStorage.getItem('auth_tokens');
     const savedUser = localStorage.getItem('auth_user');
+    
+    console.log('AuthContext: Saved tokens:', savedTokens);
+    console.log('AuthContext: Saved user:', savedUser);
 
     if (savedTokens && savedUser) {
       try {
         const parsedTokens = JSON.parse(savedTokens);
         const parsedUser = JSON.parse(savedUser);
         
+        console.log('AuthContext: Parsed tokens:', parsedTokens);
+        console.log('AuthContext: Parsed user:', parsedUser);
+        
         // Проверяем, что токены валидны
         if (parsedTokens.access && parsedUser.id) {
+          console.log('AuthContext: Valid tokens found, setting user and tokens');
           setTokens(parsedTokens);
           setUser(parsedUser);
         } else {
@@ -106,8 +121,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         localStorage.removeItem('auth_tokens');
         localStorage.removeItem('auth_user');
       }
+    } else {
+      console.log('AuthContext: No saved auth data found');
     }
     
+    console.log('AuthContext: Setting isLoading to false');
     setIsLoading(false);
   }, []);
 
