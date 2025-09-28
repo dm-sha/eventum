@@ -25,21 +25,11 @@ apiClient.interceptors.request.use(
             try {
                 const { access } = JSON.parse(tokens);
                 
-                // Для wildcard доменов используем Authorization header
-                const hostname = window.location.hostname;
-                console.log('API Client: hostname =', hostname);
-                
-                if (hostname.includes('.merup.ru') || hostname.endsWith('merup.ru')) {
-                    console.log('API Client: Using Authorization header for wildcard domain');
-                    config.headers.Authorization = `Bearer ${access}`;
-                } else {
-                    console.log('API Client: Using query parameters for local development');
-                    // Для локальной разработки используем query параметры
-                    config.params = {
-                        ...config.params,
-                        access_token: access
-                    };
-                }
+                // Всегда используем query параметры для передачи токена
+                config.params = {
+                    ...config.params,
+                    access_token: access
+                };
             } catch (error) {
                 console.error('Error parsing auth tokens:', error);
             }
@@ -77,17 +67,11 @@ apiClient.interceptors.response.use(
                     localStorage.setItem('auth_tokens', JSON.stringify(newTokens));
                     
                     // Повторяем оригинальный запрос с новым токеном
-                    const hostname = window.location.hostname;
-                    if (hostname.includes('.merup.ru') || hostname.endsWith('merup.ru')) {
-                        // Для wildcard доменов используем Authorization header
-                        originalRequest.headers.Authorization = `Bearer ${access}`;
-                    } else {
-                        // Для локальной разработки используем query параметры
-                        originalRequest.params = {
-                            ...originalRequest.params,
-                            access_token: access
-                        };
-                    }
+                    // Всегда используем query параметры для передачи токена
+                    originalRequest.params = {
+                        ...originalRequest.params,
+                        access_token: access
+                    };
                     return apiClient(originalRequest);
                 }
             } catch (refreshError) {
