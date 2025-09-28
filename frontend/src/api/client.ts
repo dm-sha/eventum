@@ -27,9 +27,13 @@ apiClient.interceptors.request.use(
                 
                 // Для wildcard доменов используем Authorization header
                 const hostname = window.location.hostname;
-                if (hostname.includes('.merup.ru')) {
+                console.log('API Client: hostname =', hostname);
+                
+                if (hostname.includes('.merup.ru') || hostname.endsWith('merup.ru')) {
+                    console.log('API Client: Using Authorization header for wildcard domain');
                     config.headers.Authorization = `Bearer ${access}`;
                 } else {
+                    console.log('API Client: Using query parameters for local development');
                     // Для локальной разработки используем query параметры
                     config.params = {
                         ...config.params,
@@ -74,7 +78,7 @@ apiClient.interceptors.response.use(
                     
                     // Повторяем оригинальный запрос с новым токеном
                     const hostname = window.location.hostname;
-                    if (hostname.includes('.merup.ru')) {
+                    if (hostname.includes('.merup.ru') || hostname.endsWith('merup.ru')) {
                         // Для wildcard доменов используем Authorization header
                         originalRequest.headers.Authorization = `Bearer ${access}`;
                     } else {
