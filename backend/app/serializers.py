@@ -470,9 +470,9 @@ class EventSerializer(serializers.ModelSerializer):
         select_related="eventum",
     )
     
-    # Кастомные поля для работы с локальным временем
-    start_time = LocalDateTimeField()
-    end_time = LocalDateTimeField()
+    # Обычные поля времени - работаем без таймзон
+    start_time = serializers.DateTimeField()
+    end_time = serializers.DateTimeField()
 
     class Meta:
         model = Event
