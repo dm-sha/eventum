@@ -20,20 +20,41 @@ const apiClient = axios.create({
 // Интерцептор для добавления токена аутентификации
 apiClient.interceptors.request.use(
     (config) => {
+        console.log('API Request Interceptor:', {
+            url: config.url,
+            baseURL: config.baseURL,
+            fullURL: `${config.baseURL}${config.url}`,
+            currentParams: config.params
+        });
+        
         const tokens = localStorage.getItem('auth_tokens');
+        console.log('Tokens from localStorage:', tokens);
+        
         if (tokens) {
             try {
                 const { access } = JSON.parse(tokens);
+                console.log('Access token found:', access ? 'YES' : 'NO');
                 
                 // Всегда используем query параметры для передачи токена
                 config.params = {
                     ...config.params,
                     access_token: access
                 };
+                
+                console.log('Updated params:', config.params);
             } catch (error) {
                 console.error('Error parsing auth tokens:', error);
             }
+        } else {
+            console.log('No tokens found in localStorage');
         }
+        
+        console.log('Final config:', {
+            url: config.url,
+            params: config.params,
+            fullURL: `${config.baseURL}${config.url}?${new URLSearchParams(config.params).toString()}`
+        });
+        
         return config;
     },
     (error) => {
@@ -86,6 +107,25 @@ apiClient.interceptors.response.use(
         return Promise.reject(error);
     }
 );
+
+// Тестовая функция для проверки интерцептора
+export const testApiCall = async () => {
+    console.log('Testing API call...');
+    try {
+        const response = await apiClient.get('/auth/profile/');
+        console.log('Test API response:', response);
+        return response;
+    } catch (error) {
+        console.error('Test API error:', error);
+        throw error;
+    }
+};
+
+// Добавляем функцию в window для тестирования из консоли браузера
+if (typeof window !== 'undefined') {
+    (window as any).testApiCall = testApiCall;
+    (window as any).apiClient = apiClient;
+}
 
 export { apiClient };
 export default apiClient;

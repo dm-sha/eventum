@@ -21,7 +21,9 @@ const VKAuth: React.FC = () => {
       setIsLoading(true);
       setError(null);
 
+      console.log('VK Auth success, calling API with code:', data.code);
       const response = await authApi.vkAuth({ code: data.code });
+      console.log('VK Auth API response:', response);
       login(response, response.user);
 
     } catch (err: any) {
