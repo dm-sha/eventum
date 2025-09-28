@@ -936,7 +936,14 @@ def check_slug_availability(request, slug):
 def eventum_details(request, slug):
     """Получение детальной информации о eventum"""
     try:
-        eventum = get_object_or_404(Eventum, slug=slug)
+        # Проверяем существование eventum
+        try:
+            eventum = Eventum.objects.get(slug=slug)
+        except Eventum.DoesNotExist:
+            return Response(
+                {'error': f'Eventum with slug "{slug}" not found'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
         
         # Если пользователь аутентифицирован, проверяем права организатора для расширенной информации
         is_organizer = False
@@ -989,6 +996,7 @@ def eventum_details(request, slug):
         return Response(eventum_data)
         
     except Exception as e:
+        logger.error(f"Error in eventum_details for slug '{slug}': {str(e)}", exc_info=True)
         return Response(
             {'error': f'Error getting eventum details: {str(e)}'}, 
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
