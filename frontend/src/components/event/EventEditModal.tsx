@@ -59,6 +59,19 @@ const GeneralTab = ({
       />
     </div>
     
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1">
+        URL изображения
+      </label>
+      <input
+        type="url"
+        value={eventForm.image_url}
+        onChange={(e) => setEventForm((prev: any) => ({ ...prev, image_url: e.target.value }))}
+        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+        placeholder="https://example.com/image.jpg"
+      />
+    </div>
+    
     <div className="grid grid-cols-2 gap-3">
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -69,11 +82,16 @@ const GeneralTab = ({
           value={eventForm.start_time}
           onChange={(e) => {
             const newStartTime = e.target.value;
-            setEventForm((prev: any) => ({ 
-              ...prev, 
-              start_time: newStartTime,
-              end_time: getEndTimeFromStartTime(newStartTime)
-            }));
+            setEventForm((prev: any) => {
+              const newEndTime = prev.end_time && new Date(prev.end_time) > new Date(newStartTime) 
+                ? prev.end_time 
+                : getEndTimeFromStartTime(newStartTime);
+              return { 
+                ...prev, 
+                start_time: newStartTime,
+                end_time: newEndTime
+              };
+            });
           }}
           className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
         />
@@ -632,9 +650,11 @@ const EventEditModal = ({
   useEffect(() => {
     if (isOpen) {
       if (event) {
-        // Извлекаем ID из объектов тегов и локации
+        // Извлекаем ID из объектов тегов, участников, групп и локации
         const tagIds = event.tags.map(tag => tag.id);
         const groupTagIds = event.group_tags?.map(tag => tag.id) || [];
+        const participantIds = (event.participants ?? []).map((p: any) => typeof p === 'number' ? p : p.id);
+        const groupIds = (event.groups ?? []).map((g: any) => typeof g === 'number' ? g : g.id);
         const locationId = event.location?.id || event.location_id;
         setEventForm({
           name: event.name,
@@ -644,8 +664,8 @@ const EventEditModal = ({
           participant_type: event.participant_type || 'all',
           max_participants: event.max_participants,
           image_url: event.image_url || "",
-          participants: event.participants || [],
-          groups: event.groups || [],
+          participants: participantIds,
+          groups: groupIds,
           tags: tagIds,
           group_tags: groupTagIds,
           location_id: locationId
@@ -829,16 +849,16 @@ const EventEditModal = ({
 
   // Подсчет общего количества участников для ручного режима
   const getTotalParticipantsCount = useCallback(() => {
-    let count = 0;
+    const participantIds = new Set<number>();
     
     // Участники по прямой связи
-    count += eventForm.participants.length;
+    eventForm.participants.forEach(id => participantIds.add(id));
     
     // Участники через группы
     eventForm.groups.forEach(groupId => {
       const group = participantGroups.find(g => g.id === groupId);
       if (group) {
-        count += group.participants.length;
+        group.participants.forEach(id => participantIds.add(id));
       }
     });
     
@@ -851,16 +871,21 @@ const EventEditModal = ({
           g.tags.some(tag => tag.id === groupTagId)
         );
         groupsWithTag.forEach(group => {
-          count += group.participants.length;
+          group.participants.forEach(id => participantIds.add(id));
         });
       }
     });
     
-    return count;
+    return participantIds.size;
   }, [eventForm.participants, eventForm.groups, eventForm.group_tags, participantGroups, groupTags]);
 
   const handleSave = async () => {
     if (!eventForm.name.trim() || !eventForm.start_time || !eventForm.end_time) return;
+    
+    // Валидация дат
+    if (new Date(eventForm.end_time) <= new Date(eventForm.start_time)) {
+      return;
+    }
     
     // Валидация для типа registration
     if (eventForm.participant_type === 'registration' && (!eventForm.max_participants || eventForm.max_participants <= 0)) {
@@ -896,6 +921,7 @@ const EventEditModal = ({
   const isFormValid = eventForm.name.trim() && 
     eventForm.start_time && 
     eventForm.end_time &&
+    new Date(eventForm.end_time) > new Date(eventForm.start_time) &&
     (eventForm.participant_type !== 'registration' || (eventForm.max_participants && eventForm.max_participants > 0));
 
 
