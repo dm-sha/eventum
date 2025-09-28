@@ -2,13 +2,31 @@ from rest_framework import serializers
 from rest_framework.relations import MANY_RELATION_KWARGS
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.utils.text import slugify
-from django.utils import timezone
 from datetime import datetime
 from transliterate import translit
 from .models import (
     Eventum, Participant, ParticipantGroup,
     GroupTag, Event, EventTag, UserProfile, UserRole, Location
 )
+
+
+class LocalDateTimeField(serializers.DateTimeField):
+    """Простое поле для работы с локальным временем без таймзон"""
+    
+    def to_internal_value(self, data):
+        """Парсит время как есть, без конвертации таймзон"""
+        if not data:
+            return None
+        try:
+            return datetime.fromisoformat(data)
+        except (ValueError, TypeError) as e:
+            raise serializers.ValidationError(f"Неверный формат времени: {data}")
+    
+    def to_representation(self, value):
+        """Возвращает время как есть"""
+        if not value:
+            return None
+        return value.isoformat()
 
 
 class BulkManyRelatedField(serializers.ManyRelatedField):
@@ -452,9 +470,9 @@ class EventSerializer(serializers.ModelSerializer):
         select_related="eventum",
     )
     
-    # Обычные поля времени - работаем без таймзон
-    start_time = serializers.DateTimeField()
-    end_time = serializers.DateTimeField()
+    # Кастомные поля для работы с локальным временем
+    start_time = LocalDateTimeField()
+    end_time = LocalDateTimeField()
 
     class Meta:
         model = Event
