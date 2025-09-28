@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import type { Event, EventTag, Location } from "../../types";
+import { LocationSelector } from "../location/LocationSelector";
 
 interface EventEditModalProps {
   isOpen: boolean;
@@ -254,21 +255,15 @@ const EventEditModal = ({
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Локация
               </label>
-              <select
-                value={eventForm.location_id || ""}
-                onChange={(e) => setEventForm(prev => ({
+              <LocationSelector
+                locations={locations}
+                selectedLocationId={eventForm.location_id}
+                onLocationChange={(locationId) => setEventForm(prev => ({
                   ...prev,
-                  location_id: e.target.value ? parseInt(e.target.value) : undefined
+                  location_id: locationId
                 }))}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-              >
-                <option value="">Выберите локацию (необязательно)</option>
-                {locations.map((location) => (
-                  <option key={location.id} value={location.id}>
-                    {location.name} ({location.kind})
-                  </option>
-                ))}
-              </select>
+                placeholder="Выберите локацию (необязательно)"
+              />
             </div>
             
             <div>

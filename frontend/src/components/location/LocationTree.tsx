@@ -67,12 +67,6 @@ const LocationNode: React.FC<LocationNodeProps> = ({
 
   return (
     <div className="select-none">
-      {/* Разделитель для дочерних элементов */}
-      {level > 0 && (
-        <div className="flex items-center">
-          <div className="w-4 h-px bg-gray-200"></div>
-        </div>
-      )}
       
       <div
         className={`flex items-center gap-2 p-3 rounded-lg hover:bg-gray-50 cursor-pointer group border border-transparent hover:border-gray-200 transition-all ${
