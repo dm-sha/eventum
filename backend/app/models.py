@@ -11,8 +11,10 @@ class Eventum(models.Model):
     description = models.TextField(blank=True)
 
     def save(self, *args, **kwargs):
+        # Если slug не предоставлен, генерируем его из названия
         if not self.slug:
             self.slug = generate_unique_slug(self, self.name)
+        # Если slug предоставлен, но уже существует, делаем его уникальным
         elif Eventum.objects.exclude(pk=self.pk).filter(slug=self.slug).exists():
             self.slug = generate_unique_slug(self, self.slug)
         super().save(*args, **kwargs)

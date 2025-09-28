@@ -100,7 +100,7 @@ class EventumSerializer(serializers.ModelSerializer):
     class Meta:
         model = Eventum
         fields = ['id', 'name', 'slug', 'description']
-        read_only_fields = ['slug']
+        # Убираем slug из read_only_fields, чтобы можно было передавать его при создании
     
     def create(self, validated_data):
         # Создаем eventum
