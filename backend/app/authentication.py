@@ -8,24 +8,33 @@ logger = logging.getLogger(__name__)
 
 class QueryTokenAuthentication(BaseAuthentication):
     """
-    Кастомная аутентификация для Django REST Framework через query параметры
+    Кастомная аутентификация для Django REST Framework через:
+    - Authorization header (Bearer token) - приоритет для wildcard доменов
+    - Query параметры (access_token, token)
+    - POST данные (access_token, token)
     """
     
     def authenticate(self, request):
-        # Получаем токен из query параметров
+        # Получаем токен из различных источников
         token = None
         
-        # 1. Из query параметра 'access_token' (приоритет)
-        if 'access_token' in request.GET:
+        # 1. Из заголовка Authorization (приоритет для wildcard доменов)
+        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+        if auth_header.startswith('Bearer '):
+            token = auth_header[7:]  # Убираем 'Bearer '
+            logger.info(f"QueryTokenAuthentication: Token found in Authorization header")
+        
+        # 2. Из query параметра 'access_token'
+        elif 'access_token' in request.GET:
             token = request.GET['access_token']
             logger.info(f"QueryTokenAuthentication: Token found in access_token query parameter")
         
-        # 2. Из query параметра 'token' (альтернатива)
+        # 3. Из query параметра 'token' (альтернатива)
         elif 'token' in request.GET:
             token = request.GET['token']
             logger.info(f"QueryTokenAuthentication: Token found in token query parameter")
         
-        # 3. Из POST данных (для POST запросов)
+        # 4. Из POST данных (для POST запросов)
         elif request.method == 'POST' and hasattr(request, 'data'):
             if 'access_token' in request.data:
                 token = request.data['access_token']

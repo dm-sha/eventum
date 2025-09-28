@@ -17,17 +17,25 @@ const apiClient = axios.create({
     },
 });
 
-// Интерцептор для добавления токена аутентификации через query параметры
+// Интерцептор для добавления токена аутентификации
 apiClient.interceptors.request.use(
     (config) => {
         const tokens = localStorage.getItem('auth_tokens');
         if (tokens) {
             try {
                 const { access } = JSON.parse(tokens);
-                config.params = {
-                    ...config.params,
-                    access_token: access
-                };
+                
+                // Для wildcard доменов используем Authorization header
+                const hostname = window.location.hostname;
+                if (hostname.includes('.merup.ru')) {
+                    config.headers.Authorization = `Bearer ${access}`;
+                } else {
+                    // Для локальной разработки используем query параметры
+                    config.params = {
+                        ...config.params,
+                        access_token: access
+                    };
+                }
             } catch (error) {
                 console.error('Error parsing auth tokens:', error);
             }
@@ -64,11 +72,18 @@ apiClient.interceptors.response.use(
                     
                     localStorage.setItem('auth_tokens', JSON.stringify(newTokens));
                     
-                    // Повторяем оригинальный запрос с новым токеном через query параметр
-                    originalRequest.params = {
-                        ...originalRequest.params,
-                        access_token: access
-                    };
+                    // Повторяем оригинальный запрос с новым токеном
+                    const hostname = window.location.hostname;
+                    if (hostname.includes('.merup.ru')) {
+                        // Для wildcard доменов используем Authorization header
+                        originalRequest.headers.Authorization = `Bearer ${access}`;
+                    } else {
+                        // Для локальной разработки используем query параметры
+                        originalRequest.params = {
+                            ...originalRequest.params,
+                            access_token: access
+                        };
+                    }
                     return apiClient(originalRequest);
                 }
             } catch (refreshError) {

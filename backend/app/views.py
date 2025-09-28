@@ -932,50 +932,59 @@ def check_slug_availability(request, slug):
 
 
 @api_view(['GET'])
+@permission_classes([AllowAny])
 def eventum_details(request, slug):
     """Получение детальной информации о eventum"""
-    if not request.user.is_authenticated:
-        return Response({'error': 'Not authenticated'}, status=status.HTTP_401_UNAUTHORIZED)
-    
     try:
         eventum = get_object_or_404(Eventum, slug=slug)
         
-        # Проверяем, что пользователь является организатором
-        is_organizer = UserRole.objects.filter(
-            user=request.user, 
-            eventum=eventum, 
-            role='organizer'
-        ).exists()
+        # Если пользователь аутентифицирован, проверяем права организатора для расширенной информации
+        is_organizer = False
+        if request.user.is_authenticated:
+            is_organizer = UserRole.objects.filter(
+                user=request.user, 
+                eventum=eventum, 
+                role='organizer'
+            ).exists()
         
-        if not is_organizer:
-            return Response({'error': 'Access denied'}, status=status.HTTP_403_FORBIDDEN)
-        
-        # Получаем статистику
-        participants_count = Participant.objects.filter(eventum=eventum).count()
-        events_count = Event.objects.filter(eventum=eventum).count()
-        
-        # Получаем организаторов
-        organizer_roles = UserRole.objects.filter(
-            eventum=eventum, 
-            role='organizer'
-        ).select_related('user')
-        
-        organizers_data = []
-        for role in organizer_roles:
-            organizers_data.append({
-                'id': role.id,
-                'user': UserProfileSerializer(role.user).data,
-                'eventum': eventum.id,
-                'role': role.role,
-                'created_at': role.created_at.isoformat()
-            })
-        
+        # Базовые данные eventum всегда доступны
         eventum_data = EventumSerializer(eventum).data
-        eventum_data.update({
-            'participants_count': participants_count,
-            'events_count': events_count,
-            'organizers': organizers_data
-        })
+        
+        # Если пользователь организатор, добавляем расширенную информацию
+        if is_organizer:
+            # Получаем статистику
+            participants_count = Participant.objects.filter(eventum=eventum).count()
+            events_count = Event.objects.filter(eventum=eventum).count()
+            
+            # Получаем организаторов
+            organizer_roles = UserRole.objects.filter(
+                eventum=eventum, 
+                role='organizer'
+            ).select_related('user')
+            
+            organizers_data = []
+            for role in organizer_roles:
+                organizers_data.append({
+                    'id': role.id,
+                    'user': UserProfileSerializer(role.user).data,
+                    'eventum': eventum.id,
+                    'role': role.role,
+                    'created_at': role.created_at.isoformat()
+                })
+            
+            eventum_data.update({
+                'participants_count': participants_count,
+                'events_count': events_count,
+                'organizers': organizers_data
+            })
+        else:
+            # Для неаутентифицированных пользователей или не-организаторов
+            # показываем только базовую информацию без статистики и организаторов
+            eventum_data.update({
+                'participants_count': None,
+                'events_count': None,
+                'organizers': []
+            })
         
         return Response(eventum_data)
         
