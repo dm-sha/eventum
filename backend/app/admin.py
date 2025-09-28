@@ -211,7 +211,7 @@ class EventAdmin(ImportExportModelAdmin):
     # Вся ваша логика отображения и фильтров сохранена
     list_display = ('name', 'start_time', 'end_time', 'eventum')
     list_filter = ('eventum', 'start_time') # Убрал 'tags' - может быть медленно для M2M
-    filter_horizontal = ['participants', 'groups', 'tags']
+    filter_horizontal = ['participants', 'groups', 'tags', 'group_tags']
     # Добавлено для удобства
     search_fields = ('name', 'description')
 

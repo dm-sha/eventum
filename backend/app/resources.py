@@ -92,6 +92,11 @@ class EventResource(resources.ModelResource):
         attribute='tags',
         widget=ManyToManyWidget(EventTag, field='id'))
 
+    group_tags = fields.Field(
+        column_name='group_tags',
+        attribute='group_tags',
+        widget=ManyToManyWidget(GroupTag, field='id'))
+
     start_time = fields.Field(
         column_name='start_time',
         attribute='start_time',
@@ -104,5 +109,5 @@ class EventResource(resources.ModelResource):
 
     class Meta:
         model = Event
-        fields = ('id', 'name', 'description', 'start_time', 'end_time', 'eventum', 'participants', 'groups', 'tags')
+        fields = ('id', 'name', 'description', 'start_time', 'end_time', 'eventum', 'participants', 'groups', 'tags', 'group_tags')
         import_id_fields = ('name', 'eventum') # Более надежно чем только id

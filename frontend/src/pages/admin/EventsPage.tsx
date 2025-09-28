@@ -2,8 +2,9 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { getEventsForEventum, createEvent, updateEvent, deleteEvent } from "../../api/event";
 import { eventTagApi } from "../../api/eventTag";
+import { groupTagApi } from "../../api/groupTag";
 import { getLocationsForEventum } from "../../api/location";
-import type { Event, EventTag, Location } from "../../types";
+import type { Event, EventTag, GroupTag, Location } from "../../types";
 import { 
   IconInformationCircle, 
   IconPencil, 
@@ -16,12 +17,14 @@ import EventEditModal from "../../components/event/EventEditModal";
 
 interface EventWithTags extends Event {
   tags_data: EventTag[];
+  group_tags_data?: GroupTag[];
 }
 
 const AdminEventsPage = () => {
   const { eventumSlug } = useParams();
   const [events, setEvents] = useState<EventWithTags[]>([]);
   const [eventTags, setEventTags] = useState<EventTag[]>([]);
+  const [groupTags, setGroupTags] = useState<GroupTag[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -48,6 +51,7 @@ const AdminEventsPage = () => {
       const eventsData = await getEventsForEventum(eventumSlug);
       
       let tagsData: EventTag[] = [];
+      let groupTagsData: GroupTag[] = [];
       let locationsData: Location[] = [];
       
       try {
@@ -55,6 +59,13 @@ const AdminEventsPage = () => {
       } catch (tagError) {
         console.error('Ошибка загрузки тегов:', tagError);
         // Продолжаем работу без тегов
+      }
+      
+      try {
+        groupTagsData = await groupTagApi.getGroupTags(eventumSlug);
+      } catch (groupTagError) {
+        console.error('Ошибка загрузки тегов групп:', groupTagError);
+        // Продолжаем работу без тегов групп
       }
       
       try {
@@ -66,15 +77,17 @@ const AdminEventsPage = () => {
       
       // Добавляем данные тегов к мероприятиям
       const eventsWithTags = eventsData.map(event => {
-        // Теги приходят как объекты EventTag
+        // Теги приходят как объекты EventTag и GroupTag
         return {
           ...event,
-          tags_data: event.tags
+          tags_data: event.tags,
+          group_tags_data: event.group_tags
         };
       });
       
       setEvents(eventsWithTags);
       setEventTags(tagsData);
+      setGroupTags(groupTagsData);
       setLocations(locationsData);
     } catch (error) {
       console.error('Ошибка загрузки данных:', error);
@@ -159,6 +172,8 @@ const AdminEventsPage = () => {
     end_time: string;
     tags?: number[];
     tag_ids?: number[];
+    group_tags?: number[];
+    group_tag_ids?: number[];
     location_id?: number;
   }) => {
     if (!eventumSlug) return;
@@ -166,10 +181,10 @@ const AdminEventsPage = () => {
     try {
       if (editingEvent) {
         const updated = await updateEvent(eventumSlug, editingEvent.id, eventData);
-        setEvents(prev => prev.map(e => e.id === editingEvent.id ? { ...updated, tags_data: updated.tags } : e));
+        setEvents(prev => prev.map(e => e.id === editingEvent.id ? { ...updated, tags_data: updated.tags, group_tags_data: updated.group_tags } : e));
       } else {
         const created = await createEvent(eventumSlug, eventData);
-        setEvents(prev => [...prev, { ...created, tags_data: created.tags }]);
+        setEvents(prev => [...prev, { ...created, tags_data: created.tags, group_tags_data: created.group_tags }]);
       }
     } catch (error) {
       console.error('Ошибка сохранения мероприятия:', error);
@@ -372,6 +387,7 @@ const AdminEventsPage = () => {
         onSave={handleSaveEvent}
         event={editingEvent}
         eventTags={eventTags}
+        groupTags={groupTags}
         locations={locations}
       />
     </div>

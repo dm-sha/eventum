@@ -307,6 +307,16 @@ class EventSerializer(serializers.ModelSerializer):
         allow_empty=True,
         select_related="eventum",
     )
+    group_tags = GroupTagSerializer(many=True, read_only=True)
+    group_tag_ids = BulkPrimaryKeyRelatedField(
+        many=True,
+        write_only=True,
+        source='group_tags',
+        queryset=GroupTag.objects.all(),
+        required=False,
+        allow_empty=True,
+        select_related="eventum",
+    )
     location_id = serializers.PrimaryKeyRelatedField(
         write_only=True,
         source='location',
@@ -319,7 +329,7 @@ class EventSerializer(serializers.ModelSerializer):
         model = Event
         fields = [
             'id', 'name', 'description', 'start_time', 'end_time',
-            'participants', 'groups', 'tags', 'tag_ids', 'location_id'
+            'participants', 'groups', 'tags', 'tag_ids', 'group_tags', 'group_tag_ids', 'location_id'
         ]
 
     def validate_participants(self, value):
@@ -358,6 +368,26 @@ class EventSerializer(serializers.ModelSerializer):
                 names = ', '.join(group.name for group in invalid)
                 raise serializers.ValidationError(
                     f"Группы {names} принадлежат другому мероприятию"
+                )
+
+        return value
+
+    def validate_group_tag_ids(self, value):
+        if not value:
+            return value
+
+        eventum = self.context.get('eventum')
+        if eventum:
+            eventum_id = getattr(eventum, 'id', eventum)
+            invalid = [
+                group_tag
+                for group_tag in value
+                if group_tag.eventum_id != eventum_id
+            ]
+            if invalid:
+                names = ', '.join(group_tag.name for group_tag in invalid)
+                raise serializers.ValidationError(
+                    f"Теги групп {names} принадлежат другому мероприятию"
                 )
 
         return value

@@ -58,6 +58,7 @@ export interface Event {
   participants: number[];
   groups: number[];
   tags: EventTag[]; // Объекты тегов для чтения
+  group_tags: GroupTag[]; // Объекты тегов групп для чтения
 }
 
 export interface UserEvent extends Event {

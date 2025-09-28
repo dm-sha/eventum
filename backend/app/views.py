@@ -371,6 +371,7 @@ class EventViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
         'groups__participants__user',  # Добавляем prefetch для пользователей участников в группах
         'groups__tags',
         'tags',
+        'group_tags',
     )
     serializer_class = EventWithLocationSerializer
     permission_classes = [IsEventumOrganizerOrReadOnly]  # Организаторы CRUD, участники только чтение
@@ -388,6 +389,7 @@ class EventViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
             'groups__participants__user',  # Добавляем prefetch для пользователей участников в группах
             'groups__tags',
             'tags',
+            'group_tags',
         )
 
     @action(detail=False, methods=['get'])

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import type { Event, EventTag, Location } from "../../types";
+import type { Event, EventTag, GroupTag, Location } from "../../types";
 import { LocationSelector } from "../location/LocationSelector";
 
 interface EventEditModalProps {
@@ -12,10 +12,13 @@ interface EventEditModalProps {
     end_time: string;
     tags?: number[];
     tag_ids?: number[];
+    group_tags?: number[];
+    group_tag_ids?: number[];
     location_id?: number;
   }) => Promise<void>;
   event?: Event | null;
   eventTags: EventTag[];
+  groupTags: GroupTag[];
   locations: Location[];
   title?: string;
 }
@@ -26,6 +29,7 @@ const EventEditModal = ({
   onSave, 
   event, 
   eventTags, 
+  groupTags,
   locations,
   title 
 }: EventEditModalProps) => {
@@ -35,12 +39,16 @@ const EventEditModal = ({
     start_time: "",
     end_time: "",
     tags: [] as number[],
+    group_tags: [] as number[],
     location_id: undefined as number | undefined
   });
   const [tagSearchQuery, setTagSearchQuery] = useState("");
+  const [groupTagSearchQuery, setGroupTagSearchQuery] = useState("");
   const [showTagSuggestions, setShowTagSuggestions] = useState(false);
+  const [showGroupTagSuggestions, setShowGroupTagSuggestions] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const tagInputRef = useRef<HTMLDivElement>(null);
+  const groupTagInputRef = useRef<HTMLDivElement>(null);
 
 
   // Обработка кликов вне области ввода тегов
@@ -49,16 +57,19 @@ const EventEditModal = ({
       if (tagInputRef.current && !tagInputRef.current.contains(event.target as Node)) {
         setShowTagSuggestions(false);
       }
+      if (groupTagInputRef.current && !groupTagInputRef.current.contains(event.target as Node)) {
+        setShowGroupTagSuggestions(false);
+      }
     };
 
-    if (showTagSuggestions) {
+    if (showTagSuggestions || showGroupTagSuggestions) {
       document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showTagSuggestions]);
+  }, [showTagSuggestions, showGroupTagSuggestions]);
 
   // Инициализация формы при открытии
   useEffect(() => {
@@ -66,6 +77,7 @@ const EventEditModal = ({
       if (event) {
         // Извлекаем ID из объектов тегов и локации
         const tagIds = event.tags.map(tag => tag.id);
+        const groupTagIds = event.group_tags?.map(tag => tag.id) || [];
         const locationId = event.location?.id || event.location_id;
         setEventForm({
           name: event.name,
@@ -73,6 +85,7 @@ const EventEditModal = ({
           start_time: formatDateTimeForInput(event.start_time),
           end_time: formatDateTimeForInput(event.end_time),
           tags: tagIds,
+          group_tags: groupTagIds,
           location_id: locationId
         });
       } else {
@@ -82,11 +95,14 @@ const EventEditModal = ({
           start_time: getDefaultDateTime(),
           end_time: getDefaultEndDateTime(),
           tags: [],
+          group_tags: [],
           location_id: undefined
         });
       }
       setTagSearchQuery("");
+      setGroupTagSearchQuery("");
       setShowTagSuggestions(false);
+      setShowGroupTagSuggestions(false);
     }
   }, [isOpen, event]);
 
@@ -157,6 +173,33 @@ const EventEditModal = ({
     return filteredTags.slice(0, 5);
   };
 
+  const addGroupTagToForm = (groupTag: GroupTag) => {
+    if (!eventForm.group_tags.includes(groupTag.id)) {
+      setEventForm(prev => ({
+        ...prev,
+        group_tags: [...prev.group_tags, groupTag.id]
+      }));
+    }
+    setGroupTagSearchQuery("");
+    setShowGroupTagSuggestions(false);
+  };
+
+  const removeGroupTagFromForm = (groupTagId: number) => {
+    setEventForm(prev => ({
+      ...prev,
+      group_tags: prev.group_tags.filter(id => id !== groupTagId)
+    }));
+  };
+
+  const getGroupTagSuggestions = () => {
+    const filteredGroupTags = groupTags.filter(groupTag => 
+      !eventForm.group_tags.includes(groupTag.id) &&
+      (!groupTagSearchQuery.trim() || groupTag.name.toLowerCase().includes(groupTagSearchQuery.toLowerCase()))
+    );
+    
+    return filteredGroupTags.slice(0, 5);
+  };
+
   const handleSave = async () => {
     if (!eventForm.name.trim() || !eventForm.start_time || !eventForm.end_time) return;
     
@@ -169,7 +212,8 @@ const EventEditModal = ({
         start_time: eventForm.start_time,
         end_time: eventForm.end_time,
         location_id: eventForm.location_id,
-        tag_ids: eventForm.tags
+        tag_ids: eventForm.tags,
+        group_tag_ids: eventForm.group_tags
       };
       await onSave(eventData);
       onClose();
@@ -328,6 +372,79 @@ const EventEditModal = ({
                             type="button"
                             onClick={() => removeTagFromForm(tagId)}
                             className="ml-1 text-blue-600 hover:text-blue-800"
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ) : null;
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Теги групп
+              </label>
+              
+              {/* Поиск тегов групп с саджестами */}
+              <div ref={groupTagInputRef} className="relative mb-3">
+                <input
+                  type="text"
+                  value={groupTagSearchQuery}
+                  onChange={(e) => setGroupTagSearchQuery(e.target.value)}
+                  onFocus={() => setShowGroupTagSuggestions(true)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') {
+                      setShowGroupTagSuggestions(false);
+                    }
+                  }}
+                  placeholder="Добавить тег группы..."
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                />
+                
+                {/* Саджесты */}
+                {showGroupTagSuggestions && getGroupTagSuggestions().length > 0 && (
+                  <div className="absolute z-10 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg max-h-32 overflow-y-auto">
+                    {getGroupTagSuggestions().map((groupTag) => (
+                      <button
+                        key={groupTag.id}
+                        type="button"
+                        onClick={() => addGroupTagToForm(groupTag)}
+                        className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50"
+                      >
+                        {groupTag.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                
+                {showGroupTagSuggestions && groupTagSearchQuery.trim() && getGroupTagSuggestions().length === 0 && (
+                  <div className="absolute z-10 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg">
+                    <div className="px-3 py-2 text-sm text-gray-500">
+                      Теги групп не найдены
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              {/* Показать выбранные теги групп */}
+              {eventForm.group_tags.length > 0 && (
+                <div>
+                  <div className="flex flex-wrap gap-1">
+                    {eventForm.group_tags.map(groupTagId => {
+                      const groupTag = groupTags.find(gt => gt.id === groupTagId);
+                      return groupTag ? (
+                        <span
+                          key={groupTagId}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800"
+                        >
+                          {groupTag.name}
+                          <button
+                            type="button"
+                            onClick={() => removeGroupTagFromForm(groupTagId)}
+                            className="ml-1 text-green-600 hover:text-green-800"
                           >
                             ×
                           </button>

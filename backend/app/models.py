@@ -154,6 +154,11 @@ class Event(models.Model):
         blank=True
     )
     tags = models.ManyToManyField(EventTag, related_name='events', blank=True)
+    group_tags = models.ManyToManyField(
+        GroupTag, 
+        related_name='events',
+        blank=True
+    )
     
     def save(self, *args, **kwargs):
         self.full_clean()
@@ -177,6 +182,13 @@ class Event(models.Model):
                 if group.eventum != self.eventum:
                     raise ValidationError(
                         f"Group {group.name} belongs to a different eventum"
+                    )
+            
+            # Ensure all group tags belong to the same eventum (only if object is saved)
+            for group_tag in self.group_tags.all():
+                if group_tag.eventum != self.eventum:
+                    raise ValidationError(
+                        f"Group tag {group_tag.name} belongs to a different eventum"
                     )
     
     def __str__(self):
