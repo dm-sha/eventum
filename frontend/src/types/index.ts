@@ -45,6 +45,8 @@ export interface ParticipantGroup {
   tags: GroupTag[];
 }
 
+export type ParticipantType = 'all' | 'registration' | 'manual';
+
 export interface Event {
   id: number;
   name: string;
@@ -54,6 +56,9 @@ export interface Event {
   eventum: number;    // ID of the eventum
   location?: Location; // Локация проведения мероприятия
   location_id?: number; // ID локации для записи
+  participant_type: ParticipantType; // Тип определения участников
+  max_participants?: number; // Максимальное количество участников (для типа registration)
+  image_url?: string; // URL изображения события
   // (arrays of IDs)
   participants: number[];
   groups: number[];
