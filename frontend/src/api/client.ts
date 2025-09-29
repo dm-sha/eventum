@@ -21,12 +21,19 @@ const apiClient = axios.create({
 // Интерцептор для добавления токена аутентификации
 apiClient.interceptors.request.use(
     (config) => {
-        // Сначала пробуем получить из localStorage (для локальной разработки)
-        let tokens = localStorage.getItem('auth_tokens');
+        let tokens = null;
         
-        // Если на поддомене merup.ru и нет данных в localStorage, пробуем cookies
+        // 1. Сначала пробуем получить из localStorage (для локальной разработки)
+        tokens = localStorage.getItem('auth_tokens');
+        
+        // 2. Если на поддомене merup.ru и нет данных в localStorage, пробуем cookies
         if (!tokens && window.location.hostname.includes('merup.ru')) {
-          tokens = getCookie('auth_tokens');
+            tokens = getCookie('auth_tokens');
+        }
+        
+        // 3. Fallback для мобильных устройств: пробуем sessionStorage
+        if (!tokens) {
+            tokens = sessionStorage.getItem('auth_tokens');
         }
         
         if (tokens) {
@@ -61,12 +68,19 @@ apiClient.interceptors.response.use(
             originalRequest._retry = true;
 
             try {
-                // Сначала пробуем получить из localStorage (для локальной разработки)
-                let tokens = localStorage.getItem('auth_tokens');
+                let tokens = null;
                 
-                // Если на поддомене merup.ru и нет данных в localStorage, пробуем cookies
+                // 1. Сначала пробуем получить из localStorage (для локальной разработки)
+                tokens = localStorage.getItem('auth_tokens');
+                
+                // 2. Если на поддомене merup.ru и нет данных в localStorage, пробуем cookies
                 if (!tokens && window.location.hostname.includes('merup.ru')) {
-                  tokens = getCookie('auth_tokens');
+                    tokens = getCookie('auth_tokens');
+                }
+                
+                // 3. Fallback для мобильных устройств: пробуем sessionStorage
+                if (!tokens) {
+                    tokens = sessionStorage.getItem('auth_tokens');
                 }
                 
                 if (tokens) {
@@ -82,6 +96,9 @@ apiClient.interceptors.response.use(
                     
                     // Сохраняем в localStorage для локальной разработки
                     localStorage.setItem('auth_tokens', JSON.stringify(newTokens));
+                    
+                    // Сохраняем в sessionStorage для мобильных устройств
+                    sessionStorage.setItem('auth_tokens', JSON.stringify(newTokens));
                     
                     // Сохраняем в cookies для работы с поддоменами
                     const cookieOptions = getMerupCookieOptions();
@@ -100,6 +117,8 @@ apiClient.interceptors.response.use(
                 // Если не удалось обновить токен, очищаем данные аутентификации
                 localStorage.removeItem('auth_tokens');
                 localStorage.removeItem('auth_user');
+                sessionStorage.removeItem('auth_tokens');
+                sessionStorage.removeItem('auth_user');
                 
                 // Очищаем cookies
                 const cookieOptions = getMerupCookieOptions();

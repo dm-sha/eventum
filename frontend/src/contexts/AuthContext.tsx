@@ -92,6 +92,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       savedTokens = getCookie('auth_tokens');
       savedUser = getCookie('auth_user');
     }
+    
+    // Fallback для мобильных устройств: пробуем sessionStorage
+    if (!savedTokens || !savedUser) {
+      savedTokens = savedTokens || sessionStorage.getItem('auth_tokens');
+      savedUser = savedUser || sessionStorage.getItem('auth_user');
+    }
 
     if (savedTokens && savedUser) {
       try {
@@ -124,6 +130,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     localStorage.setItem('auth_tokens', JSON.stringify(newTokens));
     localStorage.setItem('auth_user', JSON.stringify(newUser));
     
+    // Сохраняем в sessionStorage для мобильных устройств
+    sessionStorage.setItem('auth_tokens', JSON.stringify(newTokens));
+    sessionStorage.setItem('auth_user', JSON.stringify(newUser));
+    
     // Сохраняем в cookies для работы с поддоменами
     const cookieOptions = getMerupCookieOptions();
     setCookie('auth_tokens', JSON.stringify(newTokens), cookieOptions);
@@ -135,6 +145,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setUser(null);
     localStorage.removeItem('auth_tokens');
     localStorage.removeItem('auth_user');
+    sessionStorage.removeItem('auth_tokens');
+    sessionStorage.removeItem('auth_user');
     
     // Очищаем cookies
     const cookieOptions = getMerupCookieOptions();

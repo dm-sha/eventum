@@ -88,6 +88,8 @@ CORS_ALLOW_PRIVATE_NETWORK = True
 CORS_EXPOSE_HEADERS = [
     'Content-Type',
     'X-CSRFToken',
+    'Authorization',  # Добавлено для мобильных браузеров
+    'Cache-Control',  # Добавлено для кэширования
 ]
 
 # В режиме разработки разрешаем все localhost порты
@@ -101,6 +103,7 @@ else:
     CORS_ALLOW_ALL_ORIGINS = False  # Безопасность: разрешаем только указанные домены
     CORS_ALLOWED_ORIGIN_REGEXES = [
         r"^https://([a-zA-Z0-9-]+\.)?merup\.ru$",  # Разрешаем поддомены *.merup.ru
+        r"^https://.*\.vercel\.app$",  # Для Vercel деплоев
     ]
 CORS_ALLOWED_HEADERS = [
     'accept',
@@ -117,6 +120,10 @@ CORS_ALLOWED_HEADERS = [
     'X-Requested-With',
     'Access-Control-Request-Method',
     'Access-Control-Request-Headers',
+    'Cache-Control',  # Добавлено для мобильных браузеров
+    'Pragma',         # Добавлено для мобильных браузеров
+    'If-Modified-Since',  # Добавлено для кэширования
+    'If-None-Match',     # Добавлено для кэширования
 ]
 CORS_ALLOWED_METHODS = [
     'DELETE',

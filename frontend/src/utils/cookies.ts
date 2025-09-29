@@ -65,10 +65,12 @@ export const deleteCookie = (name: string, options: {
  */
 export const getMerupCookieOptions = () => {
   const isMerupDomain = window.location.hostname.includes('merup.ru');
+  const isSecure = window.location.protocol === 'https:';
+  
   return {
     domain: isMerupDomain ? '.merup.ru' : undefined,
     path: '/',
-    secure: true,
-    samesite: 'lax' as const
+    secure: isSecure,  // Зависит от протокола, не всегда true
+    samesite: (isSecure ? 'lax' : 'none') as 'lax' | 'none'  // none для HTTP, lax для HTTPS
   };
 };
