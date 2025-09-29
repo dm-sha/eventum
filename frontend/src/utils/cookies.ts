@@ -15,7 +15,6 @@ export const getCookie = (name: string): string | null => {
         // Декодируем значение cookie
         return decodeURIComponent(cookieValue);
       } catch (error) {
-        console.warn(`[Cookie] Failed to decode cookie ${name}:`, error);
         return cookieValue; // Возвращаем как есть, если декодирование не удалось
       }
     }
@@ -63,7 +62,6 @@ export const setCookie = (name: string, value: string, options: {
 
   try {
     document.cookie = cookieString;
-    console.log(`[Cookie] Set cookie ${name}, size: ${cookieString.length} bytes`);
   } catch (error) {
     console.error(`[Cookie] Failed to set cookie ${name}:`, error);
   }
@@ -95,7 +93,6 @@ export const getMerupCookieOptions = () => {
   const userAgent = navigator.userAgent;
   const isSafari = /Safari/.test(userAgent) && !/Chrome/.test(userAgent);
   
-  console.log(`[Cookie] Hostname: ${hostname}, isMerupDomain: ${isMerupDomain}, isSecure: ${isSecure}, isSafari: ${isSafari}`);
   
   // Для Safari нужны специальные настройки
   if (isSafari) {

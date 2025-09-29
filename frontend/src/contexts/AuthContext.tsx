@@ -94,7 +94,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const hostname = window.location.hostname;
     const isMerupDomain = hostname === 'merup.ru' || hostname.endsWith('.merup.ru');
     if ((!savedTokens || !savedUser) && isMerupDomain) {
-      console.log(`[AuthContext] Merup domain detected: ${hostname}`);
       savedTokens = getCookie('auth_tokens');
       savedUser = getCookie('auth_user');
     }
@@ -107,8 +106,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     
     // Специальная логика для Safari: пробуем все доступные источники
     if ((!savedTokens || !savedUser) && isSafari) {
-      console.log('[AuthContext] Safari detected, trying all token sources...');
-      
       const tokenSources = [
         () => localStorage.getItem('auth_tokens'),
         () => sessionStorage.getItem('auth_tokens'),
@@ -128,11 +125,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           const token = getToken();
           if (token) {
             savedTokens = token;
-            console.log('[AuthContext] Safari: Found tokens');
             break;
           }
         } catch (e) {
-          console.log('[AuthContext] Safari: Error getting tokens:', e);
+          // Игнорируем ошибки при получении токенов
         }
       }
       
@@ -141,11 +137,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           const user = getUser();
           if (user) {
             savedUser = user;
-            console.log('[AuthContext] Safari: Found user');
             break;
           }
         } catch (e) {
-          console.log('[AuthContext] Safari: Error getting user:', e);
+          // Игнорируем ошибки при получении пользователя
         }
       }
     }
@@ -157,7 +152,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const trimmedUser = savedUser.trim();
         
         if (!trimmedTokens || trimmedTokens.length < 10 || !trimmedUser || trimmedUser.length < 10) {
-          console.warn('[AuthContext] Invalid saved data (too short)');
           // Очищаем поврежденные данные
           localStorage.removeItem('auth_tokens');
           localStorage.removeItem('auth_user');
@@ -178,9 +172,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               parsedUser.id && typeof parsedUser.id === 'number') {
             setTokens(parsedTokens);
             setUser(parsedUser);
-            console.log('[AuthContext] Successfully loaded auth data');
           } else {
-            console.warn('[AuthContext] Invalid token or user data structure');
             // Очищаем поврежденные данные
             localStorage.removeItem('auth_tokens');
             localStorage.removeItem('auth_user');
@@ -196,8 +188,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
       } catch (error) {
         console.error('Error parsing saved auth data:', error);
-        console.log('[AuthContext] Raw tokens:', savedTokens);
-        console.log('[AuthContext] Raw user:', savedUser);
         
         // Очищаем поврежденные данные
         localStorage.removeItem('auth_tokens');
@@ -233,13 +223,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     
     // Сохраняем в cookies для работы с поддоменами
     const cookieOptions = getMerupCookieOptions();
-    console.log(`[AuthContext] Saving cookies with domain: ${cookieOptions.domain || 'default'}`);
     setCookie('auth_tokens', JSON.stringify(newTokens), cookieOptions);
     setCookie('auth_user', JSON.stringify(newUser), cookieOptions);
     
     // Для Safari дополнительно сохраняем в альтернативных cookies
     if (isSafari) {
-      console.log('[AuthContext] Safari: Saving auth data in multiple locations');
       try {
         setCookie('auth_tokens_alt', JSON.stringify(newTokens), {
           ...cookieOptions,
@@ -250,7 +238,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           samesite: 'lax'
         });
       } catch (e) {
-        console.warn('[AuthContext] Safari: Failed to set alternative cookies:', e);
+        // Игнорируем ошибки при сохранении альтернативных cookies
       }
     }
   };
@@ -276,7 +264,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         deleteCookie('auth_tokens_alt', cookieOptions);
         deleteCookie('auth_user_alt', cookieOptions);
       } catch (e) {
-        console.warn('[AuthContext] Safari: Failed to delete alternative cookies:', e);
+        // Игнорируем ошибки при удалении альтернативных cookies
       }
     }
   };
