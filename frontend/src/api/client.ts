@@ -32,7 +32,10 @@ apiClient.interceptors.request.use(
         console.log(`[API Client] localStorage tokens:`, tokens ? 'found' : 'not found');
         
         // 2. Если на поддомене merup.ru и нет данных в localStorage, пробуем cookies
-        if (!tokens && window.location.hostname.includes('merup.ru')) {
+        const hostname = window.location.hostname;
+        const isMerupDomain = hostname === 'merup.ru' || hostname.endsWith('.merup.ru');
+        if (!tokens && isMerupDomain) {
+            console.log(`[API Client] Merup domain detected: ${hostname}`);
             tokens = getCookie('auth_tokens');
             console.log(`[API Client] Cookie tokens:`, tokens ? 'found' : 'not found');
         }
@@ -71,21 +74,50 @@ apiClient.interceptors.request.use(
         
         if (tokens) {
             try {
-                const { access } = JSON.parse(tokens);
-                console.log(`[API Client] Access token found, length: ${access?.length || 0}`);
-                
-                // Всегда используем query параметры для передачи токена
-                config.params = {
-                    ...config.params,
-                    access_token: access
-                };
-                
-                console.log(`[API Client] Request params:`, config.params);
+                // Валидация JSON перед парсингом
+                const trimmedTokens = tokens.trim();
+                if (!trimmedTokens || trimmedTokens.length < 10) {
+                    console.warn(`[API Client] Invalid token data (too short): ${trimmedTokens}`);
+                    tokens = null;
+                } else {
+                    const { access } = JSON.parse(trimmedTokens);
+                    if (!access || typeof access !== 'string') {
+                        console.warn(`[API Client] Invalid access token in parsed data`);
+                        tokens = null;
+                    } else {
+                        console.log(`[API Client] Access token found, length: ${access.length}`);
+                        
+                        // Всегда используем query параметры для передачи токена
+                        config.params = {
+                            ...config.params,
+                            access_token: access
+                        };
+                        
+                        console.log(`[API Client] Request params:`, config.params);
+                    }
+                }
             } catch (error) {
                 console.error('Error parsing auth tokens:', error);
+                console.log(`[API Client] Raw token data:`, tokens);
+                
+                // Очищаем поврежденные данные
+                if (isSafari) {
+                    console.log(`[API Client] Safari: Clearing corrupted token data`);
+                    try {
+                        localStorage.removeItem('auth_tokens');
+                        sessionStorage.removeItem('auth_tokens');
+                        deleteCookie('auth_tokens');
+                        deleteCookie('auth_tokens_alt');
+                    } catch (e) {
+                        console.warn(`[API Client] Safari: Error clearing corrupted data:`, e);
+                    }
+                }
+                tokens = null;
             }
-        } else {
-            console.warn(`[API Client] No tokens found for request to ${config.url}`);
+        }
+        
+        if (!tokens) {
+            console.warn(`[API Client] No valid tokens found for request to ${config.url}`);
         }
         
         return config;

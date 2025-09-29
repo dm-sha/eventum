@@ -91,7 +91,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     let savedUser = localStorage.getItem('auth_user');
     
     // Если на поддомене merup.ru и нет данных в localStorage, пробуем cookies
-    if ((!savedTokens || !savedUser) && window.location.hostname.includes('merup.ru')) {
+    const hostname = window.location.hostname;
+    const isMerupDomain = hostname === 'merup.ru' || hostname.endsWith('.merup.ru');
+    if ((!savedTokens || !savedUser) && isMerupDomain) {
+      console.log(`[AuthContext] Merup domain detected: ${hostname}`);
       savedTokens = getCookie('auth_tokens');
       savedUser = getCookie('auth_user');
     }
@@ -149,21 +152,64 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     if (savedTokens && savedUser) {
       try {
-        const parsedTokens = JSON.parse(savedTokens);
-        const parsedUser = JSON.parse(savedUser);
+        // Валидация JSON перед парсингом
+        const trimmedTokens = savedTokens.trim();
+        const trimmedUser = savedUser.trim();
         
-        // Проверяем, что токены валидны
-        if (parsedTokens.access && parsedUser.id) {
-          setTokens(parsedTokens);
-          setUser(parsedUser);
-        } else {
+        if (!trimmedTokens || trimmedTokens.length < 10 || !trimmedUser || trimmedUser.length < 10) {
+          console.warn('[AuthContext] Invalid saved data (too short)');
+          // Очищаем поврежденные данные
           localStorage.removeItem('auth_tokens');
           localStorage.removeItem('auth_user');
+          sessionStorage.removeItem('auth_tokens');
+          sessionStorage.removeItem('auth_user');
+          if (isSafari) {
+            deleteCookie('auth_tokens');
+            deleteCookie('auth_tokens_alt');
+            deleteCookie('auth_user');
+            deleteCookie('auth_user_alt');
+          }
+        } else {
+          const parsedTokens = JSON.parse(trimmedTokens);
+          const parsedUser = JSON.parse(trimmedUser);
+          
+          // Проверяем, что токены валидны
+          if (parsedTokens.access && typeof parsedTokens.access === 'string' && 
+              parsedUser.id && typeof parsedUser.id === 'number') {
+            setTokens(parsedTokens);
+            setUser(parsedUser);
+            console.log('[AuthContext] Successfully loaded auth data');
+          } else {
+            console.warn('[AuthContext] Invalid token or user data structure');
+            // Очищаем поврежденные данные
+            localStorage.removeItem('auth_tokens');
+            localStorage.removeItem('auth_user');
+            sessionStorage.removeItem('auth_tokens');
+            sessionStorage.removeItem('auth_user');
+            if (isSafari) {
+              deleteCookie('auth_tokens');
+              deleteCookie('auth_tokens_alt');
+              deleteCookie('auth_user');
+              deleteCookie('auth_user_alt');
+            }
+          }
         }
       } catch (error) {
         console.error('Error parsing saved auth data:', error);
+        console.log('[AuthContext] Raw tokens:', savedTokens);
+        console.log('[AuthContext] Raw user:', savedUser);
+        
+        // Очищаем поврежденные данные
         localStorage.removeItem('auth_tokens');
         localStorage.removeItem('auth_user');
+        sessionStorage.removeItem('auth_tokens');
+        sessionStorage.removeItem('auth_user');
+        if (isSafari) {
+          deleteCookie('auth_tokens');
+          deleteCookie('auth_tokens_alt');
+          deleteCookie('auth_user');
+          deleteCookie('auth_user_alt');
+        }
       }
     }
     
@@ -187,6 +233,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     
     // Сохраняем в cookies для работы с поддоменами
     const cookieOptions = getMerupCookieOptions();
+    console.log(`[AuthContext] Saving cookies with domain: ${cookieOptions.domain || 'default'}`);
     setCookie('auth_tokens', JSON.stringify(newTokens), cookieOptions);
     setCookie('auth_user', JSON.stringify(newUser), cookieOptions);
     

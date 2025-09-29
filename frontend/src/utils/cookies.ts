@@ -8,7 +8,18 @@
 export const getCookie = (name: string): string | null => {
   const value = `; ${document.cookie}`;
   const parts = value.split(`; ${name}=`);
-  if (parts.length === 2) return parts.pop()?.split(';').shift() || null;
+  if (parts.length === 2) {
+    const cookieValue = parts.pop()?.split(';').shift();
+    if (cookieValue) {
+      try {
+        // Декодируем значение cookie
+        return decodeURIComponent(cookieValue);
+      } catch (error) {
+        console.warn(`[Cookie] Failed to decode cookie ${name}:`, error);
+        return cookieValue; // Возвращаем как есть, если декодирование не удалось
+      }
+    }
+  }
   return null;
 };
 
@@ -32,7 +43,16 @@ export const setCookie = (name: string, value: string, options: {
     expires
   } = options;
 
-  let cookieString = `${name}=${value}`;
+  // Проверяем размер cookie (обычно лимит 4KB)
+  const cookieSize = `${name}=${value}`.length;
+  if (cookieSize > 4000) {
+    console.warn(`[Cookie] Cookie ${name} is too large (${cookieSize} bytes), may be truncated`);
+  }
+
+  // Кодируем значение для безопасности
+  const encodedValue = encodeURIComponent(value);
+  
+  let cookieString = `${name}=${encodedValue}`;
   
   if (domain) cookieString += `; domain=${domain}`;
   if (path) cookieString += `; path=${path}`;
@@ -41,7 +61,12 @@ export const setCookie = (name: string, value: string, options: {
   if (maxAge !== undefined) cookieString += `; max-age=${maxAge}`;
   if (expires) cookieString += `; expires=${expires.toUTCString()}`;
 
-  document.cookie = cookieString;
+  try {
+    document.cookie = cookieString;
+    console.log(`[Cookie] Set cookie ${name}, size: ${cookieString.length} bytes`);
+  } catch (error) {
+    console.error(`[Cookie] Failed to set cookie ${name}:`, error);
+  }
 };
 
 /**
@@ -64,10 +89,13 @@ export const deleteCookie = (name: string, options: {
  * Получить настройки cookie для домена merup.ru
  */
 export const getMerupCookieOptions = () => {
-  const isMerupDomain = window.location.hostname.includes('merup.ru');
+  const hostname = window.location.hostname;
+  const isMerupDomain = hostname === 'merup.ru' || hostname.endsWith('.merup.ru');
   const isSecure = window.location.protocol === 'https:';
   const userAgent = navigator.userAgent;
   const isSafari = /Safari/.test(userAgent) && !/Chrome/.test(userAgent);
+  
+  console.log(`[Cookie] Hostname: ${hostname}, isMerupDomain: ${isMerupDomain}, isSecure: ${isSecure}, isSafari: ${isSafari}`);
   
   // Для Safari нужны специальные настройки
   if (isSafari) {

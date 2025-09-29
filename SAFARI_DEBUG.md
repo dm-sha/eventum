@@ -22,6 +22,19 @@
 - Сохранение токенов в альтернативных cookies с `SameSite=lax`
 - Дополнительные источники: `auth_tokens_alt`, `auth_user_alt`
 
+### 4. Валидация и обработка поврежденных данных
+В `frontend/src/api/client.ts`, `frontend/src/contexts/AuthContext.tsx` и `frontend/src/utils/cookies.ts`:
+- Валидация JSON перед парсингом
+- Проверка размера cookies (лимит 4KB)
+- Кодирование/декодирование значений cookies
+- Автоматическая очистка поврежденных данных
+
+### 5. Cross-subdomain поддержка
+В `frontend/src/api/client.ts`, `frontend/src/contexts/AuthContext.tsx` и `frontend/src/utils/cookies.ts`:
+- Правильное определение домена merup.ru и поддоменов
+- Cookies с доменом `.merup.ru` работают на всех поддоменах
+- Отладочные логи для отслеживания cross-subdomain сценариев
+
 ## Как тестировать
 
 ### 1. Откройте Developer Tools в Safari
@@ -38,6 +51,24 @@
 [API Client] Safari: Found token in source
 [API Client] Access token found, length: 123
 [API Client] Request params: {access_token: "..."}
+[Cookie] Set cookie auth_tokens, size: 1234 bytes
+[AuthContext] Successfully loaded auth data
+```
+
+**Новые логи для отладки:**
+```
+[API Client] Invalid token data (too short): ...
+[API Client] Safari: Clearing corrupted token data
+[AuthContext] Invalid saved data (too short)
+[Cookie] Cookie auth_tokens is too large (5000 bytes), may be truncated
+```
+
+**Логи для cross-subdomain сценария:**
+```
+[Cookie] Hostname: some_eventum.merup.ru, isMerupDomain: true, isSecure: true, isSafari: true
+[API Client] Merup domain detected: some_eventum.merup.ru
+[AuthContext] Merup domain detected: some_eventum.merup.ru
+[AuthContext] Saving cookies with domain: .merup.ru
 ```
 
 ### 3. Проверьте cookies
@@ -51,6 +82,18 @@
 В Developer Tools → Network:
 - Убедитесь, что запросы содержат `access_token` в query параметрах
 - Проверьте, что нет ошибок 401/403
+
+### 5. Тестирование cross-subdomain сценария
+1. **Войдите в систему на основном домене** (`merup.ru`)
+2. **Перейдите на поддомен** (`some_eventum.merup.ru`)
+3. **Проверьте логи** - должны появиться сообщения:
+   ```
+   [Cookie] Hostname: some_eventum.merup.ru, isMerupDomain: true
+   [API Client] Merup domain detected: some_eventum.merup.ru
+   [AuthContext] Merup domain detected: some_eventum.merup.ru
+   ```
+4. **Проверьте cookies** - должны быть с доменом `.merup.ru`
+5. **Проверьте API запросы** - должны содержать `access_token`
 
 ## Возможные проблемы и решения
 
