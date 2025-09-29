@@ -22,32 +22,70 @@ const apiClient = axios.create({
 apiClient.interceptors.request.use(
     (config) => {
         let tokens = null;
+        const userAgent = navigator.userAgent;
+        const isSafari = /Safari/.test(userAgent) && !/Chrome/.test(userAgent);
+        
+        console.log(`[API Client] Browser: ${isSafari ? 'Safari' : 'Other'}, URL: ${config.url}`);
         
         // 1. Сначала пробуем получить из localStorage (для локальной разработки)
         tokens = localStorage.getItem('auth_tokens');
+        console.log(`[API Client] localStorage tokens:`, tokens ? 'found' : 'not found');
         
         // 2. Если на поддомене merup.ru и нет данных в localStorage, пробуем cookies
         if (!tokens && window.location.hostname.includes('merup.ru')) {
             tokens = getCookie('auth_tokens');
+            console.log(`[API Client] Cookie tokens:`, tokens ? 'found' : 'not found');
         }
         
         // 3. Fallback для мобильных устройств: пробуем sessionStorage
         if (!tokens) {
             tokens = sessionStorage.getItem('auth_tokens');
+            console.log(`[API Client] sessionStorage tokens:`, tokens ? 'found' : 'not found');
+        }
+        
+        // 4. Специальная логика для Safari: пробуем все доступные источники
+        if (!tokens && isSafari) {
+            console.log(`[API Client] Safari detected, trying all token sources...`);
+            
+            // Пробуем все возможные источники токенов
+            const tokenSources = [
+                () => localStorage.getItem('auth_tokens'),
+                () => sessionStorage.getItem('auth_tokens'),
+                () => getCookie('auth_tokens'),
+                () => getCookie('auth_tokens_alt'), // альтернативное имя cookie
+            ];
+            
+            for (const getToken of tokenSources) {
+                try {
+                    const token = getToken();
+                    if (token) {
+                        tokens = token;
+                        console.log(`[API Client] Safari: Found token in ${getToken.name || 'source'}`);
+                        break;
+                    }
+                } catch (e) {
+                    console.log(`[API Client] Safari: Error getting token from ${getToken.name || 'source'}:`, e);
+                }
+            }
         }
         
         if (tokens) {
             try {
                 const { access } = JSON.parse(tokens);
+                console.log(`[API Client] Access token found, length: ${access?.length || 0}`);
                 
                 // Всегда используем query параметры для передачи токена
                 config.params = {
                     ...config.params,
                     access_token: access
                 };
+                
+                console.log(`[API Client] Request params:`, config.params);
             } catch (error) {
                 console.error('Error parsing auth tokens:', error);
             }
+        } else {
+            console.warn(`[API Client] No tokens found for request to ${config.url}`);
         }
         
         return config;
@@ -62,6 +100,8 @@ apiClient.interceptors.response.use(
     (response: AxiosResponse) => response,
     async (error: AxiosError) => {
         const originalRequest = error.config as any;
+        const userAgent = navigator.userAgent;
+        const isSafari = /Safari/.test(userAgent) && !/Chrome/.test(userAgent);
 
 
         if ((error.response?.status === 401 || error.response?.status === 403) && !originalRequest._retry) {
@@ -103,6 +143,19 @@ apiClient.interceptors.response.use(
                     // Сохраняем в cookies для работы с поддоменами
                     const cookieOptions = getMerupCookieOptions();
                     setCookie('auth_tokens', JSON.stringify(newTokens), cookieOptions);
+                    
+                    // Для Safari дополнительно сохраняем в альтернативном cookie
+                    if (isSafari) {
+                        console.log(`[API Client] Safari: Saving tokens in multiple locations`);
+                        try {
+                            setCookie('auth_tokens_alt', JSON.stringify(newTokens), {
+                                ...cookieOptions,
+                                samesite: 'lax' // Используем lax для альтернативного cookie
+                            });
+                        } catch (e) {
+                            console.warn(`[API Client] Safari: Failed to set alternative cookie:`, e);
+                        }
+                    }
                     
                     // Повторяем оригинальный запрос с новым токеном
                     // Всегда используем query параметры для передачи токена

@@ -66,11 +66,23 @@ export const deleteCookie = (name: string, options: {
 export const getMerupCookieOptions = () => {
   const isMerupDomain = window.location.hostname.includes('merup.ru');
   const isSecure = window.location.protocol === 'https:';
+  const userAgent = navigator.userAgent;
+  const isSafari = /Safari/.test(userAgent) && !/Chrome/.test(userAgent);
+  
+  // Для Safari нужны специальные настройки
+  if (isSafari) {
+    return {
+      domain: isMerupDomain ? '.merup.ru' : undefined,
+      path: '/',
+      secure: isSecure,  // Safari требует secure=true для SameSite=None
+      samesite: isSecure ? 'none' : 'lax' as 'lax' | 'none'  // none только для HTTPS в Safari
+    };
+  }
   
   return {
     domain: isMerupDomain ? '.merup.ru' : undefined,
     path: '/',
-    secure: isSecure,  // Зависит от протокола, не всегда true
-    samesite: (isSecure ? 'lax' : 'none') as 'lax' | 'none'  // none для HTTP, lax для HTTPS
+    secure: isSecure,
+    samesite: (isSecure ? 'lax' : 'none') as 'lax' | 'none'
   };
 };

@@ -83,6 +83,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
 
     // Проверяем, есть ли сохраненные данные аутентификации
+    const userAgent = navigator.userAgent;
+    const isSafari = /Safari/.test(userAgent) && !/Chrome/.test(userAgent);
+    
     // Сначала пробуем получить из localStorage (для локальной разработки)
     let savedTokens = localStorage.getItem('auth_tokens');
     let savedUser = localStorage.getItem('auth_user');
@@ -97,6 +100,51 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     if (!savedTokens || !savedUser) {
       savedTokens = savedTokens || sessionStorage.getItem('auth_tokens');
       savedUser = savedUser || sessionStorage.getItem('auth_user');
+    }
+    
+    // Специальная логика для Safari: пробуем все доступные источники
+    if ((!savedTokens || !savedUser) && isSafari) {
+      console.log('[AuthContext] Safari detected, trying all token sources...');
+      
+      const tokenSources = [
+        () => localStorage.getItem('auth_tokens'),
+        () => sessionStorage.getItem('auth_tokens'),
+        () => getCookie('auth_tokens'),
+        () => getCookie('auth_tokens_alt'),
+      ];
+      
+      const userSources = [
+        () => localStorage.getItem('auth_user'),
+        () => sessionStorage.getItem('auth_user'),
+        () => getCookie('auth_user'),
+        () => getCookie('auth_user_alt'),
+      ];
+      
+      for (const getToken of tokenSources) {
+        try {
+          const token = getToken();
+          if (token) {
+            savedTokens = token;
+            console.log('[AuthContext] Safari: Found tokens');
+            break;
+          }
+        } catch (e) {
+          console.log('[AuthContext] Safari: Error getting tokens:', e);
+        }
+      }
+      
+      for (const getUser of userSources) {
+        try {
+          const user = getUser();
+          if (user) {
+            savedUser = user;
+            console.log('[AuthContext] Safari: Found user');
+            break;
+          }
+        } catch (e) {
+          console.log('[AuthContext] Safari: Error getting user:', e);
+        }
+      }
     }
 
     if (savedTokens && savedUser) {
@@ -126,6 +174,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setTokens(newTokens);
     setUser(newUser);
     
+    const userAgent = navigator.userAgent;
+    const isSafari = /Safari/.test(userAgent) && !/Chrome/.test(userAgent);
+    
     // Сохраняем в localStorage для локальной разработки
     localStorage.setItem('auth_tokens', JSON.stringify(newTokens));
     localStorage.setItem('auth_user', JSON.stringify(newUser));
@@ -138,6 +189,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const cookieOptions = getMerupCookieOptions();
     setCookie('auth_tokens', JSON.stringify(newTokens), cookieOptions);
     setCookie('auth_user', JSON.stringify(newUser), cookieOptions);
+    
+    // Для Safari дополнительно сохраняем в альтернативных cookies
+    if (isSafari) {
+      console.log('[AuthContext] Safari: Saving auth data in multiple locations');
+      try {
+        setCookie('auth_tokens_alt', JSON.stringify(newTokens), {
+          ...cookieOptions,
+          samesite: 'lax' // Используем lax для альтернативного cookie
+        });
+        setCookie('auth_user_alt', JSON.stringify(newUser), {
+          ...cookieOptions,
+          samesite: 'lax'
+        });
+      } catch (e) {
+        console.warn('[AuthContext] Safari: Failed to set alternative cookies:', e);
+      }
+    }
   };
 
   const logout = () => {
@@ -152,6 +220,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const cookieOptions = getMerupCookieOptions();
     deleteCookie('auth_tokens', cookieOptions);
     deleteCookie('auth_user', cookieOptions);
+    
+    // Для Safari также очищаем альтернативные cookies
+    const userAgent = navigator.userAgent;
+    const isSafari = /Safari/.test(userAgent) && !/Chrome/.test(userAgent);
+    if (isSafari) {
+      try {
+        deleteCookie('auth_tokens_alt', cookieOptions);
+        deleteCookie('auth_user_alt', cookieOptions);
+      } catch (e) {
+        console.warn('[AuthContext] Safari: Failed to delete alternative cookies:', e);
+      }
+    }
   };
 
   const isAuthenticated = !!user && !!tokens && !!tokens.access;
