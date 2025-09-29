@@ -8,6 +8,7 @@ import {
 import type { ParticipantGroup, Participant } from '../../types';
 import { IconPencil, IconX, IconPlus, IconInformationCircle, IconTrash } from '../../components/icons';
 import { useEventumSlug } from '../../hooks/useEventumSlug';
+import GroupsLoadingSkeleton from '../../components/admin/skeletons/GroupsLoadingSkeleton';
 
 const AdminGroupsPage = () => {
   const eventumSlug = useEventumSlug();
@@ -166,13 +167,6 @@ const AdminGroupsPage = () => {
     }
   };
 
-  const LoadingSpinner = () => (
-    <div className="flex items-center justify-center p-8">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-    </div>
-  );
-
-
   const toggleGroupExpansion = (groupId: number) => {
     setExpandedGroups(prev => {
       const newSet = new Set(prev);
@@ -184,7 +178,6 @@ const AdminGroupsPage = () => {
       return newSet;
     });
   };
-
 
   return (
     <div className="space-y-6">
@@ -211,7 +204,7 @@ const AdminGroupsPage = () => {
       />
 
       {isLoading ? (
-        <LoadingSpinner />
+        <GroupsLoadingSkeleton />
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3" style={{ gridAutoRows: 'min-content', alignItems: 'start' }}>
           {/* Карточка для добавления новой группы */}

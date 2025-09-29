@@ -15,6 +15,7 @@ import {
 } from "../../components/icons";
 import EventEditModal from "../../components/event/EventEditModal";
 import { useEventumSlug } from "../../hooks/useEventumSlug";
+import EventsLoadingSkeleton from "../../components/admin/skeletons/EventsLoadingSkeleton";
 
 interface EventWithTags extends Event {
   tags_data: EventTag[];
@@ -228,13 +229,6 @@ const AdminEventsPage = () => {
     }
   };
 
-
-  const LoadingSpinner = () => (
-    <div className="flex items-center justify-center p-8">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-    </div>
-  );
-
   return (
     <div className="space-y-6">
       <header className="space-y-2">
@@ -305,7 +299,7 @@ const AdminEventsPage = () => {
 
       {/* Список мероприятий */}
       {isLoading ? (
-        <LoadingSpinner />
+        <EventsLoadingSkeleton />
       ) : (
         <div className="space-y-3">
           {filteredEvents.map((event) => {
