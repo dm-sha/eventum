@@ -7,6 +7,7 @@ import { groupTagApi } from '../../api/groupTag';
 import type { GroupTag, ParticipantGroup } from '../../types';
 import { IconPencil, IconX, IconPlus, IconInformationCircle, IconTrash } from '../../components/icons';
 import { useEventumSlug } from '../../hooks/useEventumSlug';
+import TagsLoadingSkeleton from '../../components/admin/skeletons/TagsLoadingSkeleton';
 
 const AdminGroupTagsPage = () => {
   const eventumSlug = useEventumSlug();
@@ -242,12 +243,6 @@ const AdminGroupTagsPage = () => {
     }
   };
 
-  const LoadingSpinner = () => (
-    <div className="flex items-center justify-center p-8">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-    </div>
-  );
-
   const toggleTagExpansion = (tagId: number) => {
     setExpandedTags(prev => {
       const newSet = new Set(prev);
@@ -293,7 +288,7 @@ const AdminGroupTagsPage = () => {
       />
 
       {isLoading ? (
-        <LoadingSpinner />
+        <TagsLoadingSkeleton />
       ) : (
         <div className="columns-1 sm:columns-2 lg:columns-3 gap-4">
           {/* Карточка для добавления нового тега */}

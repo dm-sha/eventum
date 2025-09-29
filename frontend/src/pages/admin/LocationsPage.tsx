@@ -10,6 +10,7 @@ import { LocationForm } from '../../components/location/LocationForm';
 import { IconInformationCircle } from '../../components/icons';
 import type { Location, CreateLocationData } from '../../types';
 import { useEventumSlug } from '../../hooks/useEventumSlug';
+import LocationsLoadingSkeleton from '../../components/admin/skeletons/LocationsLoadingSkeleton';
 
 const LocationsPage = () => {
   const eventumSlug = useEventumSlug();
@@ -173,14 +174,8 @@ const LocationsPage = () => {
     }
   };
 
-  const LoadingSpinner = () => (
-    <div className="flex items-center justify-center p-8">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-    </div>
-  );
-
   if (isLoading) {
-    return <LoadingSpinner />;
+    return <LocationsLoadingSkeleton />;
   }
 
   return (
