@@ -368,7 +368,52 @@ class EventWaveViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
 
     def get_queryset(self):
         eventum = self.get_eventum()
-        return EventWave.objects.filter(eventum=eventum).select_related('eventum', 'tag')
+        return EventWave.objects.filter(eventum=eventum).select_related(
+            'eventum', 'tag'
+        ).prefetch_related(
+            'whitelist_groups',
+            'whitelist_group_tags',
+            'blacklist_groups',
+            'blacklist_group_tags'
+        )
+
+    @action(detail=True, methods=['post'], permission_classes=[IsEventumParticipant])
+    def check_availability(self, request, eventum_slug=None, pk=None):
+        """
+        Проверяет доступность волны для участника.
+        Ожидает participant_id в теле запроса.
+        """
+        try:
+            participant_id = request.data.get('participant_id')
+            if not participant_id:
+                return Response(
+                    {'error': 'participant_id is required'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Получаем волну и участника
+            wave = self.get_object()
+            participant = get_object_or_404(
+                Participant, 
+                id=participant_id, 
+                eventum=wave.eventum
+            )
+            
+            # Проверяем доступность
+            is_available = wave.is_available_for_participant(participant)
+            
+            return Response({
+                'is_available': is_available,
+                'participant_id': participant_id,
+                'wave_id': wave.id,
+                'wave_name': wave.name
+            })
+            
+        except Exception as e:
+            return Response(
+                {'error': str(e)}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 @csrf_exempt_class_api
 class EventViewSet(EventumScopedViewSet, viewsets.ModelViewSet):

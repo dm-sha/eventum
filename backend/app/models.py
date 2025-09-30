@@ -443,6 +443,30 @@ class EventWave(models.Model):
         related_name='event_wave',
         help_text="Тег, связанный с волной (1 к 1)"
     )
+    whitelist_groups = models.ManyToManyField(
+        ParticipantGroup,
+        related_name='whitelisted_waves',
+        blank=True,
+        help_text="Группы участников, которые могут записываться на волну (если пуст - доступны все группы)"
+    )
+    whitelist_group_tags = models.ManyToManyField(
+        GroupTag,
+        related_name='whitelisted_waves',
+        blank=True,
+        help_text="Теги групп участников, которые могут записываться на волну (если пуст - доступны все теги)"
+    )
+    blacklist_groups = models.ManyToManyField(
+        ParticipantGroup,
+        related_name='blacklisted_waves',
+        blank=True,
+        help_text="Группы участников, которые НЕ могут записываться на волну"
+    )
+    blacklist_group_tags = models.ManyToManyField(
+        GroupTag,
+        related_name='blacklisted_waves',
+        blank=True,
+        help_text="Теги групп участников, которые НЕ могут записываться на волну"
+    )
     
     class Meta:
         unique_together = ('eventum', 'name')
@@ -467,6 +491,38 @@ class EventWave(models.Model):
                     f"Все мероприятия с тегом '{self.tag.name}' должны иметь тип участников 'По записи'. "
                     f"Нарушающие мероприятия: {', '.join(event_names)}"
                 )
+    
+    def is_available_for_participant(self, participant):
+        """
+        Проверяет, может ли участник записываться на волну.
+        Условие: участник либо находится в whitelist (если он не пуст) 
+        и не находится в blacklist (если он не пуст).
+        """
+        # Получаем все группы участника
+        participant_groups = participant.groups.all()
+        participant_group_tags = set()
+        for group in participant_groups:
+            participant_group_tags.update(group.tags.all())
+        
+        # Проверяем blacklist - если участник в blacklist, он не может записаться
+        if self.blacklist_groups.exists():
+            if participant_groups.filter(id__in=self.blacklist_groups.values_list('id', flat=True)).exists():
+                return False
+        
+        if self.blacklist_group_tags.exists():
+            if participant_group_tags.intersection(set(self.blacklist_group_tags.all())):
+                return False
+        
+        # Проверяем whitelist - если он не пуст, участник должен быть в нем
+        if self.whitelist_groups.exists():
+            if not participant_groups.filter(id__in=self.whitelist_groups.values_list('id', flat=True)).exists():
+                return False
+        
+        if self.whitelist_group_tags.exists():
+            if not participant_group_tags.intersection(set(self.whitelist_group_tags.all())):
+                return False
+        
+        return True
     
     def save(self, *args, **kwargs):
         self.full_clean()

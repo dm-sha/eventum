@@ -323,15 +323,129 @@ class EventWaveSerializer(serializers.ModelSerializer):
         write_only=True, source='tag', queryset=EventTag.objects.all()
     )
     events = serializers.SerializerMethodField(read_only=True)
+    
+    # Whitelist поля
+    whitelist_groups = ParticipantGroupSerializer(many=True, read_only=True)
+    whitelist_group_ids = BulkPrimaryKeyRelatedField(
+        many=True,
+        write_only=True,
+        source='whitelist_groups',
+        queryset=ParticipantGroup.objects.all(),
+        required=False,
+        allow_empty=True,
+        select_related="eventum",
+    )
+    whitelist_group_tags = GroupTagSerializer(many=True, read_only=True)
+    whitelist_group_tag_ids = BulkPrimaryKeyRelatedField(
+        many=True,
+        write_only=True,
+        source='whitelist_group_tags',
+        queryset=GroupTag.objects.all(),
+        required=False,
+        allow_empty=True,
+        select_related="eventum",
+    )
+    
+    # Blacklist поля
+    blacklist_groups = ParticipantGroupSerializer(many=True, read_only=True)
+    blacklist_group_ids = BulkPrimaryKeyRelatedField(
+        many=True,
+        write_only=True,
+        source='blacklist_groups',
+        queryset=ParticipantGroup.objects.all(),
+        required=False,
+        allow_empty=True,
+        select_related="eventum",
+    )
+    blacklist_group_tags = GroupTagSerializer(many=True, read_only=True)
+    blacklist_group_tag_ids = BulkPrimaryKeyRelatedField(
+        many=True,
+        write_only=True,
+        source='blacklist_group_tags',
+        queryset=GroupTag.objects.all(),
+        required=False,
+        allow_empty=True,
+        select_related="eventum",
+    )
 
     class Meta:
         model = EventWave
-        fields = ['id', 'name', 'tag', 'tag_id', 'events']
+        fields = [
+            'id', 'name', 'tag', 'tag_id', 'events',
+            'whitelist_groups', 'whitelist_group_ids', 
+            'whitelist_group_tags', 'whitelist_group_tag_ids',
+            'blacklist_groups', 'blacklist_group_ids',
+            'blacklist_group_tags', 'blacklist_group_tag_ids'
+        ]
 
     def get_events(self, obj):
         # Все события текущего eventum с тегом волны
         events_qs = Event.objects.filter(eventum=obj.eventum, tags=obj.tag)
         return EventWithRegistrationInfoSerializer(events_qs, many=True).data
+
+    def validate_whitelist_group_ids(self, value):
+        """Валидация whitelist_group_ids - группы должны принадлежать тому же eventum"""
+        if not value:
+            return value
+        
+        eventum = self.context.get('eventum')
+        if eventum:
+            eventum_id = getattr(eventum, 'id', eventum)
+            invalid_groups = [group for group in value if group.eventum_id != eventum_id]
+            if invalid_groups:
+                names = ', '.join(group.name for group in invalid_groups)
+                raise serializers.ValidationError(
+                    f"Группы {names} не принадлежат данному eventum"
+                )
+        return value
+
+    def validate_whitelist_group_tag_ids(self, value):
+        """Валидация whitelist_group_tag_ids - теги групп должны принадлежать тому же eventum"""
+        if not value:
+            return value
+        
+        eventum = self.context.get('eventum')
+        if eventum:
+            eventum_id = getattr(eventum, 'id', eventum)
+            invalid_tags = [tag for tag in value if tag.eventum_id != eventum_id]
+            if invalid_tags:
+                names = ', '.join(tag.name for tag in invalid_tags)
+                raise serializers.ValidationError(
+                    f"Теги групп {names} не принадлежат данному eventum"
+                )
+        return value
+
+    def validate_blacklist_group_ids(self, value):
+        """Валидация blacklist_group_ids - группы должны принадлежать тому же eventum"""
+        if not value:
+            return value
+        
+        eventum = self.context.get('eventum')
+        if eventum:
+            eventum_id = getattr(eventum, 'id', eventum)
+            invalid_groups = [group for group in value if group.eventum_id != eventum_id]
+            if invalid_groups:
+                names = ', '.join(group.name for group in invalid_groups)
+                raise serializers.ValidationError(
+                    f"Группы {names} не принадлежат данному eventum"
+                )
+        return value
+
+    def validate_blacklist_group_tag_ids(self, value):
+        """Валидация blacklist_group_tag_ids - теги групп должны принадлежать тому же eventum"""
+        if not value:
+            return value
+        
+        eventum = self.context.get('eventum')
+        if eventum:
+            eventum_id = getattr(eventum, 'id', eventum)
+            invalid_tags = [tag for tag in value if tag.eventum_id != eventum_id]
+            if invalid_tags:
+                names = ', '.join(tag.name for tag in invalid_tags)
+                raise serializers.ValidationError(
+                    f"Теги групп {names} не принадлежат данному eventum"
+                )
+        return value
 
     def validate(self, attrs):
         # Запретить изменение тега у существующей волны

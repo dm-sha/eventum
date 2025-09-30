@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { listEventWaves, createEventWave, updateEventWave, deleteEventWave } from '../../api/eventWave';
 import type { EventWave } from '../../api/eventWave';
@@ -6,6 +6,8 @@ import { getSubdomainSlug } from '../../utils/eventumSlug';
 import { eventTagApi } from '../../api/eventTag';
 import { getEventsForEventum } from '../../api/event';
 import { IconPencil, IconTrash, IconCheck, IconX } from '../../components/icons';
+import { getGroupsForEventum } from '../../api/group';
+import { groupTagApi } from '../../api/groupTag';
 
 type Mode = 'view' | 'edit' | 'create';
 
@@ -14,19 +16,105 @@ interface WaveCardProps {
   mode: Mode;
   onStartEdit: () => void;
   onDelete: () => void;
-  onSave: (name: string) => void;
+  onSave: (data: { name: string; whitelist_group_ids?: number[]; whitelist_group_tag_ids?: number[]; blacklist_group_ids?: number[]; blacklist_group_tag_ids?: number[] }) => void;
   onCancel: () => void;
+  groups: { id: number; name: string }[];
+  groupTags: { id: number; name: string }[];
 }
 
-const WaveCard: React.FC<WaveCardProps> = ({ wave, mode, onStartEdit, onDelete, onSave, onCancel }) => {
+const WaveCard: React.FC<WaveCardProps> = ({ wave, mode, onStartEdit, onDelete, onSave, onCancel, groups, groupTags }) => {
   const [name, setName] = useState(wave.name);
+  const [whitelistItems, setWhitelistItems] = useState<Array<{id: number, name: string, type: 'group' | 'tag'}>>([]);
+  const [blacklistItems, setBlacklistItems] = useState<Array<{id: number, name: string, type: 'group' | 'tag'}>>([]);
+  const [whitelistQuery, setWhitelistQuery] = useState('');
+  const [blacklistQuery, setBlacklistQuery] = useState('');
+  const [showWhitelistSuggestions, setShowWhitelistSuggestions] = useState(false);
+  const [showBlacklistSuggestions, setShowBlacklistSuggestions] = useState(false);
+  const whitelistInputRef = useRef<HTMLDivElement>(null);
+  const blacklistInputRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => setName(wave.name), [wave.name]);
+  useEffect(() => {
+    setName(wave.name);
+    const whitelist = [
+      ...wave.whitelist_groups.map(g => ({ id: g.id, name: g.name, type: 'group' as const })),
+      ...wave.whitelist_group_tags.map(t => ({ id: t.id, name: t.name, type: 'tag' as const }))
+    ];
+    const blacklist = [
+      ...wave.blacklist_groups.map(g => ({ id: g.id, name: g.name, type: 'group' as const })),
+      ...wave.blacklist_group_tags.map(t => ({ id: t.id, name: t.name, type: 'tag' as const }))
+    ];
+    setWhitelistItems(whitelist);
+    setBlacklistItems(blacklist);
+  }, [wave]);
 
   const capacityInfo = (max?: number | null, reg?: number) => {
     if (max == null) return 'без лимита';
     return `${reg ?? 0} / ${max}`;
   };
+
+  // Функции для работы с саджестами
+  const getWhitelistSuggestions = () => {
+    const query = whitelistQuery.toLowerCase();
+    const allItems = [
+      ...groups.map(g => ({ id: g.id, name: g.name, type: 'group' as const })),
+      ...groupTags.map(t => ({ id: t.id, name: t.name, type: 'tag' as const }))
+    ];
+    
+    return allItems.filter(item => 
+      item.name.toLowerCase().includes(query) && 
+      !whitelistItems.some(selected => selected.id === item.id && selected.type === item.type)
+    );
+  };
+
+  const getBlacklistSuggestions = () => {
+    const query = blacklistQuery.toLowerCase();
+    const allItems = [
+      ...groups.map(g => ({ id: g.id, name: g.name, type: 'group' as const })),
+      ...groupTags.map(t => ({ id: t.id, name: t.name, type: 'tag' as const }))
+    ];
+    
+    return allItems.filter(item => 
+      item.name.toLowerCase().includes(query) && 
+      !blacklistItems.some(selected => selected.id === item.id && selected.type === item.type)
+    );
+  };
+
+  const addToWhitelist = (item: {id: number, name: string, type: 'group' | 'tag'}) => {
+    setWhitelistItems([...whitelistItems, item]);
+    setWhitelistQuery('');
+    setShowWhitelistSuggestions(false);
+  };
+
+  const addToBlacklist = (item: {id: number, name: string, type: 'group' | 'tag'}) => {
+    setBlacklistItems([...blacklistItems, item]);
+    setBlacklistQuery('');
+    setShowBlacklistSuggestions(false);
+  };
+
+  const removeFromWhitelist = (id: number, type: 'group' | 'tag') => {
+    setWhitelistItems(whitelistItems.filter(item => !(item.id === id && item.type === type)));
+  };
+
+  const removeFromBlacklist = (id: number, type: 'group' | 'tag') => {
+    setBlacklistItems(blacklistItems.filter(item => !(item.id === id && item.type === type)));
+  };
+
+  // Обработка кликов вне области ввода
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (whitelistInputRef.current && !whitelistInputRef.current.contains(event.target as Node)) {
+        setShowWhitelistSuggestions(false);
+      }
+      if (blacklistInputRef.current && !blacklistInputRef.current.contains(event.target as Node)) {
+        setShowBlacklistSuggestions(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
@@ -52,7 +140,20 @@ const WaveCard: React.FC<WaveCardProps> = ({ wave, mode, onStartEdit, onDelete, 
             {mode === 'edit' ? (
               <>
                 <button
-                  onClick={() => onSave(name.trim())}
+                  onClick={() => {
+                    const whitelistGroups = whitelistItems.filter(item => item.type === 'group').map(item => item.id);
+                    const whitelistGroupTags = whitelistItems.filter(item => item.type === 'tag').map(item => item.id);
+                    const blacklistGroups = blacklistItems.filter(item => item.type === 'group').map(item => item.id);
+                    const blacklistGroupTags = blacklistItems.filter(item => item.type === 'tag').map(item => item.id);
+                    
+                    onSave({
+                      name: name.trim(),
+                      whitelist_group_ids: whitelistGroups,
+                      whitelist_group_tag_ids: whitelistGroupTags,
+                      blacklist_group_ids: blacklistGroups,
+                      blacklist_group_tag_ids: blacklistGroupTags
+                    });
+                  }}
                   className="inline-flex items-center justify-center rounded-lg bg-green-600 p-2 text-white transition-colors hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
                   title="Сохранить"
                 >
@@ -87,6 +188,176 @@ const WaveCard: React.FC<WaveCardProps> = ({ wave, mode, onStartEdit, onDelete, 
           </div>
         </div>
 
+        {/* Информация о фильтрах (только если есть ограничения и не в режиме редактирования) */}
+        {mode !== 'edit' && (whitelistItems.length > 0 || blacklistItems.length > 0) && (
+          <div className="border-t pt-3">
+            <div className="space-y-2 text-xs text-gray-600">
+              {whitelistItems.length > 0 && (
+                <div>
+                  <span className="font-medium text-green-700">Доступен для:</span>{' '}
+                  {whitelistItems.map(item => item.name).join(', ')}
+                </div>
+              )}
+              {blacklistItems.length > 0 && (
+                <div>
+                  <span className="font-medium text-red-700">Недоступен для:</span>{' '}
+                  {blacklistItems.map(item => item.name).join(', ')}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Поля редактирования фильтров (только в режиме редактирования) */}
+        {mode === 'edit' && (
+          <div className="border-t pt-3">
+            <h5 className="text-sm font-medium text-gray-700 mb-3">Настройка доступа к волне</h5>
+            <div className="space-y-4">
+              {/* Whitelist */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Группы, которые учавствуют в мероприятях волны
+                </label>
+                
+                {/* Поле ввода с саджестом */}
+                <div ref={whitelistInputRef} className="relative mb-3">
+                  <input
+                    type="text"
+                    value={whitelistQuery}
+                    onChange={(e) => setWhitelistQuery(e.target.value)}
+                    onFocus={() => setShowWhitelistSuggestions(true)}
+                    onClick={() => setShowWhitelistSuggestions(true)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') {
+                        setShowWhitelistSuggestions(false);
+                      }
+                    }}
+                    placeholder="Добавить группу или тег..."
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-200"
+                  />
+                  
+                  {/* Саджесты */}
+                  {showWhitelistSuggestions && getWhitelistSuggestions().length > 0 && (
+                    <div className="absolute z-10 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg max-h-32 overflow-y-auto">
+                      {getWhitelistSuggestions().map((item) => (
+                        <button
+                          key={`${item.type}-${item.id}`}
+                          type="button"
+                          onClick={() => addToWhitelist(item)}
+                          className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50"
+                        >
+                          {item.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                
+                {/* Показать выбранные элементы */}
+                {whitelistItems.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {whitelistItems.map((item) => (
+                      <span
+                        key={`${item.type}-${item.id}`}
+                        className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium ${
+                          item.type === 'group' 
+                            ? 'bg-blue-100 text-blue-800' 
+                            : 'bg-purple-100 text-purple-800'
+                        }`}
+                      >
+                        {item.name}
+                        <button
+                          type="button"
+                          onClick={() => removeFromWhitelist(item.id, item.type)}
+                          className={`ml-1 hover:opacity-80 ${
+                            item.type === 'group' 
+                              ? 'text-blue-600' 
+                              : 'text-purple-600'
+                          }`}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Blacklist */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Группы, которые не учавствуют в мероприятях волны
+                </label>
+                
+                {/* Поле ввода с саджестом */}
+                <div ref={blacklistInputRef} className="relative mb-3">
+                  <input
+                    type="text"
+                    value={blacklistQuery}
+                    onChange={(e) => setBlacklistQuery(e.target.value)}
+                    onFocus={() => setShowBlacklistSuggestions(true)}
+                    onClick={() => setShowBlacklistSuggestions(true)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') {
+                        setShowBlacklistSuggestions(false);
+                      }
+                    }}
+                    placeholder="Добавить группу или тег..."
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-200"
+                  />
+                  
+                  {/* Саджесты */}
+                  {showBlacklistSuggestions && getBlacklistSuggestions().length > 0 && (
+                    <div className="absolute z-10 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg max-h-32 overflow-y-auto">
+                      {getBlacklistSuggestions().map((item) => (
+                        <button
+                          key={`${item.type}-${item.id}`}
+                          type="button"
+                          onClick={() => addToBlacklist(item)}
+                          className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50"
+                        >
+                          {item.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                
+                {/* Показать выбранные элементы */}
+                {blacklistItems.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {blacklistItems.map((item) => (
+                      <span
+                        key={`${item.type}-${item.id}`}
+                        className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium ${
+                          item.type === 'group' 
+                            ? 'bg-red-100 text-red-800' 
+                            : 'bg-orange-100 text-orange-800'
+                        }`}
+                      >
+                        {item.name}
+                        <button
+                          type="button"
+                          onClick={() => removeFromBlacklist(item.id, item.type)}
+                          className={`ml-1 hover:opacity-80 ${
+                            item.type === 'group' 
+                              ? 'text-red-600' 
+                              : 'text-orange-600'
+                          }`}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-xs text-gray-500">Никто не исключен</div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Мероприятия под волной */}
         <div className="border-t pt-3">
           <h5 className="text-sm font-medium text-gray-700 mb-2">
@@ -114,6 +385,7 @@ const WaveCard: React.FC<WaveCardProps> = ({ wave, mode, onStartEdit, onDelete, 
     </div>
   );
 };
+
 
 const CreateWaveForm: React.FC<{ 
   onCreate: (name: string, tagId: number) => void; 
@@ -277,6 +549,8 @@ const EventRegistrationWavesPage: React.FC = () => {
   const [waves, setWaves] = useState<EventWave[]>([]);
   const [loading, setLoading] = useState(true);
   const [tags, setTags] = useState<{ id: number; name: string }[]>([]);
+  const [groups, setGroups] = useState<{ id: number; name: string }[]>([]);
+  const [groupTags, setGroupTags] = useState<{ id: number; name: string }[]>([]);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
 
@@ -289,12 +563,16 @@ const EventRegistrationWavesPage: React.FC = () => {
     }
     setLoading(true);
     try {
-      const [ws, ets] = await Promise.all([
+      const [ws, ets, gs, gts] = await Promise.all([
         listEventWaves(eventumSlug),
         eventTagApi.getEventTags(eventumSlug),
+        getGroupsForEventum(eventumSlug),
+        groupTagApi.getGroupTags(eventumSlug),
       ]);
       setWaves(ws);
       setTags(ets.map(t => ({ id: t.id, name: t.name })));
+      setGroups(gs.map((g: any) => ({ id: g.id, name: g.name })));
+      setGroupTags(gts.map((t: any) => ({ id: t.id, name: t.name })));
     } finally {
       setLoading(false);
     }
@@ -313,9 +591,9 @@ const EventRegistrationWavesPage: React.FC = () => {
     setShowCreateForm(false);
   };
 
-  const handleSave = async (id: number, name: string) => {
+  const handleSave = async (id: number, data: { name: string; whitelist_group_ids?: number[]; whitelist_group_tag_ids?: number[]; blacklist_group_ids?: number[]; blacklist_group_tag_ids?: number[] }) => {
     if (!eventumSlug) return;
-    await updateEventWave(eventumSlug, id, { name });
+    await updateEventWave(eventumSlug, id, data);
     setEditingId(null);
     await load();
   };
@@ -368,13 +646,16 @@ const EventRegistrationWavesPage: React.FC = () => {
                 mode={editingId === w.id ? 'edit' : 'view'}
                 onStartEdit={() => setEditingId(w.id)}
                 onDelete={() => handleDelete(w.id)}
-                onSave={(name) => handleSave(w.id, name)}
+                onSave={(data) => handleSave(w.id, data)}
                 onCancel={handleCancelEdit}
+                groups={groups}
+                groupTags={groupTags}
               />
             ))
           )}
         </div>
       </div>
+
     </div>
   );
 };
