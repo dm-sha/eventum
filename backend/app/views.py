@@ -13,12 +13,12 @@ from django.core.cache import cache
 from django.db.models import Prefetch
 import requests
 import json
-from .models import Eventum, Participant, ParticipantGroup, GroupTag, Event, EventTag, UserProfile, UserRole, Location
+from .models import Eventum, Participant, ParticipantGroup, GroupTag, Event, EventTag, UserProfile, UserRole, Location, EventWave
 from .serializers import (
     EventumSerializer, ParticipantSerializer, ParticipantGroupSerializer,
     GroupTagSerializer, EventSerializer, EventTagSerializer,
     UserProfileSerializer, UserRoleSerializer, VKAuthSerializer, CustomTokenObtainPairSerializer,
-    LocationSerializer
+    LocationSerializer, EventWaveSerializer
 )
 from .permissions import IsEventumOrganizer, IsEventumParticipant, IsEventumOrganizerOrReadOnly, IsEventumOrganizerOrReadOnlyForList
 from .utils import log_execution_time, csrf_exempt_class_api
@@ -360,6 +360,15 @@ class EventTagViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
     queryset = EventTag.objects.all()
     serializer_class = EventTagSerializer
     permission_classes = [IsEventumOrganizerOrReadOnly]  # Организаторы CRUD, участники только чтение
+
+class EventWaveViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
+    queryset = EventWave.objects.all()
+    serializer_class = EventWaveSerializer
+    permission_classes = [IsEventumOrganizerOrReadOnly]
+
+    def get_queryset(self):
+        eventum = self.get_eventum()
+        return EventWave.objects.filter(eventum=eventum).select_related('eventum', 'tag')
 
 @csrf_exempt_class_api
 class EventViewSet(EventumScopedViewSet, viewsets.ModelViewSet):

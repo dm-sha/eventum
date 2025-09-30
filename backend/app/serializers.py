@@ -6,7 +6,7 @@ from datetime import datetime
 from transliterate import translit
 from .models import (
     Eventum, Participant, ParticipantGroup,
-    GroupTag, Event, EventTag, UserProfile, UserRole, Location
+    GroupTag, Event, EventTag, UserProfile, UserRole, Location, EventWave, EventRegistration
 )
 
 
@@ -306,6 +306,39 @@ class EventTagSerializer(serializers.ModelSerializer):
     class Meta:
         model = EventTag
         fields = ['id', 'name', 'slug']
+
+class EventWithRegistrationInfoSerializer(serializers.ModelSerializer):
+    registrations_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Event
+        fields = ['id', 'name', 'participant_type', 'max_participants', 'registrations_count']
+
+    def get_registrations_count(self, obj):
+        return EventRegistration.objects.filter(event=obj).count()
+
+class EventWaveSerializer(serializers.ModelSerializer):
+    tag = EventTagSerializer(read_only=True)
+    tag_id = serializers.PrimaryKeyRelatedField(
+        write_only=True, source='tag', queryset=EventTag.objects.all()
+    )
+    events = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = EventWave
+        fields = ['id', 'name', 'tag', 'tag_id', 'events']
+
+    def get_events(self, obj):
+        # Все события текущего eventum с тегом волны
+        events_qs = Event.objects.filter(eventum=obj.eventum, tags=obj.tag)
+        return EventWithRegistrationInfoSerializer(events_qs, many=True).data
+
+    def validate(self, attrs):
+        # Запретить изменение тега у существующей волны
+        instance = getattr(self, 'instance', None)
+        if instance is not None and 'tag' in attrs and attrs['tag'] != instance.tag:
+            raise serializers.ValidationError({'tag_id': 'Нельзя изменить тег волны после создания'})
+        return super().validate(attrs)
 
 class LocationSerializer(serializers.ModelSerializer):
     parent = serializers.SerializerMethodField(read_only=True)

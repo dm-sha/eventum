@@ -3,6 +3,7 @@ export * from './participant';
 export * from './event';
 export * from './group';
 export * from './eventTag';
+export * from './eventWave';
 export * from './groupTag';
 export * from './organizers';
 export * from './location';

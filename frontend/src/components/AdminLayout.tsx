@@ -19,6 +19,7 @@ const AdminLayout = () => {
     { to: ".", label: "Общие", icon: IconHome, end: true },
     { to: "locations", label: "Локации", icon: IconMapPin },
     { to: "events", label: "Мероприятия", icon: IconCalendar },
+    { to: "registration", label: "Регистрация на мероприятия (beta)", icon: IconCalendar },
     { to: "event-tags", label: "Теги мероприятий", icon: IconEventTag },
     { to: "participants", label: "Участники", icon: IconUsersCircle },
     { to: "groups", label: "Группы участников", icon: IconParticipantGroup },
