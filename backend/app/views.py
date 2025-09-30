@@ -932,7 +932,6 @@ def check_slug_availability(request, slug):
 
 
 @api_view(['GET'])
-@permission_classes([AllowAny])
 def eventum_details(request, slug):
     """Получение детальной информации о eventum"""
     try:
