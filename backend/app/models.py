@@ -228,6 +228,22 @@ class Event(models.Model):
                             "Нельзя изменить тип участников с 'manual' на другой тип, "
                             "пока не удалены все связи с тегами групп"
                         )
+                
+                # Валидация изменения participant_type у мероприятия, связанного с волной
+                if self.participant_type != Event.ParticipantType.REGISTRATION:
+                    # Проверяем, есть ли у этого мероприятия тег, связанный с волной
+                    event_waves_with_this_event_tag = EventWave.objects.filter(
+                        eventum=self.eventum,
+                        tag__in=self.tags.all()
+                    )
+                    
+                    if event_waves_with_this_event_tag.exists():
+                        wave_names = list(event_waves_with_this_event_tag.values_list('name', flat=True))
+                        raise ValidationError(
+                            f"Нельзя изменить тип участников мероприятия '{self.name}' на '{self.get_participant_type_display()}', "
+                            f"так как оно связано с волной мероприятий: {', '.join(wave_names)}. "
+                            f"Мероприятия в волне должны иметь тип участников 'По записи'"
+                        )
                     
             except Event.DoesNotExist:
                 # Object doesn't exist yet, no need to check
@@ -415,6 +431,97 @@ class Location(models.Model):
     
     def __str__(self):
         return f"{self.name} ({self.eventum.name})"
+
+
+class EventWave(models.Model):
+    """Волна мероприятий - группа мероприятий, проходящих в одно время"""
+    eventum = models.ForeignKey(Eventum, on_delete=models.CASCADE, related_name='event_waves')
+    name = models.CharField(max_length=200, help_text="Название волны мероприятий")
+    tag = models.OneToOneField(
+        EventTag, 
+        on_delete=models.CASCADE, 
+        related_name='event_wave',
+        help_text="Тег, связанный с волной (1 к 1)"
+    )
+    
+    class Meta:
+        unique_together = ('eventum', 'name')
+        verbose_name = 'Event Wave'
+        verbose_name_plural = 'Event Waves'
+        indexes = [
+            models.Index(fields=['eventum']),
+            models.Index(fields=['name']),
+        ]
+    
+    def clean(self):
+        # Валидация: все мероприятия с тегом, связанным с волной, должны иметь participant_type = registration
+        if self.tag_id:
+            events_with_tag = Event.objects.filter(
+                eventum=self.eventum,
+                tags=self.tag
+            ).exclude(participant_type=Event.ParticipantType.REGISTRATION)
+            
+            if events_with_tag.exists():
+                event_names = list(events_with_tag.values_list('name', flat=True))
+                raise ValidationError(
+                    f"Все мероприятия с тегом '{self.tag.name}' должны иметь тип участников 'По записи'. "
+                    f"Нарушающие мероприятия: {', '.join(event_names)}"
+                )
+    
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+    
+    def __str__(self):
+        return f"{self.name} ({self.eventum.name})"
+
+
+class EventRegistration(models.Model):
+    """Запись участника на мероприятие"""
+    participant = models.ForeignKey(
+        Participant, 
+        on_delete=models.CASCADE, 
+        related_name='event_registrations'
+    )
+    event = models.ForeignKey(
+        Event, 
+        on_delete=models.CASCADE, 
+        related_name='registrations'
+    )
+    registered_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        unique_together = ('participant', 'event')
+        verbose_name = 'Event Registration'
+        verbose_name_plural = 'Event Registrations'
+        indexes = [
+            models.Index(fields=['participant']),
+            models.Index(fields=['event']),
+            models.Index(fields=['registered_at']),
+        ]
+    
+    def clean(self):
+        # Валидация: участник и мероприятие должны принадлежать одному eventum
+        if self.participant_id and self.event_id:
+            if self.participant.eventum != self.event.eventum:
+                raise ValidationError(
+                    f"Участник {self.participant.name} и мероприятие {self.event.name} "
+                    f"должны принадлежать одному мероприятию (eventum)"
+                )
+        
+        # Валидация: можно записываться только на мероприятия с типом "По записи"
+        if self.event_id and self.event.participant_type != Event.ParticipantType.REGISTRATION:
+            raise ValidationError(
+                f"Запись на мероприятие '{self.event.name}' возможна только для мероприятий "
+                f"с типом участников 'По записи'"
+            )
+    
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+    
+    def __str__(self):
+        return f"{self.participant.name} → {self.event.name}"
 
 
 class UserRole(models.Model):
