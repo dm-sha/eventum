@@ -183,7 +183,7 @@ class Event(models.Model):
     )
     
     def save(self, *args, **kwargs):
-        self.full_clean()
+        # Валидация теперь происходит в сериализаторе
         super().save(*args, **kwargs)
     
     def clean(self):

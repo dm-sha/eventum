@@ -516,6 +516,36 @@ class EventSerializer(serializers.ModelSerializer):
             'locations', 'location_ids'
         ]
 
+    def update(self, instance, validated_data):
+        """Переопределяем update для правильной обработки валидации participant_type"""
+        # Извлекаем many-to-many поля
+        participants = validated_data.pop('participants', None)
+        groups = validated_data.pop('groups', None)
+        tags = validated_data.pop('tags', None)
+        group_tags = validated_data.pop('group_tags', None)
+        locations = validated_data.pop('locations', None)
+        
+        # Обновляем обычные поля
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        
+        # Сохраняем изменения обычных полей
+        instance.save()
+        
+        # Обновляем many-to-many поля
+        if participants is not None:
+            instance.participants.set(participants)
+        if groups is not None:
+            instance.groups.set(groups)
+        if tags is not None:
+            instance.tags.set(tags)
+        if group_tags is not None:
+            instance.group_tags.set(group_tags)
+        if locations is not None:
+            instance.locations.set(locations)
+        
+        return instance
+
     def validate_participants(self, value):
         if not value:
             return value
@@ -601,22 +631,27 @@ class EventSerializer(serializers.ModelSerializer):
             if (original_participant_type == 'manual' and 
                 new_participant_type != 'manual'):
                 
-                # Check for participants
-                if self.instance.participants.exists():
+                # Get new values for related fields from the request data
+                new_participants = data.get('participants', [])
+                new_groups = data.get('groups', [])
+                new_group_tags = data.get('group_tags', [])
+                
+                # Check if there will be participants after update
+                if new_participants:
                     raise serializers.ValidationError({
                         'participant_type': 'Нельзя изменить тип участников с "manual" на другой тип, '
                                           'пока не удалены все связи с участниками'
                     })
                 
-                # Check for groups
-                if self.instance.groups.exists():
+                # Check if there will be groups after update
+                if new_groups:
                     raise serializers.ValidationError({
                         'participant_type': 'Нельзя изменить тип участников с "manual" на другой тип, '
                                           'пока не удалены все связи с группами'
                     })
                 
-                # Check for group tags
-                if self.instance.group_tags.exists():
+                # Check if there will be group tags after update
+                if new_group_tags:
                     raise serializers.ValidationError({
                         'participant_type': 'Нельзя изменить тип участников с "manual" на другой тип, '
                                           'пока не удалены все связи с тегами групп'

@@ -85,7 +85,14 @@ export const AppRouter = () => {
         </Route>
       )}
       <Route path="/:eventumSlug/admin" element={<AdminLayout />}>
-        {adminRoutes}
+        <Route index element={<EventumInfoPage />} />
+        <Route path="events" element={<AdminEventsPage />} />
+        <Route path="registration" element={<EventRegistrationWavesPage />} />
+        <Route path="participants" element={<AdminParticipantsPage />} />
+        <Route path="event-tags" element={<AdminEventTagsPage />} />
+        <Route path="group-tags" element={<AdminGroupTagsPage />} />
+        <Route path="groups" element={<AdminGroupsPage />} />
+        <Route path="locations" element={<LocationsPage />} />
       </Route>
     </Routes>
   );

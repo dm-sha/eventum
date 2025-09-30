@@ -795,3 +795,31 @@ class EventParticipantTypeAPITests(APITestCase):
         
         response = self.client.put(url, payload, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_api_allows_participant_type_change_when_removing_connections_in_same_request(self):
+        """API разрешает изменение типа с manual на другой, если удаляются связи в том же запросе"""
+        # Добавляем связи к событию
+        self.event.participants.add(self.participant)
+        self.event.groups.add(self.group)
+        self.event.group_tags.add(self.group_tag)
+        
+        url = reverse('event-detail', kwargs={'eventum_slug': self.eventum.slug, 'pk': self.event.id})
+        payload = {
+            'name': 'API Manual Event',
+            'start_time': (timezone.now() + timedelta(hours=1)).isoformat(),
+            'end_time': (timezone.now() + timedelta(hours=2)).isoformat(),
+            'participant_type': 'registration',
+            'max_participants': 10,
+            'participants': [],  # Удаляем всех участников
+            'groups': [],        # Удаляем все группы
+            'group_tag_ids': [], # Удаляем все теги групп
+            'tag_ids': [self.event_tag.id],  # Оставляем теги событий
+        }
+        
+        response = self.client.put(url, payload, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        # Проверяем, что тип действительно изменился
+        self.event.refresh_from_db()
+        self.assertEqual(self.event.participant_type, Event.ParticipantType.REGISTRATION)
+        self.assertEqual(self.event.max_participants, 10)
