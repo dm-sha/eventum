@@ -1,6 +1,6 @@
 import apiClient from './client';
 import type { Eventum, EventumDetails } from '../types';
-import { getSubdomainSlug } from '../utils/eventumSlug';
+import { getSubdomainSlug, shouldUseSubdomainApi, shouldUseContainerApi } from '../utils/eventumSlug';
 
 // Функция для получения списка всех Eventum
 export const getAllEventums = async (): Promise<Eventum[]> => {
@@ -10,13 +10,18 @@ export const getAllEventums = async (): Promise<Eventum[]> => {
 
 // Функция для получения одного Eventum по его slug
 export const getEventumBySlug = async (slug: string): Promise<Eventum> => {
-    const subdomainSlug = getSubdomainSlug();
-    if (subdomainSlug) {
-        // Если мы на поддомене, используем endpoint details для получения текущего eventum
+    if (shouldUseSubdomainApi()) {
+        // Если мы на поддомене merup.ru, используем endpoint details
         const response = await apiClient.get<EventumDetails>('/details/');
         return response.data;
-    } else {
-        // Если не на поддомене, используем slug в пути
+    } 
+    // Если мы на основном домене контейнера, но должны работать с конкретным eventum
+    else if (shouldUseContainerApi() && slug) {
+        const response = await apiClient.get<Eventum>(`/eventums/${slug}/`);
+        return response.data;
+    }
+    // Если не на поддомене, используем slug в пути
+    else {
         const response = await apiClient.get<Eventum>(`/eventums/${slug}/`);
         return response.data;
     }
@@ -41,11 +46,18 @@ export const checkSlugAvailability = async (slug: string): Promise<boolean> => {
 
 // Функция для получения детальной информации о eventum
 export const getEventumDetails = async (slug: string): Promise<EventumDetails> => {
-    const subdomainSlug = getSubdomainSlug();
-    if (subdomainSlug) {
+    if (shouldUseSubdomainApi()) {
+        // Если мы на поддомене merup.ru, используем endpoint details
         const response = await apiClient.get<EventumDetails>('/details/');
         return response.data;
-    } else {
+    }
+    // Если мы на основном домене контейнера, но должны работать с конкретным eventum
+    else if (shouldUseContainerApi() && slug) {
+        const response = await apiClient.get<EventumDetails>(`/eventums/${slug}/details/`);
+        return response.data;
+    }
+    // Если не на поддомене, используем slug в пути
+    else {
         const response = await apiClient.get<EventumDetails>(`/eventums/${slug}/details/`);
         return response.data;
     }

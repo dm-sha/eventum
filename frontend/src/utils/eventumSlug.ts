@@ -130,6 +130,21 @@ export const getApiUrl = (slug: string, path: string = ''): string => {
   return `${baseUrl}/eventums/${slug}${path}`;
 };
 
+export const shouldUseSubdomainApi = (): boolean => {
+  const subdomainSlug = getSubdomainSlug();
+  const hostname = window.location.hostname;
+  
+  // Используем поддомен API только если мы на поддомене merup.ru
+  return subdomainSlug && hostname.endsWith('.merup.ru');
+};
+
+export const shouldUseContainerApi = (): boolean => {
+  const hostname = window.location.hostname;
+  
+  // Используем контейнер API если мы на основном домене контейнера
+  return hostname === 'bbapo5ibqs4eg6dail89.containers.yandexcloud.net';
+};
+
 const getApiBaseUrl = (): string => {
   // В режиме разработки используем локальный бекенд
   if (import.meta.env.DEV) {

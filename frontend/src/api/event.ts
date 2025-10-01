@@ -5,10 +5,20 @@ import { getSubdomainSlug } from '../utils/eventumSlug';
 // Получить список всех мероприятий для конкретного Eventum.
 export const getEventsForEventum = async (eventumSlug: string): Promise<Event[]> => {
     const subdomainSlug = getSubdomainSlug();
-    if (subdomainSlug) {
+    const hostname = window.location.hostname;
+    
+    // Если мы на поддомене merup.ru, используем endpoint events
+    if (subdomainSlug && hostname.endsWith('.merup.ru')) {
         const response = await apiClient.get('/events/');
         return response.data;
-    } else {
+    }
+    // Если мы на основном домене контейнера, но должны работать с конкретным eventum
+    else if (hostname === 'bbapo5ibqs4eg6dail89.containers.yandexcloud.net' && eventumSlug) {
+        const response = await apiClient.get(`/eventums/${eventumSlug}/events/`);
+        return response.data;
+    }
+    // Если не на поддомене, используем slug в пути
+    else {
         const response = await apiClient.get(`/eventums/${eventumSlug}/events/`);
         return response.data;
     }
