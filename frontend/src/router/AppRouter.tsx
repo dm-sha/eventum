@@ -74,7 +74,11 @@ export const AppRouter = () => {
       {/* Public site layout */}
       <Route path="/" element={<Layout />}>
         <Route index element={homeElement} />
-        <Route path=":eventumSlug" element={<EventumPage />} />
+        <Route path=":eventumSlug" element={<EventumPage />}>
+          <Route index element={<Navigate to="general" replace />} />
+          <Route path="general" element={<EventumPage />} />
+          <Route path="registration" element={<EventumPage />} />
+        </Route>
         <Route path="*" element={<NotFoundPage />} />
       </Route>
 

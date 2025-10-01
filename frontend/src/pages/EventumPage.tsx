@@ -1,36 +1,59 @@
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { getEventumBySlug } from "../api/eventum";
-import type { Eventum } from "../types";
+import { listEventWaves } from "../api/eventWave";
+import { getEventsForEventum } from "../api/event";
+import type { Eventum, Event } from "../types";
+import type { EventWave } from "../api/eventWave";
 import LoadingSpinner from "../components/LoadingSpinner";
 import { useEventumSlug } from "../hooks/useEventumSlug";
 import { getEventumScopedPath } from "../utils/eventumSlug";
 
 const EventumPage = () => {
   const eventumSlug = useEventumSlug();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [eventum, setEventum] = useState<Eventum | null>(null);
+  const [eventWaves, setEventWaves] = useState<EventWave[]>([]);
+  const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Определяем текущую вкладку из URL
+  const currentTab = location.pathname.split('/').pop() || 'general';
+
   useEffect(() => {
-    const fetchEventum = async () => {
+    const fetchData = async () => {
       if (!eventumSlug) return;
       
       try {
         setLoading(true);
         setError(null);
-        const eventumData = await getEventumBySlug(eventumSlug);
+        
+        // Загружаем данные параллельно
+        const [eventumData, wavesData, eventsData] = await Promise.all([
+          getEventumBySlug(eventumSlug),
+          listEventWaves(eventumSlug),
+          getEventsForEventum(eventumSlug)
+        ]);
+        
         setEventum(eventumData);
+        setEventWaves(wavesData);
+        setEvents(eventsData);
       } catch (err) {
-        console.error('Ошибка загрузки события:', err);
+        console.error('Ошибка загрузки данных:', err);
         setError('Не удалось загрузить информацию о событии');
       } finally {
         setLoading(false);
       }
     };
 
-    fetchEventum();
+    fetchData();
   }, [eventumSlug]);
+
+  const handleTabChange = (tab: string) => {
+    navigate(`/${eventumSlug}/${tab}`);
+  };
 
   if (loading) {
     return (
@@ -65,6 +88,7 @@ const EventumPage = () => {
   return (
     <main className="min-h-screen bg-gray-50 px-4 py-6 sm:px-6 lg:px-8 lg:py-10">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
+        {/* Заголовок */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-2">
             <h1 className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -79,35 +103,240 @@ const EventumPage = () => {
           </Link>
         </div>
 
-        <section className="rounded-2xl bg-white shadow-sm ring-1 ring-gray-100">
+        {/* Вкладки */}
+        <div className="border-b border-gray-200">
+          <nav className="-mb-px flex space-x-8">
+            <button
+              onClick={() => handleTabChange('general')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                currentTab === 'general'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Общее
+            </button>
+            <button
+              onClick={() => handleTabChange('registration')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                currentTab === 'registration'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Запись на мероприятия
+            </button>
+          </nav>
+        </div>
+
+        {/* Контент вкладок */}
+        <div className="rounded-2xl bg-white shadow-sm ring-1 ring-gray-100">
           <div className="px-4 py-6 sm:px-8 sm:py-8">
-            <div className="text-center">
-              <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-blue-100">
-                <svg
-                  className="h-12 w-12 text-blue-600"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  strokeWidth="1.5"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"
-                  />
-                </svg>
-              </div>
-              <h2 className="mt-6 text-2xl font-bold text-gray-900">
-                Скоро здесь будет полезная информация
-              </h2>
-              <p className="mt-4 text-lg text-gray-600">
-                На этой странице будет размещена вся необходимая информация для участников событий.
-              </p>
-            </div>
+            {currentTab === 'general' && (
+              <GeneralTab eventum={eventum} />
+            )}
+            {currentTab === 'registration' && (
+              <RegistrationTab eventWaves={eventWaves} events={events} />
+            )}
           </div>
-        </section>
+        </div>
       </div>
     </main>
+  );
+};
+
+// Компонент для вкладки "Общее"
+const GeneralTab: React.FC<{ eventum: Eventum }> = ({ eventum }) => {
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-2xl font-bold text-gray-900 mb-4">
+          {eventum.name}
+        </h2>
+        {eventum.description && (
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Описание</h3>
+            <p className="text-gray-600 whitespace-pre-wrap">{eventum.description}</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// Компонент для вкладки "Запись на мероприятия"
+const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[] }> = ({ eventWaves, events }) => {
+  const [expandedWaves, setExpandedWaves] = useState<Set<number>>(new Set());
+
+  const toggleWave = (waveId: number) => {
+    const newExpanded = new Set(expandedWaves);
+    if (newExpanded.has(waveId)) {
+      newExpanded.delete(waveId);
+    } else {
+      newExpanded.add(waveId);
+    }
+    setExpandedWaves(newExpanded);
+  };
+
+  const getEventsForWave = (wave: EventWave) => {
+    return events.filter(event => 
+      event.tags.some(tag => tag.id === wave.tag.id)
+    );
+  };
+
+  if (eventWaves.length === 0) {
+    return (
+      <div className="text-center py-8">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-gray-100">
+          <svg
+            className="h-8 w-8 text-gray-400"
+            fill="none"
+            viewBox="0 0 24 24"
+            strokeWidth="1.5"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"
+            />
+          </svg>
+        </div>
+        <h3 className="mt-4 text-lg font-semibold text-gray-900">Нет доступных волн регистрации</h3>
+        <p className="mt-2 text-gray-600">
+          Волны регистрации пока не созданы организаторами.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <h2 className="text-xl font-semibold text-gray-900 mb-6">Волны регистрации</h2>
+      
+      {eventWaves.map((wave) => {
+        const waveEvents = getEventsForWave(wave);
+        const isExpanded = expandedWaves.has(wave.id);
+        
+        return (
+          <div key={wave.id} className="border border-gray-200 rounded-lg">
+            <button
+              onClick={() => toggleWave(wave.id)}
+              className="w-full px-4 py-3 text-left flex items-center justify-between hover:bg-gray-50 transition-colors"
+            >
+              <div className="flex items-center space-x-3">
+                <div className="flex-shrink-0">
+                  <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                    <span className="text-sm font-medium text-blue-600">
+                      {wave.tag.name.charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900">{wave.name}</h3>
+                  <p className="text-sm text-gray-500">
+                    {waveEvents.length} мероприятий • Тег: {wave.tag.name}
+                  </p>
+                </div>
+              </div>
+              <svg
+                className={`w-5 h-5 text-gray-400 transition-transform ${
+                  isExpanded ? 'rotate-180' : ''
+                }`}
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth="1.5"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M19.5 8.25l-7.5 7.5-7.5-7.5"
+                />
+              </svg>
+            </button>
+            
+            {isExpanded && (
+              <div className="border-t border-gray-200 bg-gray-50">
+                <div className="p-4 space-y-3">
+                  {waveEvents.length === 0 ? (
+                    <p className="text-gray-500 text-center py-4">
+                      В этой волне пока нет мероприятий
+                    </p>
+                  ) : (
+                    waveEvents.map((event) => (
+                      <EventCard key={event.id} event={event} />
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+// Компонент карточки мероприятия
+const EventCard: React.FC<{ event: Event }> = ({ event }) => {
+  const getLocationText = () => {
+    if (!event.locations || event.locations.length === 0) {
+      return 'Локация не указана';
+    }
+    return event.locations.map(loc => loc.name).join(', ');
+  };
+
+  const getParticipantsInfo = () => {
+    if (event.participant_type === 'all') {
+      return 'Для всех участников';
+    } else if (event.participant_type === 'registration' && event.max_participants) {
+      return `До ${event.max_participants} участников`;
+    } else if (event.participant_type === 'manual') {
+      return 'По приглашению';
+    }
+    return 'Участники определяются отдельно';
+  };
+
+  return (
+    <div className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow">
+      <div className="flex items-start justify-between">
+        <div className="flex-1">
+          <h4 className="text-lg font-semibold text-gray-900 mb-2">{event.name}</h4>
+          
+          {event.description && (
+            <p className="text-gray-600 text-sm mb-3 line-clamp-2">{event.description}</p>
+          )}
+          
+          <div className="space-y-2 text-sm text-gray-500">
+            <div className="flex items-center space-x-2">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
+              </svg>
+              <span>{getLocationText()}</span>
+            </div>
+            
+            <div className="flex items-center space-x-2">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+              </svg>
+              <span>{getParticipantsInfo()}</span>
+            </div>
+          </div>
+        </div>
+        
+        {event.image_url && (
+          <div className="ml-4 flex-shrink-0">
+            <img
+              src={event.image_url}
+              alt={event.name}
+              className="w-16 h-16 object-cover rounded-lg"
+            />
+          </div>
+        )}
+      </div>
+    </div>
   );
 };
 
