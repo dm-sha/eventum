@@ -11,7 +11,8 @@ import {
   IconTrash,
   IconPlus,
   IconEllipsisHorizontal,
-  IconChevronDown
+  IconChevronDown,
+  IconArrowDownTray
 } from "../../components/icons";
 import EventEditModal from "../../components/event/EventEditModal";
 import { useEventumSlug } from "../../hooks/useEventumSlug";
@@ -231,6 +232,59 @@ const AdminEventsPage = () => {
     }
   };
 
+  const exportEventsToCSV = () => {
+    const csvData = filteredEvents.map(event => {
+      // Форматируем время начала и окончания
+      const startTime = event.start_time ? new Date(event.start_time).toLocaleString('ru-RU') : 'Не указано';
+      const endTime = event.end_time ? new Date(event.end_time).toLocaleString('ru-RU') : 'Не указано';
+      
+      // Получаем названия локаций
+      const locationNames = event.locations && event.locations.length > 0 
+        ? event.locations.map(loc => loc.name).join(', ')
+        : 'Не указано';
+      
+      // Определяем тип участников
+      const participantTypeMap = {
+        'all': 'Все',
+        'registration': 'По записи',
+        'manual': 'Вручную'
+      };
+      const participantType = participantTypeMap[event.participant_type] || 'Не указано';
+      
+      // Получаем названия групп участников
+      const groupNames = event.group_tags_data && event.group_tags_data.length > 0
+        ? event.group_tags_data.map(group => group.name).join(', ')
+        : 'Не указано';
+      
+      return {
+        'Время начала': startTime,
+        'Время окончания': endTime,
+        'Название': event.name,
+        'Локация': locationNames,
+        'Тип участников': participantType,
+        'Группы участников': groupNames
+      };
+    });
+
+    // Создаем CSV строку
+    const headers = ['Время начала', 'Время окончания', 'Название', 'Локация', 'Тип участников', 'Группы участников'];
+    const csvContent = [
+      headers.join('\t'),
+      ...csvData.map(row => headers.map(header => (row as any)[header] || '').join('\t'))
+    ].join('\n');
+
+    // Создаем и скачиваем файл
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `мероприятия_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="space-y-6">
       <header className="space-y-2">
@@ -288,14 +342,23 @@ const AdminEventsPage = () => {
         </span>
       </div>
 
-      {/* Кнопка добавления мероприятия */}
-      <div className="flex justify-start">
+      {/* Кнопки действий */}
+      <div className="flex justify-start gap-3">
         <button
           onClick={() => openEditModal()}
           className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
         >
           <IconPlus size={16} />
           Добавить мероприятие
+        </button>
+        
+        <button
+          onClick={exportEventsToCSV}
+          disabled={filteredEvents.length === 0}
+          className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <IconArrowDownTray size={16} />
+          Экспорт в таблицу
         </button>
       </div>
 
