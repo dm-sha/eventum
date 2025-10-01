@@ -1048,6 +1048,10 @@ def test_subdomain(request):
         'eventum_name': eventum.name if eventum else None,
         'message': 'Subdomain middleware is working!' if eventum_slug else 'Not a subdomain request'
     })
+    
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def check_slug_availability(request, slug):
     """Проверка доступности slug для eventum"""
     try:
         # Проверяем, существует ли eventum с таким slug
