@@ -33,3 +33,17 @@ export const updateParticipant = async (
 export const deleteParticipant = async (eventumSlug: string, participantId: number): Promise<void> => {
     await apiClient.delete(`/eventums/${eventumSlug}/participants/${participantId}/`);
 };
+
+// Получить информацию о текущем участнике для конкретного Eventum
+export const getCurrentParticipant = async (eventumSlug: string): Promise<Participant | null> => {
+    try {
+        const response = await apiClient.get(`/eventums/${eventumSlug}/participants/me/`);
+        return response.data;
+    } catch (error: any) {
+        if (error.response?.status === 404) {
+            // Пользователь не является участником этого eventum
+            return null;
+        }
+        throw error;
+    }
+};

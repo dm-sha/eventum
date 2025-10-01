@@ -3,7 +3,8 @@ import { useEffect, useState } from "react";
 import { getEventumBySlug } from "../api/eventum";
 import { listEventWaves } from "../api/eventWave";
 import { getEventsForEventum } from "../api/event";
-import type { Eventum, Event } from "../types";
+import { getCurrentParticipant } from "../api/participant";
+import type { Eventum, Event, Participant } from "../types";
 import type { EventWave } from "../api/eventWave";
 import LoadingSpinner from "../components/LoadingSpinner";
 import { useEventumSlug } from "../hooks/useEventumSlug";
@@ -16,6 +17,7 @@ const EventumPage = () => {
   const [eventum, setEventum] = useState<Eventum | null>(null);
   const [eventWaves, setEventWaves] = useState<EventWave[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
+  const [currentParticipant, setCurrentParticipant] = useState<Participant | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -31,15 +33,17 @@ const EventumPage = () => {
         setError(null);
         
         // Загружаем данные параллельно
-        const [eventumData, wavesData, eventsData] = await Promise.all([
+        const [eventumData, wavesData, eventsData, participantData] = await Promise.all([
           getEventumBySlug(eventumSlug),
           listEventWaves(eventumSlug),
-          getEventsForEventum(eventumSlug)
+          getEventsForEventum(eventumSlug),
+          getCurrentParticipant(eventumSlug)
         ]);
         
         setEventum(eventumData);
         setEventWaves(wavesData);
         setEvents(eventsData);
+        setCurrentParticipant(participantData);
       } catch (err) {
         console.error('Ошибка загрузки данных:', err);
         setError('Не удалось загрузить информацию о событии');
@@ -136,7 +140,7 @@ const EventumPage = () => {
               <GeneralTab eventum={eventum} />
             )}
             {currentTab === 'registration' && (
-              <RegistrationTab eventWaves={eventWaves} events={events} />
+              <RegistrationTab eventWaves={eventWaves} events={events} currentParticipant={currentParticipant} />
             )}
           </div>
         </div>
@@ -165,7 +169,7 @@ const GeneralTab: React.FC<{ eventum: Eventum }> = ({ eventum }) => {
 };
 
 // Компонент для вкладки "Запись на мероприятия"
-const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[] }> = ({ eventWaves, events }) => {
+const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; currentParticipant: Participant | null }> = ({ eventWaves, events, currentParticipant }) => {
   const [expandedWaves, setExpandedWaves] = useState<Set<number>>(new Set());
 
   const toggleWave = (waveId: number) => {
@@ -182,6 +186,70 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[] }> = 
     return events.filter(event => 
       event.tags.some(tag => tag.id === wave.tag.id)
     );
+  };
+
+  // Проверяем доступность волны для текущего участника
+  const isWaveAccessible = (wave: EventWave) => {
+    if (!currentParticipant) {
+      return { accessible: false, reason: 'Вы не являетесь участником этого события' };
+    }
+
+    const participantGroupIds = currentParticipant.groups?.map(g => g.id) || [];
+    const participantGroupTagIds = currentParticipant.groups?.flatMap(g => g.tags?.map(t => t.id) || []) || [];
+
+    // Проверяем whitelist групп
+    if (wave.whitelist_groups.length > 0) {
+      const hasWhitelistedGroup = wave.whitelist_groups.some(group => 
+        participantGroupIds.includes(group.id)
+      );
+      if (!hasWhitelistedGroup) {
+        return { 
+          accessible: false, 
+          reason: `Доступна только для: ${wave.whitelist_groups.map(g => g.name).join(', ')}` 
+        };
+      }
+    }
+
+    // Проверяем whitelist тегов групп
+    if (wave.whitelist_group_tags.length > 0) {
+      const hasWhitelistedTag = wave.whitelist_group_tags.some(tag => 
+        participantGroupTagIds.includes(tag.id)
+      );
+      if (!hasWhitelistedTag) {
+        return { 
+          accessible: false, 
+          reason: `Доступна только для: ${wave.whitelist_group_tags.map(t => t.name).join(', ')}` 
+        };
+      }
+    }
+
+    // Проверяем blacklist групп
+    if (wave.blacklist_groups.length > 0) {
+      const hasBlacklistedGroup = wave.blacklist_groups.some(group => 
+        participantGroupIds.includes(group.id)
+      );
+      if (hasBlacklistedGroup) {
+        return { 
+          accessible: false, 
+          reason: `Недоступна для: ${wave.blacklist_groups.map(g => g.name).join(', ')}` 
+        };
+      }
+    }
+
+    // Проверяем blacklist тегов групп
+    if (wave.blacklist_group_tags.length > 0) {
+      const hasBlacklistedTag = wave.blacklist_group_tags.some(tag => 
+        participantGroupTagIds.includes(tag.id)
+      );
+      if (hasBlacklistedTag) {
+        return { 
+          accessible: false, 
+          reason: `Недоступна для: ${wave.blacklist_group_tags.map(t => t.name).join(', ')}` 
+        };
+      }
+    }
+
+    return { accessible: true, reason: '' };
   };
 
   if (eventWaves.length === 0) {
@@ -217,46 +285,70 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[] }> = 
       {eventWaves.map((wave) => {
         const waveEvents = getEventsForWave(wave);
         const isExpanded = expandedWaves.has(wave.id);
+        const accessibility = isWaveAccessible(wave);
         
         return (
           <div key={wave.id} className="border border-gray-200 rounded-lg">
             <button
-              onClick={() => toggleWave(wave.id)}
-              className="w-full px-4 py-3 text-left flex items-center justify-between hover:bg-gray-50 transition-colors"
+              onClick={() => accessibility.accessible ? toggleWave(wave.id) : undefined}
+              disabled={!accessibility.accessible}
+              className={`w-full px-4 py-3 text-left flex items-center justify-between transition-colors ${
+                accessibility.accessible 
+                  ? 'hover:bg-gray-50 cursor-pointer' 
+                  : 'cursor-not-allowed'
+              }`}
             >
               <div className="flex items-center space-x-3">
-                <div className="flex-shrink-0">
-                  <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                    <span className="text-sm font-medium text-blue-600">
-                      {wave.tag.name.charAt(0).toUpperCase()}
-                    </span>
-                  </div>
-                </div>
-                <div>
-                  <h3 className="text-lg font-medium text-gray-900">{wave.name}</h3>
-                  <p className="text-sm text-gray-500">
-                    {waveEvents.length} мероприятий • Тег: {wave.tag.name}
-                  </p>
+                <div className="flex-1">
+                  <h3 className="text-lg font-medium text-gray-900">
+                    {wave.name}
+                  </h3>
+                  {accessibility.accessible ? (
+                    <p className="text-sm text-gray-500">
+                      {waveEvents.length} мероприятий
+                    </p>
+                  ) : (
+                    <p className="text-sm text-gray-500">
+                      {accessibility.reason}
+                    </p>
+                  )}
                 </div>
               </div>
-              <svg
-                className={`w-5 h-5 text-gray-400 transition-transform ${
-                  isExpanded ? 'rotate-180' : ''
-                }`}
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth="1.5"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M19.5 8.25l-7.5 7.5-7.5-7.5"
-                />
-              </svg>
+              {accessibility.accessible && (
+                <svg
+                  className={`w-5 h-5 text-gray-400 transition-transform ${
+                    isExpanded ? 'rotate-180' : ''
+                  }`}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth="1.5"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M19.5 8.25l-7.5 7.5-7.5-7.5"
+                  />
+                </svg>
+              )}
+              {!accessibility.accessible && (
+                <svg
+                  className="w-5 h-5 text-gray-400"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth="1.5"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"
+                  />
+                </svg>
+              )}
             </button>
             
-            {isExpanded && (
+            {isExpanded && accessibility.accessible && (
               <div className="border-t border-gray-200 bg-gray-50">
                 <div className="p-4 space-y-3">
                   {waveEvents.length === 0 ? (
