@@ -56,7 +56,8 @@ const EventumPage = () => {
   }, [eventumSlug]);
 
   const handleTabChange = (tab: string) => {
-    navigate(`/${eventumSlug}/${tab}`);
+    if (!eventumSlug) return;
+    navigate(getEventumScopedPath(eventumSlug, `/${tab}`));
   };
 
   if (loading) {
