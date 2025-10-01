@@ -432,7 +432,19 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string }> = ({ event, eve
     if (!event.locations || event.locations.length === 0) {
       return 'Локация не указана';
     }
-    return event.locations.map(loc => loc.name).join(', ');
+    return event.locations.map(loc => {
+      const path = [loc.name];
+      
+      // Добавляем родительские локации
+      let parent = loc.parent;
+      while (parent) {
+        path.unshift(parent.name);
+        // Для parent у нас нет информации о его родителе, поэтому останавливаемся
+        break;
+      }
+      
+      return path.join(' → ');
+    }).join(', ');
   };
 
   const getParticipantsInfo = () => {
