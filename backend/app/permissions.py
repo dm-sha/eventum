@@ -9,6 +9,10 @@ def get_eventum_slug_from_request(request, view):
     # Сначала пробуем получить из URL параметров (для основного домена)
     eventum_slug = view.kwargs.get('eventum_slug')
     
+    # Если eventum_slug нет, пробуем получить slug (для EventumViewSet)
+    if not eventum_slug:
+        eventum_slug = view.kwargs.get('slug')
+    
     # Если slug нет в URL, пробуем получить из request (для поддоменов)
     if not eventum_slug and hasattr(request, 'eventum_slug'):
         eventum_slug = request.eventum_slug
