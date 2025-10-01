@@ -770,7 +770,26 @@ class EventSerializer(serializers.ModelSerializer):
                         'participant_type': 'Нельзя изменить тип участников с "manual" на другой тип, '
                                           'пока не удалены все связи с тегами групп'
                     })
+            
+            # Проверяем изменение типа участников у мероприятий, связанных с волнами
+            if original_participant_type != new_participant_type:
+                from .models import EventWave
+                # Проверяем, есть ли у этого мероприятия теги, связанные с волнами
+                event_waves_with_this_event_tags = EventWave.objects.filter(
+                    eventum=self.instance.eventum,
+                    tag__in=self.instance.tags.all()
+                )
                 
+                if event_waves_with_this_event_tags.exists():
+                    wave_names = list(event_waves_with_this_event_tags.values_list('name', flat=True))
+                    original_display = dict(Event.ParticipantType.choices).get(original_participant_type, original_participant_type)
+                    new_display = dict(Event.ParticipantType.choices).get(new_participant_type, new_participant_type)
+                    raise serializers.ValidationError({
+                        'participant_type': f"Нельзя изменить тип участников мероприятия '{self.instance.name}' "
+                                          f"с '{original_display}' на '{new_display}', "
+                                          f"так как оно связано с волной мероприятий: {', '.join(wave_names)}. "
+                                          f"Мероприятия в волне должны иметь тип участников 'По записи'"
+                    })
         
         return data
 
@@ -806,6 +825,26 @@ class EventSerializer(serializers.ModelSerializer):
                 names = ', '.join(tag.name for tag in invalid_tags)
                 raise serializers.ValidationError(
                     f"Теги {names} не принадлежат данному eventum"
+                )
+
+        # Проверяем, что мероприятие с типом "не по записи" не добавляется к тегам с волнами
+        participant_type = self.initial_data.get('participant_type')
+        if participant_type and participant_type != 'registration':
+            # Проверяем, есть ли среди добавляемых тегов теги, связанные с волнами
+            from .models import EventWave
+            tags_with_waves = []
+            for tag in value:
+                # Проверяем, есть ли волна, связанная с этим тегом
+                if EventWave.objects.filter(tag=tag).exists():
+                    tags_with_waves.append(tag.name)
+            
+            if tags_with_waves:
+                # Получаем отображаемое название типа участников
+                participant_type_display = dict(Event.ParticipantType.choices).get(participant_type, participant_type)
+                raise serializers.ValidationError(
+                    f"Нельзя добавить мероприятие с типом участников '{participant_type_display}' "
+                    f"к тегам, связанным с волнами регистрации: {', '.join(tags_with_waves)}. "
+                    f"Мероприятия в волнах должны иметь тип участников 'По записи'"
                 )
 
         return value

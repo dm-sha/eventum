@@ -215,6 +215,8 @@ const AdminEventsPage = () => {
       }
     } catch (error) {
       console.error('Ошибка сохранения мероприятия:', error);
+      // Пробрасываем ошибку, чтобы EventEditModal мог её обработать
+      throw error;
     }
   };
 

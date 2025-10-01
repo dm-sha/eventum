@@ -726,6 +726,8 @@ const EventEditModal = ({
       setShowGroupTagSuggestions(false);
       setShowParticipantSuggestions(false);
       setShowGroupSuggestions(false);
+      setValidationErrors({});
+      setParticipantTypeError(null);
     }
   }, [isOpen, event]);
 
@@ -1006,6 +1008,42 @@ const EventEditModal = ({
             serverErrors[field] = fieldError;
           }
         });
+        
+        // Специальная обработка ошибок валидации тегов
+        if (serverErrors.tag_ids) {
+          // Показываем ошибку валидации тегов как общую ошибку
+          serverErrors.non_field_errors = serverErrors.non_field_errors || [];
+          const tagError = Array.isArray(serverErrors.tag_ids) 
+            ? serverErrors.tag_ids.join(' ')
+            : serverErrors.tag_ids;
+          
+          if (Array.isArray(serverErrors.non_field_errors)) {
+            serverErrors.non_field_errors.push(tagError);
+          } else {
+            serverErrors.non_field_errors = [serverErrors.non_field_errors, tagError];
+          }
+          // Убираем ошибку из поля tag_ids, чтобы не показывать её в интерфейсе тегов
+          delete serverErrors.tag_ids;
+        }
+        
+        // Специальная обработка ошибок валидации типа участников
+        if (serverErrors.participant_type) {
+          const participantTypeError = Array.isArray(serverErrors.participant_type)
+            ? serverErrors.participant_type.join(' ')
+            : serverErrors.participant_type;
+          setParticipantTypeError(participantTypeError);
+          
+          // Также добавляем ошибку в общие ошибки, чтобы пользователь её увидел
+          serverErrors.non_field_errors = serverErrors.non_field_errors || [];
+          if (Array.isArray(serverErrors.non_field_errors)) {
+            serverErrors.non_field_errors.push(participantTypeError);
+          } else {
+            serverErrors.non_field_errors = [serverErrors.non_field_errors, participantTypeError];
+          }
+          
+          // Убираем ошибку из поля participant_type, чтобы не показывать её в интерфейсе поля
+          delete serverErrors.participant_type;
+        }
         
         setValidationErrors(serverErrors);
       } else {

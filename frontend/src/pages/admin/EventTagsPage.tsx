@@ -26,6 +26,7 @@ const AdminEventTagsPage = () => {
   const [selectedEvents, setSelectedEvents] = useState<Event[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!eventumSlug) return;
@@ -156,6 +157,7 @@ const AdminEventTagsPage = () => {
     if (!eventumSlug || !tagName.trim()) return;
     
     setIsUpdating(true);
+    setValidationError(null);
     try {
       const data = {
         name: tagName,
@@ -189,14 +191,65 @@ const AdminEventTagsPage = () => {
           const currentTagIds = event.tags.map(t => t.id);
           const updatedTagIds = [...currentTagIds, tagId];
           
-          await updateEvent(eventumSlug, event.id, {
-            name: event.name,
-            description: event.description,
-            start_time: event.start_time,
-            end_time: event.end_time,
-            tag_ids: updatedTagIds,
-            location_ids: event.location_ids,
-          });
+          try {
+            await updateEvent(eventumSlug, event.id, {
+              name: event.name,
+              description: event.description,
+              start_time: event.start_time,
+              end_time: event.end_time,
+              tag_ids: updatedTagIds,
+              location_ids: event.location_ids,
+            });
+          } catch (error: any) {
+            // Обрабатываем ошибки валидации при добавлении тега к мероприятию
+            if (error.response?.status === 400 && error.response?.data) {
+              let errorMessage = '';
+              
+              // Проверяем ошибки валидации тегов
+              if (error.response.data.tag_ids) {
+                errorMessage = Array.isArray(error.response.data.tag_ids) 
+                  ? error.response.data.tag_ids.join(' ')
+                  : error.response.data.tag_ids;
+              } else if (error.response.data.non_field_errors) {
+                errorMessage = Array.isArray(error.response.data.non_field_errors)
+                  ? error.response.data.non_field_errors.join(' ')
+                  : error.response.data.non_field_errors;
+              } else {
+                errorMessage = `Не удалось добавить мероприятие "${event.name}" к тегу`;
+              }
+              
+              setValidationError(errorMessage);
+              throw error; // Прерываем выполнение, чтобы не обновлять состояние
+            } else if (error.response?.status === 500) {
+              // Обрабатываем серверные ошибки (возможно, ошибки валидации на уровне модели)
+              let errorMessage = '';
+              
+              if (error.response.data && typeof error.response.data === 'object') {
+                // Пытаемся извлечь сообщение об ошибке из ответа
+                if (error.response.data.detail) {
+                  errorMessage = error.response.data.detail;
+                } else if (error.response.data.message) {
+                  errorMessage = error.response.data.message;
+                } else if (error.response.data.error) {
+                  errorMessage = error.response.data.error;
+                } else {
+                  // Если это ошибка валидации, которая пришла как 500, но содержит информацию о тегах
+                  const responseText = JSON.stringify(error.response.data);
+                  if (responseText.includes('волн') || responseText.includes('registration') || responseText.includes('По записи')) {
+                    errorMessage = `Нельзя добавить мероприятие "${event.name}" к тегу, так как оно связано с волной регистрации. Мероприятия в волнах должны иметь тип участников 'По записи'.`;
+                  } else {
+                    errorMessage = `Ошибка сервера при добавлении мероприятия "${event.name}" к тегу`;
+                  }
+                }
+              } else {
+                errorMessage = `Ошибка сервера при добавлении мероприятия "${event.name}" к тегу`;
+              }
+              
+              setValidationError(errorMessage);
+              throw error; // Прерываем выполнение, чтобы не обновлять состояние
+            }
+            throw error;
+          }
         }
       }
       
@@ -224,8 +277,13 @@ const AdminEventTagsPage = () => {
       setEditingTag(null);
       setTagName('');
       setEditingEvents([]);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Ошибка обновления тега:', error);
+      
+      // Если ошибка не была обработана выше, показываем общую ошибку
+      if (!validationError) {
+        setValidationError('Произошла ошибка при обновлении тега. Попробуйте еще раз.');
+      }
     } finally {
       setIsUpdating(false);
     }
@@ -237,6 +295,7 @@ const AdminEventTagsPage = () => {
     setTagName('');
     setEditingEvents([]);
     setEventQuery('');
+    setValidationError(null);
   };
 
   const handleDeleteTag = async (tagId: number) => {
@@ -488,22 +547,33 @@ const AdminEventTagsPage = () => {
                   )}
 
                   {isEditing && (
-                    <div className="flex gap-2 pt-2">
-                      <button
-                        onClick={() => handleUpdateTag(tag.id)}
-                        disabled={!tagName.trim() || isUpdating}
-                        className="rounded-lg bg-blue-600 px-3 py-1 text-xs font-semibold text-white hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
-                      >
-                        {isUpdating ? 'Сохранение...' : 'Сохранить'}
-                      </button>
-                      <button
-                        onClick={handleCancel}
-                        disabled={isUpdating}
-                        className="rounded-lg border border-gray-300 px-3 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        Отмена
-                      </button>
-                    </div>
+                    <>
+                      {/* Отображение ошибки валидации */}
+                      {validationError && (
+                        <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-lg">
+                          <div className="text-xs text-red-600">
+                            {validationError}
+                          </div>
+                        </div>
+                      )}
+                      
+                      <div className="flex gap-2 pt-2">
+                        <button
+                          onClick={() => handleUpdateTag(tag.id)}
+                          disabled={!tagName.trim() || isUpdating}
+                          className="rounded-lg bg-blue-600 px-3 py-1 text-xs font-semibold text-white hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                        >
+                          {isUpdating ? 'Сохранение...' : 'Сохранить'}
+                        </button>
+                        <button
+                          onClick={handleCancel}
+                          disabled={isUpdating}
+                          className="rounded-lg border border-gray-300 px-3 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          Отмена
+                        </button>
+                      </div>
+                    </>
                   )}
                 </div>
               </div>
