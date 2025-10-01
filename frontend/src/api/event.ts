@@ -92,9 +92,10 @@ export const getDevUser = async (): Promise<{access: string, refresh: string, us
 
 // Записаться на мероприятие
 export const registerForEvent = async (eventumSlug: string, eventId: number): Promise<void> => {
-    const subdomainSlug = getSubdomainSlug();
-    if (subdomainSlug) {
+    if (shouldUseSubdomainApi()) {
         await apiClient.post(`/events/${eventId}/register/`);
+    } else if (shouldUseContainerApi()) {
+        await apiClient.post(`/eventums/${eventumSlug}/events/${eventId}/register/`);
     } else {
         await apiClient.post(`/eventums/${eventumSlug}/events/${eventId}/register/`);
     }
@@ -102,9 +103,10 @@ export const registerForEvent = async (eventumSlug: string, eventId: number): Pr
 
 // Отписаться от мероприятия
 export const unregisterFromEvent = async (eventumSlug: string, eventId: number): Promise<void> => {
-    const subdomainSlug = getSubdomainSlug();
-    if (subdomainSlug) {
+    if (shouldUseSubdomainApi()) {
         await apiClient.delete(`/events/${eventId}/unregister/`);
+    } else if (shouldUseContainerApi()) {
+        await apiClient.delete(`/eventums/${eventumSlug}/events/${eventId}/unregister/`);
     } else {
         await apiClient.delete(`/eventums/${eventumSlug}/events/${eventId}/unregister/`);
     }
