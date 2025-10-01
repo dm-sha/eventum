@@ -1,24 +1,20 @@
 import apiClient from './client';
 import type { Event } from '../types';
-import { getSubdomainSlug } from '../utils/eventumSlug';
+import { getSubdomainSlug, shouldUseSubdomainApi, shouldUseContainerApi } from '../utils/eventumSlug';
 
 // Получить список всех мероприятий для конкретного Eventum.
 export const getEventsForEventum = async (eventumSlug: string): Promise<Event[]> => {
-    const hostname = window.location.hostname;
-    
-    // Определяем, куда идет API запрос
-    const apiBaseUrl = import.meta.env.DEV ? 'http://localhost:8000/api' : 
-        (hostname.endsWith('.merup.ru') ? 'https://bbapo5ibqs4eg6dail89.containers.yandexcloud.net/api' : 
-         import.meta.env.VITE_API_BASE_URL || 'https://bbapo5ibqs4eg6dail89.containers.yandexcloud.net/api');
-    
-    // Если API запрос идет к основному домену контейнера, используем slug в пути
-    if (apiBaseUrl.includes('bbapo5ibqs4eg6dail89.containers.yandexcloud.net')) {
+    if (shouldUseSubdomainApi()) {
+        // Если мы на поддомене merup.ru в режиме разработки, используем endpoint events
+        const response = await apiClient.get('/events/');
+        return response.data;
+    } else if (shouldUseContainerApi()) {
+        // Если мы на основном домене контейнера или поддомене merup.ru в продакшене
         const response = await apiClient.get(`/eventums/${eventumSlug}/events/`);
         return response.data;
-    }
-    // Если API запрос идет к поддомену (локальная разработка), используем endpoint events
-    else {
-        const response = await apiClient.get('/events/');
+    } else {
+        // Fallback для других случаев
+        const response = await apiClient.get(`/eventums/${eventumSlug}/events/`);
         return response.data;
     }
 };

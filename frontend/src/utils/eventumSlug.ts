@@ -131,18 +131,20 @@ export const getApiUrl = (slug: string, path: string = ''): string => {
 };
 
 export const shouldUseSubdomainApi = (): boolean => {
-  const subdomainSlug = getSubdomainSlug();
   const hostname = window.location.hostname;
   
   // Используем поддомен API только если мы на поддомене merup.ru
-  return subdomainSlug && hostname.endsWith('.merup.ru');
+  // И API запрос идет к тому же поддомену (локальная разработка)
+  return hostname.endsWith('.merup.ru') && import.meta.env.DEV;
 };
 
 export const shouldUseContainerApi = (): boolean => {
   const hostname = window.location.hostname;
   
   // Используем контейнер API если мы на основном домене контейнера
-  return hostname === 'bbapo5ibqs4eg6dail89.containers.yandexcloud.net';
+  // ИЛИ если мы на поддомене merup.ru но API запрос идет к контейнеру
+  return hostname === 'bbapo5ibqs4eg6dail89.containers.yandexcloud.net' || 
+         (hostname.endsWith('.merup.ru') && !import.meta.env.DEV);
 };
 
 const getApiBaseUrl = (): string => {
