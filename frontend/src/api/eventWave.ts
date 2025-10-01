@@ -1,5 +1,5 @@
 import apiClient from './client';
-import { getSubdomainSlug } from '../utils/eventumSlug';
+import { shouldUseSubdomainApi, shouldUseContainerApi } from '../utils/eventumSlug';
 
 export interface EventWaveEventInfo {
   id: number;
@@ -38,9 +38,11 @@ export interface UpdateEventWaveDto {
 }
 
 export async function listEventWaves(eventumSlug: string): Promise<EventWave[]> {
-  const subdomainSlug = getSubdomainSlug();
-  if (subdomainSlug) {
+  if (shouldUseSubdomainApi()) {
     const { data } = await apiClient.get('/event-waves/');
+    return data;
+  } else if (shouldUseContainerApi()) {
+    const { data } = await apiClient.get(`/eventums/${eventumSlug}/event-waves/`);
     return data;
   } else {
     const { data } = await apiClient.get(`/eventums/${eventumSlug}/event-waves/`);
@@ -49,9 +51,11 @@ export async function listEventWaves(eventumSlug: string): Promise<EventWave[]> 
 }
 
 export async function createEventWave(eventumSlug: string, dto: CreateEventWaveDto): Promise<EventWave> {
-  const subdomainSlug = getSubdomainSlug();
-  if (subdomainSlug) {
+  if (shouldUseSubdomainApi()) {
     const { data } = await apiClient.post('/event-waves/', dto);
+    return data;
+  } else if (shouldUseContainerApi()) {
+    const { data } = await apiClient.post(`/eventums/${eventumSlug}/event-waves/`, dto);
     return data;
   } else {
     const { data } = await apiClient.post(`/eventums/${eventumSlug}/event-waves/`, dto);
@@ -60,9 +64,11 @@ export async function createEventWave(eventumSlug: string, dto: CreateEventWaveD
 }
 
 export async function updateEventWave(eventumSlug: string, id: number, dto: UpdateEventWaveDto): Promise<EventWave> {
-  const subdomainSlug = getSubdomainSlug();
-  if (subdomainSlug) {
+  if (shouldUseSubdomainApi()) {
     const { data } = await apiClient.patch(`/event-waves/${id}/`, dto);
+    return data;
+  } else if (shouldUseContainerApi()) {
+    const { data } = await apiClient.patch(`/eventums/${eventumSlug}/event-waves/${id}/`, dto);
     return data;
   } else {
     const { data } = await apiClient.patch(`/eventums/${eventumSlug}/event-waves/${id}/`, dto);
@@ -71,9 +77,10 @@ export async function updateEventWave(eventumSlug: string, id: number, dto: Upda
 }
 
 export async function deleteEventWave(eventumSlug: string, id: number): Promise<void> {
-  const subdomainSlug = getSubdomainSlug();
-  if (subdomainSlug) {
+  if (shouldUseSubdomainApi()) {
     await apiClient.delete(`/event-waves/${id}/`);
+  } else if (shouldUseContainerApi()) {
+    await apiClient.delete(`/eventums/${eventumSlug}/event-waves/${id}/`);
   } else {
     await apiClient.delete(`/eventums/${eventumSlug}/event-waves/${id}/`);
   }
