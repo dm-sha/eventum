@@ -2,6 +2,20 @@ from rest_framework import permissions
 from .models import UserRole, Participant
 
 
+def get_eventum_slug_from_request(request, view):
+    """
+    Получает eventum_slug из URL параметров или из поддомена
+    """
+    # Сначала пробуем получить из URL параметров (для основного домена)
+    eventum_slug = view.kwargs.get('eventum_slug')
+    
+    # Если slug нет в URL, пробуем получить из request (для поддоменов)
+    if not eventum_slug and hasattr(request, 'eventum_slug'):
+        eventum_slug = request.eventum_slug
+    
+    return eventum_slug
+
+
 class IsEventumOrganizer(permissions.BasePermission):
     """
     Разрешение только для организаторов конкретного eventum'а
@@ -11,8 +25,8 @@ class IsEventumOrganizer(permissions.BasePermission):
         if not request.user or not request.user.is_authenticated:
             return False
         
-        # Получаем eventum_slug из URL
-        eventum_slug = view.kwargs.get('eventum_slug')
+        # Получаем eventum_slug из URL или поддомена
+        eventum_slug = get_eventum_slug_from_request(request, view)
         if not eventum_slug:
             return False
         
@@ -42,7 +56,8 @@ class IsEventumOrganizerOrReadOnlyForList(permissions.BasePermission):
             return True
         
         # Для конкретного eventum'а проверяем права организатора
-        eventum_slug = view.kwargs.get('slug')
+        # Получаем eventum_slug из URL или поддомена
+        eventum_slug = get_eventum_slug_from_request(request, view)
         if not eventum_slug:
             return False
         
@@ -62,8 +77,8 @@ class IsEventumParticipant(permissions.BasePermission):
         if not request.user or not request.user.is_authenticated:
             return False
         
-        # Получаем eventum_slug из URL
-        eventum_slug = view.kwargs.get('eventum_slug')
+        # Получаем eventum_slug из URL или поддомена
+        eventum_slug = get_eventum_slug_from_request(request, view)
         if not eventum_slug:
             return False
         
@@ -92,8 +107,8 @@ class IsEventumOrganizerOrReadOnly(permissions.BasePermission):
         if not request.user or not request.user.is_authenticated:
             return False
         
-        # Получаем eventum_slug из URL
-        eventum_slug = view.kwargs.get('eventum_slug')
+        # Получаем eventum_slug из URL или поддомена
+        eventum_slug = get_eventum_slug_from_request(request, view)
         if not eventum_slug:
             return False
         
@@ -119,3 +134,30 @@ class IsEventumOrganizerOrReadOnly(permissions.BasePermission):
             return request.method in permissions.SAFE_METHODS
         
         return False
+
+
+class IsEventumOrganizerOrPublicReadOnly(permissions.BasePermission):
+    """
+    Разрешение: организаторы могут все, все остальные только чтение
+    """
+    
+    def has_permission(self, request, view):
+        # Для чтения разрешаем всем
+        if request.method in permissions.SAFE_METHODS:
+            return True
+        
+        # Для записи требуем аутентификации
+        if not request.user or not request.user.is_authenticated:
+            return False
+        
+        # Получаем eventum_slug из URL или поддомена
+        eventum_slug = get_eventum_slug_from_request(request, view)
+        if not eventum_slug:
+            return False
+        
+        # Проверяем, является ли пользователь организатором
+        return UserRole.objects.filter(
+            user=request.user,
+            eventum__slug=eventum_slug,
+            role='organizer'
+        ).exists()

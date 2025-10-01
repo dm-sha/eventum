@@ -21,7 +21,7 @@ from .serializers import (
     UserProfileSerializer, UserRoleSerializer, VKAuthSerializer, CustomTokenObtainPairSerializer,
     LocationSerializer, EventWaveSerializer
 )
-from .permissions import IsEventumOrganizer, IsEventumParticipant, IsEventumOrganizerOrReadOnly, IsEventumOrganizerOrReadOnlyForList
+from .permissions import IsEventumOrganizer, IsEventumParticipant, IsEventumOrganizerOrReadOnly, IsEventumOrganizerOrReadOnlyForList, IsEventumOrganizerOrPublicReadOnly
 from .utils import log_execution_time, csrf_exempt_class_api
 import logging
 
@@ -369,7 +369,7 @@ class GroupTagViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
 class EventTagViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
     queryset = EventTag.objects.all()
     serializer_class = EventTagSerializer
-    permission_classes = [IsEventumOrganizerOrReadOnly]  # Организаторы CRUD, участники только чтение
+    permission_classes = [IsEventumOrganizerOrPublicReadOnly]  # Организаторы CRUD, все остальные только чтение
 
 class EventWaveViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
     queryset = EventWave.objects.all()
@@ -439,7 +439,7 @@ class EventViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
         'locations',  # Добавляем prefetch для локаций
     )
     serializer_class = EventSerializer
-    permission_classes = [IsEventumOrganizerOrReadOnly]  # Организаторы CRUD, участники только чтение
+    permission_classes = [IsEventumOrganizerOrPublicReadOnly]  # Организаторы CRUD, все остальные только чтение
     
     def get_queryset(self):
         """Оптимизированный queryset для списка событий с сохранением всех prefetch_related"""
@@ -539,7 +539,7 @@ class EventViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
 class LocationViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
     queryset = Location.objects.all().select_related('eventum', 'parent').prefetch_related('children')
     serializer_class = LocationSerializer
-    permission_classes = [IsEventumOrganizerOrReadOnly]  # Организаторы CRUD, участники только чтение
+    permission_classes = [IsEventumOrganizerOrPublicReadOnly]  # Организаторы CRUD, все остальные только чтение
 
     def get_queryset(self):
         """Оптимизированный queryset для списка локаций"""
@@ -1036,7 +1036,18 @@ def dev_user_auth(request):
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
-def check_slug_availability(request, slug):
+def test_subdomain(request):
+    """Тестовый endpoint для проверки работы поддоменов"""
+    host = request.META.get('HTTP_HOST', '')
+    eventum_slug = getattr(request, 'eventum_slug', None)
+    eventum = getattr(request, 'eventum', None)
+    
+    return Response({
+        'host': host,
+        'eventum_slug': eventum_slug,
+        'eventum_name': eventum.name if eventum else None,
+        'message': 'Subdomain middleware is working!' if eventum_slug else 'Not a subdomain request'
+    })
     """Проверка доступности slug для eventum"""
     try:
         # Проверяем, существует ли eventum с таким slug
@@ -1055,6 +1066,7 @@ def check_slug_availability(request, slug):
 
 
 @api_view(['GET'])
+@permission_classes([AllowAny])
 def eventum_details(request, slug=None):
     """Получение детальной информации о eventum"""
     try:

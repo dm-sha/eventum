@@ -20,7 +20,8 @@ from .views import (
     eventum_details,
     eventum_organizers,
     remove_eventum_organizer,
-    search_users
+    search_users,
+    test_subdomain
 )
 
 router = DefaultRouter()
@@ -61,6 +62,9 @@ urlpatterns = [
     
     # Проверка доступности slug
     path('eventums/check-slug/<slug:slug>/', check_slug_availability, name='check_slug_availability'),
+    
+    # Тестовый endpoint для поддоменов
+    path('test-subdomain/', test_subdomain, name='test_subdomain'),
     
     # Поиск пользователей
     path('users/search/', search_users, name='search_users'),
