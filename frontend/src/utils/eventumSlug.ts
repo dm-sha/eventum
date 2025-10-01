@@ -100,6 +100,7 @@ export const getEventumScopedPath = (slug: string, path: string = '/'): string =
   const targetPath = normalizePath(path);
   const suffix = targetPath === '/' ? '/' : targetPath;
 
+  // Если мы на поддомене, не добавляем slug в путь
   if (getSubdomainSlug()) {
     return suffix;
   }
@@ -115,4 +116,25 @@ export const getApplicationBaseUrl = (): string => {
   }
 
   return window.location.origin;
+};
+
+export const getApiUrl = (slug: string, path: string = ''): string => {
+  const baseUrl = getApiBaseUrl();
+  
+  // Если мы на поддомене, не добавляем slug в путь API
+  if (getSubdomainSlug()) {
+    return `${baseUrl}${path}`;
+  }
+  
+  // Если не на поддомене, добавляем slug в путь
+  return `${baseUrl}/eventums/${slug}${path}`;
+};
+
+const getApiBaseUrl = (): string => {
+  // В режиме разработки используем локальный бекенд
+  if (import.meta.env.DEV) {
+    return 'http://localhost:8000/api';
+  }
+  // В продакшене используем переменную окружения или fallback на продакшн URL
+  return import.meta.env.VITE_API_BASE_URL || 'https://bbapo5ibqs4eg6dail89.containers.yandexcloud.net/api';
 };

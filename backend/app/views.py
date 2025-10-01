@@ -7,6 +7,7 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.shortcuts import get_object_or_404
+from django.http import Http404
 from django.utils import timezone
 from django.conf import settings
 from django.core.cache import cache
@@ -35,7 +36,16 @@ class EventumViewSet(viewsets.ModelViewSet):
 class EventumScopedViewSet:
     def get_eventum(self):
         if not hasattr(self, '_cached_eventum'):
+            # Сначала пробуем получить slug из URL параметров (для основного домена)
             eventum_slug = self.kwargs.get('eventum_slug')
+            
+            # Если slug нет в URL, пробуем получить из request (для поддоменов)
+            if not eventum_slug and hasattr(self.request, 'eventum_slug'):
+                eventum_slug = self.request.eventum_slug
+            
+            if not eventum_slug:
+                raise Http404("Eventum slug не найден")
+                
             self._cached_eventum = get_object_or_404(Eventum, slug=eventum_slug)
         return self._cached_eventum
     
@@ -1045,15 +1055,26 @@ def check_slug_availability(request, slug):
 
 
 @api_view(['GET'])
-def eventum_details(request, slug):
+def eventum_details(request, slug=None):
     """Получение детальной информации о eventum"""
     try:
+        # Получаем slug из параметров URL или из поддомена
+        eventum_slug = slug
+        if not eventum_slug and hasattr(request, 'eventum_slug'):
+            eventum_slug = request.eventum_slug
+            
+        if not eventum_slug:
+            return Response(
+                {'error': 'Eventum slug не найден'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
         # Проверяем существование eventum
         try:
-            eventum = Eventum.objects.get(slug=slug)
+            eventum = Eventum.objects.get(slug=eventum_slug)
         except Eventum.DoesNotExist:
             return Response(
-                {'error': f'Eventum with slug "{slug}" not found'}, 
+                {'error': f'Eventum with slug "{eventum_slug}" not found'}, 
                 status=status.HTTP_404_NOT_FOUND
             )
         
@@ -1116,13 +1137,24 @@ def eventum_details(request, slug):
 
 
 @api_view(['GET', 'POST'])
-def eventum_organizers(request, slug):
+def eventum_organizers(request, slug=None):
     """Получение списка организаторов eventum и добавление нового организатора"""
     if not request.user.is_authenticated:
         return Response({'error': 'Not authenticated'}, status=status.HTTP_401_UNAUTHORIZED)
     
     try:
-        eventum = get_object_or_404(Eventum, slug=slug)
+        # Получаем slug из параметров URL или из поддомена
+        eventum_slug = slug
+        if not eventum_slug and hasattr(request, 'eventum_slug'):
+            eventum_slug = request.eventum_slug
+            
+        if not eventum_slug:
+            return Response(
+                {'error': 'Eventum slug не найден'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        eventum = get_object_or_404(Eventum, slug=eventum_slug)
         
         # Проверяем, что пользователь является организатором
         is_organizer = UserRole.objects.filter(
@@ -1201,13 +1233,24 @@ def eventum_organizers(request, slug):
 
 
 @api_view(['DELETE'])
-def remove_eventum_organizer(request, slug, role_id):
+def remove_eventum_organizer(request, slug=None, role_id=None):
     """Удаление организатора из eventum"""
     if not request.user.is_authenticated:
         return Response({'error': 'Not authenticated'}, status=status.HTTP_401_UNAUTHORIZED)
     
     try:
-        eventum = get_object_or_404(Eventum, slug=slug)
+        # Получаем slug из параметров URL или из поддомена
+        eventum_slug = slug
+        if not eventum_slug and hasattr(request, 'eventum_slug'):
+            eventum_slug = request.eventum_slug
+            
+        if not eventum_slug:
+            return Response(
+                {'error': 'Eventum slug не найден'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        eventum = get_object_or_404(Eventum, slug=eventum_slug)
         
         # Проверяем, что пользователь является организатором
         is_organizer = UserRole.objects.filter(

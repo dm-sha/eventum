@@ -74,11 +74,21 @@ export const AppRouter = () => {
       {/* Public site layout */}
       <Route path="/" element={<Layout />}>
         <Route index element={homeElement} />
-        <Route path=":eventumSlug" element={<EventumPage />}>
-          <Route index element={<Navigate to="general" replace />} />
-          <Route path="general" element={<EventumPage />} />
-          <Route path="registration" element={<EventumPage />} />
-        </Route>
+        {subdomainSlug ? (
+          // При использовании поддомена не включаем slug в путь
+          <>
+            <Route index element={<Navigate to="general" replace />} />
+            <Route path="general" element={<EventumPage />} />
+            <Route path="registration" element={<EventumPage />} />
+          </>
+        ) : (
+          // При использовании основного домена включаем slug в путь
+          <Route path=":eventumSlug" element={<EventumPage />}>
+            <Route index element={<Navigate to="general" replace />} />
+            <Route path="general" element={<EventumPage />} />
+            <Route path="registration" element={<EventumPage />} />
+          </Route>
+        )}
         <Route path="*" element={<NotFoundPage />} />
       </Route>
 

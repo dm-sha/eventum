@@ -1,10 +1,17 @@
 import apiClient from './client';
 import type { Event } from '../types';
+import { getSubdomainSlug } from '../utils/eventumSlug';
 
 // Получить список всех мероприятий для конкретного Eventum.
 export const getEventsForEventum = async (eventumSlug: string): Promise<Event[]> => {
-    const response = await apiClient.get(`/eventums/${eventumSlug}/events/`);
-    return response.data;
+    const subdomainSlug = getSubdomainSlug();
+    if (subdomainSlug) {
+        const response = await apiClient.get('/events/');
+        return response.data;
+    } else {
+        const response = await apiClient.get(`/eventums/${eventumSlug}/events/`);
+        return response.data;
+    }
 };
 
 
@@ -20,8 +27,14 @@ export const createEvent = async (eventumSlug: string, data: {
   group_tag_ids?: number[];
   location_ids?: number[];
 }): Promise<Event> => {
-    const response = await apiClient.post(`/eventums/${eventumSlug}/events/`, data);
-    return response.data;
+    const subdomainSlug = getSubdomainSlug();
+    if (subdomainSlug) {
+        const response = await apiClient.post('/events/', data);
+        return response.data;
+    } else {
+        const response = await apiClient.post(`/eventums/${eventumSlug}/events/`, data);
+        return response.data;
+    }
 };
 
 // Обновить мероприятие
@@ -40,13 +53,24 @@ export const updateEvent = async (eventumSlug: string, eventId: number, data: {
   group_tag_ids?: number[];
   location_ids?: number[];
 }): Promise<Event> => {
-    const response = await apiClient.put(`/eventums/${eventumSlug}/events/${eventId}/`, data);
-    return response.data;
+    const subdomainSlug = getSubdomainSlug();
+    if (subdomainSlug) {
+        const response = await apiClient.put(`/events/${eventId}/`, data);
+        return response.data;
+    } else {
+        const response = await apiClient.put(`/eventums/${eventumSlug}/events/${eventId}/`, data);
+        return response.data;
+    }
 };
 
 // Удалить мероприятие
 export const deleteEvent = async (eventumSlug: string, eventId: number): Promise<void> => {
-    await apiClient.delete(`/eventums/${eventumSlug}/events/${eventId}/`);
+    const subdomainSlug = getSubdomainSlug();
+    if (subdomainSlug) {
+        await apiClient.delete(`/events/${eventId}/`);
+    } else {
+        await apiClient.delete(`/eventums/${eventumSlug}/events/${eventId}/`);
+    }
 };
 
 // Получить eventum'ы пользователя (где он имеет какую-либо роль)
@@ -63,10 +87,20 @@ export const getDevUser = async (): Promise<{access: string, refresh: string, us
 
 // Записаться на мероприятие
 export const registerForEvent = async (eventumSlug: string, eventId: number): Promise<void> => {
-    await apiClient.post(`/eventums/${eventumSlug}/events/${eventId}/register/`);
+    const subdomainSlug = getSubdomainSlug();
+    if (subdomainSlug) {
+        await apiClient.post(`/events/${eventId}/register/`);
+    } else {
+        await apiClient.post(`/eventums/${eventumSlug}/events/${eventId}/register/`);
+    }
 };
 
 // Отписаться от мероприятия
 export const unregisterFromEvent = async (eventumSlug: string, eventId: number): Promise<void> => {
-    await apiClient.delete(`/eventums/${eventumSlug}/events/${eventId}/unregister/`);
+    const subdomainSlug = getSubdomainSlug();
+    if (subdomainSlug) {
+        await apiClient.delete(`/events/${eventId}/unregister/`);
+    } else {
+        await apiClient.delete(`/eventums/${eventumSlug}/events/${eventId}/unregister/`);
+    }
 };

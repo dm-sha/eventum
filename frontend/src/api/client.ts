@@ -1,5 +1,6 @@
 import axios, { type AxiosResponse, type AxiosError } from 'axios';
 import { getCookie, setCookie, deleteCookie, getMerupCookieOptions } from '../utils/cookies';
+import { getSubdomainSlug } from '../utils/eventumSlug';
 
 // Определяем базовый URL API в зависимости от окружения
 const getApiBaseUrl = () => {
@@ -196,6 +197,22 @@ apiClient.interceptors.response.use(
     }
 );
 
+
+// Функция для создания API клиента с учетом поддомена
+export const createEventumApiClient = (slug: string) => {
+  const baseURL = getApiBaseUrl();
+  const subdomainSlug = getSubdomainSlug();
+  
+  // Если мы на поддомене, не добавляем slug в базовый URL
+  const eventumBaseUrl = subdomainSlug ? baseURL : `${baseURL}/eventums/${slug}`;
+  
+  return axios.create({
+    baseURL: eventumBaseUrl,
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+};
 
 export { apiClient };
 export default apiClient;

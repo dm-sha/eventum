@@ -1,4 +1,5 @@
 import apiClient from './client';
+import { getSubdomainSlug } from '../utils/eventumSlug';
 
 export interface EventWaveEventInfo {
   id: number;
@@ -37,22 +38,45 @@ export interface UpdateEventWaveDto {
 }
 
 export async function listEventWaves(eventumSlug: string): Promise<EventWave[]> {
-  const { data } = await apiClient.get(`/eventums/${eventumSlug}/event-waves/`);
-  return data;
+  const subdomainSlug = getSubdomainSlug();
+  if (subdomainSlug) {
+    const { data } = await apiClient.get('/event-waves/');
+    return data;
+  } else {
+    const { data } = await apiClient.get(`/eventums/${eventumSlug}/event-waves/`);
+    return data;
+  }
 }
 
 export async function createEventWave(eventumSlug: string, dto: CreateEventWaveDto): Promise<EventWave> {
-  const { data } = await apiClient.post(`/eventums/${eventumSlug}/event-waves/`, dto);
-  return data;
+  const subdomainSlug = getSubdomainSlug();
+  if (subdomainSlug) {
+    const { data } = await apiClient.post('/event-waves/', dto);
+    return data;
+  } else {
+    const { data } = await apiClient.post(`/eventums/${eventumSlug}/event-waves/`, dto);
+    return data;
+  }
 }
 
 export async function updateEventWave(eventumSlug: string, id: number, dto: UpdateEventWaveDto): Promise<EventWave> {
-  const { data } = await apiClient.patch(`/eventums/${eventumSlug}/event-waves/${id}/`, dto);
-  return data;
+  const subdomainSlug = getSubdomainSlug();
+  if (subdomainSlug) {
+    const { data } = await apiClient.patch(`/event-waves/${id}/`, dto);
+    return data;
+  } else {
+    const { data } = await apiClient.patch(`/eventums/${eventumSlug}/event-waves/${id}/`, dto);
+    return data;
+  }
 }
 
 export async function deleteEventWave(eventumSlug: string, id: number): Promise<void> {
-  await apiClient.delete(`/eventums/${eventumSlug}/event-waves/${id}/`);
+  const subdomainSlug = getSubdomainSlug();
+  if (subdomainSlug) {
+    await apiClient.delete(`/event-waves/${id}/`);
+  } else {
+    await apiClient.delete(`/eventums/${eventumSlug}/event-waves/${id}/`);
+  }
 }
 
 
