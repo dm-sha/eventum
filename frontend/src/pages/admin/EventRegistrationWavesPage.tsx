@@ -1,15 +1,146 @@
-import { useEffect, useMemo, useState, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { useEffect, useState, useRef } from 'react';
 import { listEventWaves, createEventWave, updateEventWave, deleteEventWave } from '../../api/eventWave';
 import type { EventWave } from '../../api/eventWave';
-import { getSubdomainSlug } from '../../utils/eventumSlug';
 import { eventTagApi } from '../../api/eventTag';
 import { getEventsForEventum } from '../../api/event';
-import { IconPencil, IconTrash, IconCheck, IconX } from '../../components/icons';
+import { IconPencil, IconTrash, IconCheck, IconX, IconPlus, IconInformationCircle } from '../../components/icons';
 import { getGroupsForEventum } from '../../api/group';
 import { groupTagApi } from '../../api/groupTag';
+import { useEventumSlug } from '../../hooks/useEventumSlug';
+import WavesLoadingSkeleton from '../../components/admin/skeletons/WavesLoadingSkeleton';
 
 type Mode = 'view' | 'edit' | 'create';
+
+interface FilterItem {
+  id: number;
+  name: string;
+  type: 'group' | 'tag';
+}
+
+interface FilterSelectorProps {
+  label: string;
+  items: FilterItem[];
+  selectedItems: FilterItem[];
+  onAdd: (item: FilterItem) => void;
+  onRemove: (id: number, type: 'group' | 'tag') => void;
+  placeholder: string;
+  colorScheme: 'green' | 'red';
+}
+
+const FilterSelector: React.FC<FilterSelectorProps> = ({
+  label,
+  items,
+  selectedItems,
+  onAdd,
+  onRemove,
+  placeholder,
+  colorScheme
+}) => {
+  const [query, setQuery] = useState('');
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const inputRef = useRef<HTMLDivElement>(null);
+
+  const suggestions = items.filter(item => 
+    item.name.toLowerCase().includes(query.toLowerCase()) && 
+    !selectedItems.some(selected => selected.id === item.id && selected.type === item.type)
+  );
+
+  const handleAdd = (item: FilterItem) => {
+    onAdd(item);
+    setQuery('');
+    setShowSuggestions(false);
+  };
+
+  const handleClickOutside = (event: MouseEvent) => {
+    if (inputRef.current && !inputRef.current.contains(event.target as Node)) {
+      setShowSuggestions(false);
+    }
+  };
+
+  useEffect(() => {
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const isGreen = colorScheme === 'green';
+  const focusColor = isGreen ? 'focus:border-green-500 focus:ring-green-200' : 'focus:border-red-500 focus:ring-red-200';
+  const badgeColor = isGreen 
+    ? 'bg-green-100 text-green-800' 
+    : 'bg-red-100 text-red-800';
+  const badgeTextColor = isGreen ? 'text-green-600' : 'text-red-600';
+
+  return (
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-2">
+        {label}
+      </label>
+      
+      <div ref={inputRef} className="relative mb-3">
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onFocus={() => setShowSuggestions(true)}
+          onClick={() => setShowSuggestions(true)}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              setShowSuggestions(false);
+            }
+          }}
+          placeholder={placeholder}
+          className={`w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 ${focusColor}`}
+        />
+        
+        {showSuggestions && suggestions.length > 0 && (
+          <div className="absolute z-10 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg max-h-32 overflow-y-auto">
+            {suggestions.map((item) => (
+              <button
+                key={`${item.type}-${item.id}`}
+                type="button"
+                onClick={() => handleAdd(item)}
+                className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50"
+              >
+                {item.name}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      
+      {selectedItems.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {selectedItems.map((item) => (
+            <span
+              key={`${item.type}-${item.id}`}
+              className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium ${
+                item.type === 'group' 
+                  ? badgeColor
+                  : isGreen 
+                    ? 'bg-purple-100 text-purple-800' 
+                    : 'bg-orange-100 text-orange-800'
+              }`}
+            >
+              {item.name}
+              <button
+                type="button"
+                onClick={() => onRemove(item.id, item.type)}
+                className={`ml-1 hover:opacity-80 ${
+                  item.type === 'group' 
+                    ? badgeTextColor
+                    : isGreen 
+                      ? 'text-purple-600' 
+                      : 'text-orange-600'
+                }`}
+              >
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
 
 interface WaveCardProps {
   wave: EventWave;
@@ -24,14 +155,8 @@ interface WaveCardProps {
 
 const WaveCard: React.FC<WaveCardProps> = ({ wave, mode, onStartEdit, onDelete, onSave, onCancel, groups, groupTags }) => {
   const [name, setName] = useState(wave.name);
-  const [whitelistItems, setWhitelistItems] = useState<Array<{id: number, name: string, type: 'group' | 'tag'}>>([]);
-  const [blacklistItems, setBlacklistItems] = useState<Array<{id: number, name: string, type: 'group' | 'tag'}>>([]);
-  const [whitelistQuery, setWhitelistQuery] = useState('');
-  const [blacklistQuery, setBlacklistQuery] = useState('');
-  const [showWhitelistSuggestions, setShowWhitelistSuggestions] = useState(false);
-  const [showBlacklistSuggestions, setShowBlacklistSuggestions] = useState(false);
-  const whitelistInputRef = useRef<HTMLDivElement>(null);
-  const blacklistInputRef = useRef<HTMLDivElement>(null);
+  const [whitelistItems, setWhitelistItems] = useState<FilterItem[]>([]);
+  const [blacklistItems, setBlacklistItems] = useState<FilterItem[]>([]);
 
   useEffect(() => {
     setName(wave.name);
@@ -52,43 +177,17 @@ const WaveCard: React.FC<WaveCardProps> = ({ wave, mode, onStartEdit, onDelete, 
     return `${reg ?? 0} / ${max}`;
   };
 
-  // Функции для работы с саджестами
-  const getWhitelistSuggestions = () => {
-    const query = whitelistQuery.toLowerCase();
-    const allItems = [
-      ...groups.map(g => ({ id: g.id, name: g.name, type: 'group' as const })),
-      ...groupTags.map(t => ({ id: t.id, name: t.name, type: 'tag' as const }))
-    ];
-    
-    return allItems.filter(item => 
-      item.name.toLowerCase().includes(query) && 
-      !whitelistItems.some(selected => selected.id === item.id && selected.type === item.type)
-    );
-  };
+  const allItems: FilterItem[] = [
+    ...groups.map(g => ({ id: g.id, name: g.name, type: 'group' as const })),
+    ...groupTags.map(t => ({ id: t.id, name: t.name, type: 'tag' as const }))
+  ];
 
-  const getBlacklistSuggestions = () => {
-    const query = blacklistQuery.toLowerCase();
-    const allItems = [
-      ...groups.map(g => ({ id: g.id, name: g.name, type: 'group' as const })),
-      ...groupTags.map(t => ({ id: t.id, name: t.name, type: 'tag' as const }))
-    ];
-    
-    return allItems.filter(item => 
-      item.name.toLowerCase().includes(query) && 
-      !blacklistItems.some(selected => selected.id === item.id && selected.type === item.type)
-    );
-  };
-
-  const addToWhitelist = (item: {id: number, name: string, type: 'group' | 'tag'}) => {
+  const addToWhitelist = (item: FilterItem) => {
     setWhitelistItems([...whitelistItems, item]);
-    setWhitelistQuery('');
-    setShowWhitelistSuggestions(false);
   };
 
-  const addToBlacklist = (item: {id: number, name: string, type: 'group' | 'tag'}) => {
+  const addToBlacklist = (item: FilterItem) => {
     setBlacklistItems([...blacklistItems, item]);
-    setBlacklistQuery('');
-    setShowBlacklistSuggestions(false);
   };
 
   const removeFromWhitelist = (id: number, type: 'group' | 'tag') => {
@@ -98,23 +197,6 @@ const WaveCard: React.FC<WaveCardProps> = ({ wave, mode, onStartEdit, onDelete, 
   const removeFromBlacklist = (id: number, type: 'group' | 'tag') => {
     setBlacklistItems(blacklistItems.filter(item => !(item.id === id && item.type === type)));
   };
-
-  // Обработка кликов вне области ввода
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (whitelistInputRef.current && !whitelistInputRef.current.contains(event.target as Node)) {
-        setShowWhitelistSuggestions(false);
-      }
-      if (blacklistInputRef.current && !blacklistInputRef.current.contains(event.target as Node)) {
-        setShowBlacklistSuggestions(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, []);
 
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
@@ -138,52 +220,21 @@ const WaveCard: React.FC<WaveCardProps> = ({ wave, mode, onStartEdit, onDelete, 
           </div>
           <div className="flex items-center gap-2">
             {mode === 'edit' ? (
-              <>
-                <button
-                  onClick={() => {
-                    const whitelistGroups = whitelistItems.filter(item => item.type === 'group').map(item => item.id);
-                    const whitelistGroupTags = whitelistItems.filter(item => item.type === 'tag').map(item => item.id);
-                    const blacklistGroups = blacklistItems.filter(item => item.type === 'group').map(item => item.id);
-                    const blacklistGroupTags = blacklistItems.filter(item => item.type === 'tag').map(item => item.id);
-                    
-                    onSave({
-                      name: name.trim(),
-                      whitelist_group_ids: whitelistGroups,
-                      whitelist_group_tag_ids: whitelistGroupTags,
-                      blacklist_group_ids: blacklistGroups,
-                      blacklist_group_tag_ids: blacklistGroupTags
-                    });
-                  }}
-                  className="inline-flex items-center justify-center rounded-lg bg-green-600 p-2 text-white transition-colors hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
-                  title="Сохранить"
-                >
-                  <IconCheck size={16} />
-                </button>
-                <button
-                  onClick={onCancel}
-                  className="inline-flex items-center justify-center rounded-lg bg-gray-200 p-2 text-gray-700 transition-colors hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2"
-                  title="Отмена"
-                >
-                  <IconX size={16} />
-                </button>
-              </>
+              <button
+                onClick={onDelete}
+                className="p-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                title="Удалить"
+              >
+                <IconTrash size={16} />
+              </button>
             ) : (
-              <>
-                <button
-                  onClick={onStartEdit}
-                  className="inline-flex items-center justify-center rounded-lg border border-blue-200 p-2 text-blue-700 transition-colors hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-                  title="Редактировать"
-                >
-                  <IconPencil size={16} />
-                </button>
-                <button
-                  onClick={onDelete}
-                  className="inline-flex items-center justify-center rounded-lg border border-red-200 p-2 text-red-700 transition-colors hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
-                  title="Удалить"
-                >
-                  <IconTrash size={16} />
-                </button>
-              </>
+              <button
+                onClick={onStartEdit}
+                className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+                title="Редактировать"
+              >
+                <IconPencil size={16} />
+              </button>
             )}
           </div>
         </div>
@@ -213,147 +264,25 @@ const WaveCard: React.FC<WaveCardProps> = ({ wave, mode, onStartEdit, onDelete, 
           <div className="border-t pt-3">
             <h5 className="text-sm font-medium text-gray-700 mb-3">Настройка доступа к волне</h5>
             <div className="space-y-4">
-              {/* Whitelist */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Группы, которые учавствуют в мероприятях волны
-                </label>
-                
-                {/* Поле ввода с саджестом */}
-                <div ref={whitelistInputRef} className="relative mb-3">
-                  <input
-                    type="text"
-                    value={whitelistQuery}
-                    onChange={(e) => setWhitelistQuery(e.target.value)}
-                    onFocus={() => setShowWhitelistSuggestions(true)}
-                    onClick={() => setShowWhitelistSuggestions(true)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Escape') {
-                        setShowWhitelistSuggestions(false);
-                      }
-                    }}
-                    placeholder="Добавить группу или тег..."
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-200"
-                  />
-                  
-                  {/* Саджесты */}
-                  {showWhitelistSuggestions && getWhitelistSuggestions().length > 0 && (
-                    <div className="absolute z-10 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg max-h-32 overflow-y-auto">
-                      {getWhitelistSuggestions().map((item) => (
-                        <button
-                          key={`${item.type}-${item.id}`}
-                          type="button"
-                          onClick={() => addToWhitelist(item)}
-                          className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50"
-                        >
-                          {item.name}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                
-                {/* Показать выбранные элементы */}
-                {whitelistItems.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {whitelistItems.map((item) => (
-                      <span
-                        key={`${item.type}-${item.id}`}
-                        className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium ${
-                          item.type === 'group' 
-                            ? 'bg-blue-100 text-blue-800' 
-                            : 'bg-purple-100 text-purple-800'
-                        }`}
-                      >
-                        {item.name}
-                        <button
-                          type="button"
-                          onClick={() => removeFromWhitelist(item.id, item.type)}
-                          className={`ml-1 hover:opacity-80 ${
-                            item.type === 'group' 
-                              ? 'text-blue-600' 
-                              : 'text-purple-600'
-                          }`}
-                        >
-                          ×
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <FilterSelector
+                label="Группы, которые участвуют в мероприятиях волны"
+                items={allItems}
+                selectedItems={whitelistItems}
+                onAdd={addToWhitelist}
+                onRemove={removeFromWhitelist}
+                placeholder="Добавить группу или тег..."
+                colorScheme="green"
+              />
 
-              {/* Blacklist */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Группы, которые не учавствуют в мероприятях волны
-                </label>
-                
-                {/* Поле ввода с саджестом */}
-                <div ref={blacklistInputRef} className="relative mb-3">
-                  <input
-                    type="text"
-                    value={blacklistQuery}
-                    onChange={(e) => setBlacklistQuery(e.target.value)}
-                    onFocus={() => setShowBlacklistSuggestions(true)}
-                    onClick={() => setShowBlacklistSuggestions(true)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Escape') {
-                        setShowBlacklistSuggestions(false);
-                      }
-                    }}
-                    placeholder="Добавить группу или тег..."
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-200"
-                  />
-                  
-                  {/* Саджесты */}
-                  {showBlacklistSuggestions && getBlacklistSuggestions().length > 0 && (
-                    <div className="absolute z-10 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg max-h-32 overflow-y-auto">
-                      {getBlacklistSuggestions().map((item) => (
-                        <button
-                          key={`${item.type}-${item.id}`}
-                          type="button"
-                          onClick={() => addToBlacklist(item)}
-                          className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50"
-                        >
-                          {item.name}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                
-                {/* Показать выбранные элементы */}
-                {blacklistItems.length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
-                    {blacklistItems.map((item) => (
-                      <span
-                        key={`${item.type}-${item.id}`}
-                        className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium ${
-                          item.type === 'group' 
-                            ? 'bg-red-100 text-red-800' 
-                            : 'bg-orange-100 text-orange-800'
-                        }`}
-                      >
-                        {item.name}
-                        <button
-                          type="button"
-                          onClick={() => removeFromBlacklist(item.id, item.type)}
-                          className={`ml-1 hover:opacity-80 ${
-                            item.type === 'group' 
-                              ? 'text-red-600' 
-                              : 'text-orange-600'
-                          }`}
-                        >
-                          ×
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-xs text-gray-500">Никто не исключен</div>
-                )}
-              </div>
+              <FilterSelector
+                label="Группы, которые не участвуют в мероприятиях волны"
+                items={allItems}
+                selectedItems={blacklistItems}
+                onAdd={addToBlacklist}
+                onRemove={removeFromBlacklist}
+                placeholder="Добавить группу или тег..."
+                colorScheme="red"
+              />
             </div>
           </div>
         )}
@@ -381,6 +310,41 @@ const WaveCard: React.FC<WaveCardProps> = ({ wave, mode, onStartEdit, onDelete, 
             </div>
           )}
         </div>
+
+        {/* Кнопки сохранения/отмены в режиме редактирования */}
+        {mode === 'edit' && (
+          <div className="border-t pt-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+              <button
+                onClick={() => {
+                  const whitelistGroups = whitelistItems.filter(item => item.type === 'group').map(item => item.id);
+                  const whitelistGroupTags = whitelistItems.filter(item => item.type === 'tag').map(item => item.id);
+                  const blacklistGroups = blacklistItems.filter(item => item.type === 'group').map(item => item.id);
+                  const blacklistGroupTags = blacklistItems.filter(item => item.type === 'tag').map(item => item.id);
+                  
+                  onSave({
+                    name: name.trim(),
+                    whitelist_group_ids: whitelistGroups,
+                    whitelist_group_tag_ids: whitelistGroupTags,
+                    blacklist_group_ids: blacklistGroups,
+                    blacklist_group_tag_ids: blacklistGroupTags
+                  });
+                }}
+                className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              >
+                <IconCheck size={16} className="mr-2" />
+                Сохранить
+              </button>
+              <button
+                onClick={onCancel}
+                className="inline-flex items-center justify-center rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2"
+              >
+                <IconX size={16} className="mr-2" />
+                Отмена
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -441,7 +405,7 @@ const CreateWaveForm: React.FC<{
 
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
-      <h4 className="text-base font-semibold text-gray-900">Создать новую волну</h4>
+      <h4 className="text-lg font-semibold text-gray-900">Создать новую волну</h4>
       <form onSubmit={handleSubmit} className="mt-4 space-y-4">
         <div>
           <input
@@ -525,14 +489,14 @@ const CreateWaveForm: React.FC<{
           <button
             type="submit"
             disabled={!canSave}
-            className="inline-flex items-center justify-center rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {hasInvalidEvents ? 'Исправьте мероприятия' : 'Создать'}
           </button>
           <button
             type="button"
             onClick={onCancel}
-            className="inline-flex items-center justify-center rounded-lg bg-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2"
+            className="inline-flex items-center justify-center rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2"
           >
             Отмена
           </button>
@@ -543,25 +507,22 @@ const CreateWaveForm: React.FC<{
 };
 
 const EventRegistrationWavesPage: React.FC = () => {
-  const { eventumSlug: urlSlug } = useParams<{ eventumSlug?: string }>();
-  const subdomainSlug = getSubdomainSlug();
-  const eventumSlug = useMemo(() => subdomainSlug || urlSlug || '', [subdomainSlug, urlSlug]);
+  const eventumSlug = useEventumSlug();
   const [waves, setWaves] = useState<EventWave[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
   const [tags, setTags] = useState<{ id: number; name: string }[]>([]);
   const [groups, setGroups] = useState<{ id: number; name: string }[]>([]);
   const [groupTags, setGroupTags] = useState<{ id: number; name: string }[]>([]);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
-
-  
+  const [searchQuery, setSearchQuery] = useState('');
 
   const load = async () => {
     if (!eventumSlug) {
-      setLoading(false);
+      setIsLoading(false);
       return;
     }
-    setLoading(true);
+    setIsLoading(true);
     try {
       const [ws, ets, gs, gts] = await Promise.all([
         listEventWaves(eventumSlug),
@@ -574,11 +535,16 @@ const EventRegistrationWavesPage: React.FC = () => {
       setGroups(gs.map((g: any) => ({ id: g.id, name: g.name })));
       setGroupTags(gts.map((t: any) => ({ id: t.id, name: t.name })));
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
   useEffect(() => { load(); }, [eventumSlug]);
+
+  const filteredWaves = waves.filter(wave =>
+    wave.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    wave.tag.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   const handleCreate = async (name: string, tagId: number) => {
     if (!eventumSlug) return;
@@ -599,7 +565,7 @@ const EventRegistrationWavesPage: React.FC = () => {
   };
 
   const handleDelete = async (id: number) => {
-    if (!eventumSlug) return;
+    if (!eventumSlug || !confirm('Вы уверены, что хотите удалить эту волну?')) return;
     await deleteEventWave(eventumSlug, id);
     await load();
   };
@@ -608,21 +574,60 @@ const EventRegistrationWavesPage: React.FC = () => {
     setEditingId(null);
   };
 
-  return (
-    <div className="p-4">
-      <h1 className="text-2xl font-bold">Регистрация на мероприятия</h1>
-      <div className="mt-6">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="text-xl font-semibold">Волны регистрации</h2>
-          <button
-            onClick={() => setShowCreateForm(true)}
-            className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-          >
-            Добавить волну
-          </button>
-        </div>
+  if (!eventumSlug) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-red-600">Не найден slug мероприятия</p>
+      </div>
+    );
+  }
 
-        <div className="mt-4 space-y-4">
+  return (
+    <div className="space-y-6">
+      <header className="space-y-2">
+        <div className="flex items-center gap-2">
+          <h2 className="text-2xl font-semibold text-gray-900">Волны регистрации</h2>
+          <div className="group relative">
+            <IconInformationCircle size={20} className="text-gray-400 cursor-help" />
+            <div className="absolute top-full left-0 mt-2 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-normal w-80 z-50">
+              Волны регистрации позволяют организовать поэтапную регистрацию на мероприятия. Настройте доступ для разных групп участников.
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Поиск */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="relative flex-1">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Поиск волн..."
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+          />
+        </div>
+        <span className="text-xs text-gray-500 whitespace-nowrap">
+          Показано: {filteredWaves.length}
+        </span>
+      </div>
+
+      {/* Кнопка добавления волны */}
+      <div className="flex justify-start">
+        <button
+          onClick={() => setShowCreateForm(true)}
+          className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+        >
+          <IconPlus size={16} />
+          Добавить волну
+        </button>
+      </div>
+
+      {/* Список волн */}
+      {isLoading ? (
+        <WavesLoadingSkeleton />
+      ) : (
+        <div className="space-y-4">
           {showCreateForm && (
             <CreateWaveForm 
               onCreate={handleCreate} 
@@ -632,14 +637,15 @@ const EventRegistrationWavesPage: React.FC = () => {
             />
           )}
 
-          {loading ? (
-            <div className="text-center py-8">Загрузка...</div>
-          ) : waves.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              Волны регистрации не найдены. Создайте первую волну.
+          {filteredWaves.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-10 text-center text-sm text-gray-500">
+              {searchQuery 
+                ? "Подходящих волн не найдено" 
+                : "Волны регистрации не найдены. Создайте первую волну."
+              }
             </div>
           ) : (
-            waves.map((w) => (
+            filteredWaves.map((w) => (
               <WaveCard
                 key={w.id}
                 wave={w}
@@ -654,8 +660,7 @@ const EventRegistrationWavesPage: React.FC = () => {
             ))
           )}
         </div>
-      </div>
-
+      )}
     </div>
   );
 };
