@@ -616,6 +616,8 @@ class EventSerializer(serializers.ModelSerializer):
         allow_empty=True,
         select_related="eventum",
     )
+    registrations_count = serializers.SerializerMethodField()
+    is_registered = serializers.SerializerMethodField()
     
     # Обычные поля времени - работаем без таймзон
     start_time = serializers.DateTimeField()
@@ -627,7 +629,7 @@ class EventSerializer(serializers.ModelSerializer):
             'id', 'name', 'description', 'start_time', 'end_time',
             'participant_type', 'max_participants', 'image_url',
             'participants', 'groups', 'tags', 'tag_ids', 'group_tags', 'group_tag_ids', 
-            'locations', 'location_ids'
+            'locations', 'location_ids', 'registrations_count', 'is_registered'
         ]
 
     def update(self, instance, validated_data):
@@ -659,6 +661,24 @@ class EventSerializer(serializers.ModelSerializer):
             instance.locations.set(locations)
         
         return instance
+
+    def get_registrations_count(self, obj):
+        """Получить количество записанных участников"""
+        from .models import EventRegistration
+        return EventRegistration.objects.filter(event=obj).count()
+
+    def get_is_registered(self, obj):
+        """Проверить, записан ли текущий пользователь на мероприятие"""
+        request = self.context.get('request')
+        if not request or not request.user.is_authenticated:
+            return False
+        
+        from .models import EventRegistration, Participant
+        try:
+            participant = Participant.objects.get(user=request.user, eventum=obj.eventum)
+            return EventRegistration.objects.filter(participant=participant, event=obj).exists()
+        except Participant.DoesNotExist:
+            return False
 
     def validate_participants(self, value):
         if not value:

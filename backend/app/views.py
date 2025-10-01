@@ -13,7 +13,7 @@ from django.core.cache import cache
 from django.db.models import Prefetch
 import requests
 import json
-from .models import Eventum, Participant, ParticipantGroup, GroupTag, Event, EventTag, UserProfile, UserRole, Location, EventWave
+from .models import Eventum, Participant, ParticipantGroup, GroupTag, Event, EventTag, UserProfile, UserRole, Location, EventWave, EventRegistration
 from .serializers import (
     EventumSerializer, ParticipantSerializer, ParticipantGroupSerializer,
     GroupTagSerializer, EventSerializer, EventTagSerializer,
@@ -465,6 +465,65 @@ class EventViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
         ).order_by('-start_time')
         serializer = self.get_serializer(events, many=True)
         return Response(serializer.data)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsEventumParticipant])
+    def register(self, request, eventum_slug=None, pk=None):
+        """Записаться на мероприятие"""
+        if not request.user.is_authenticated:
+            return Response({'error': 'Not authenticated'}, status=status.HTTP_401_UNAUTHORIZED)
+        
+        eventum = self.get_eventum()
+        event = self.get_object()
+        
+        # Проверяем, что пользователь является участником eventum
+        try:
+            participant = Participant.objects.get(user=request.user, eventum=eventum)
+        except Participant.DoesNotExist:
+            return Response({'error': 'User is not a participant in this eventum'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Проверяем, что мероприятие имеет тип "По записи"
+        if event.participant_type != Event.ParticipantType.REGISTRATION:
+            return Response({'error': 'Registration is only available for events with registration type'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Проверяем, не записан ли уже участник
+        if EventRegistration.objects.filter(participant=participant, event=event).exists():
+            return Response({'error': 'Already registered for this event'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Проверяем лимит участников
+        if event.max_participants:
+            current_registrations = EventRegistration.objects.filter(event=event).count()
+            if current_registrations >= event.max_participants:
+                return Response({'error': 'Event is full'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Создаем регистрацию
+        try:
+            registration = EventRegistration.objects.create(participant=participant, event=event)
+            return Response({'status': 'success', 'message': 'Successfully registered for event'}, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=True, methods=['delete'], permission_classes=[IsEventumParticipant])
+    def unregister(self, request, eventum_slug=None, pk=None):
+        """Отписаться от мероприятия"""
+        if not request.user.is_authenticated:
+            return Response({'error': 'Not authenticated'}, status=status.HTTP_401_UNAUTHORIZED)
+        
+        eventum = self.get_eventum()
+        event = self.get_object()
+        
+        # Проверяем, что пользователь является участником eventum
+        try:
+            participant = Participant.objects.get(user=request.user, eventum=eventum)
+        except Participant.DoesNotExist:
+            return Response({'error': 'User is not a participant in this eventum'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Проверяем, записан ли участник
+        try:
+            registration = EventRegistration.objects.get(participant=participant, event=event)
+            registration.delete()
+            return Response({'status': 'success', 'message': 'Successfully unregistered from event'}, status=status.HTTP_200_OK)
+        except EventRegistration.DoesNotExist:
+            return Response({'error': 'Not registered for this event'}, status=status.HTTP_404_NOT_FOUND)
 
 
 class LocationViewSet(EventumScopedViewSet, viewsets.ModelViewSet):

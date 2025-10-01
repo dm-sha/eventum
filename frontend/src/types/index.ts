@@ -59,6 +59,8 @@ export interface Event {
   participant_type: ParticipantType; // Тип определения участников
   max_participants?: number; // Максимальное количество участников (для типа registration)
   image_url?: string; // URL изображения события
+  registrations_count: number; // Количество записанных участников
+  is_registered: boolean; // Записан ли текущий пользователь
   // (arrays of IDs)
   participants: number[];
   groups: number[];

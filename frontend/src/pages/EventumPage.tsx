@@ -2,7 +2,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { getEventumBySlug } from "../api/eventum";
 import { listEventWaves } from "../api/eventWave";
-import { getEventsForEventum } from "../api/event";
+import { getEventsForEventum, registerForEvent, unregisterFromEvent } from "../api/event";
 import { getCurrentParticipant } from "../api/participant";
 import type { Eventum, Event, Participant } from "../types";
 import type { EventWave } from "../api/eventWave";
@@ -139,8 +139,8 @@ const EventumPage = () => {
             {currentTab === 'general' && (
               <GeneralTab eventum={eventum} />
             )}
-            {currentTab === 'registration' && (
-              <RegistrationTab eventWaves={eventWaves} events={events} currentParticipant={currentParticipant} />
+            {currentTab === 'registration' && eventumSlug && (
+              <RegistrationTab eventWaves={eventWaves} events={events} currentParticipant={currentParticipant} eventumSlug={eventumSlug} />
             )}
           </div>
         </div>
@@ -169,7 +169,7 @@ const GeneralTab: React.FC<{ eventum: Eventum }> = ({ eventum }) => {
 };
 
 // Компонент для вкладки "Запись на мероприятия"
-const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; currentParticipant: Participant | null }> = ({ eventWaves, events, currentParticipant }) => {
+const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; currentParticipant: Participant | null; eventumSlug: string }> = ({ eventWaves, events, currentParticipant, eventumSlug }) => {
   const [expandedWaves, setExpandedWaves] = useState<Set<number>>(new Set());
 
   const toggleWave = (waveId: number) => {
@@ -186,6 +186,12 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
     return events.filter(event => 
       event.tags.some(tag => tag.id === wave.tag.id)
     );
+  };
+
+  const getRegisteredEventsCountForWave = (wave: EventWave) => {
+    if (!currentParticipant) return 0;
+    const waveEvents = getEventsForWave(wave);
+    return waveEvents.filter(event => event.is_registered).length;
   };
 
   // Проверяем доступность волны для текущего участника
@@ -284,6 +290,7 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
       
       {eventWaves.map((wave) => {
         const waveEvents = getEventsForWave(wave);
+        const registeredCount = getRegisteredEventsCountForWave(wave);
         const isExpanded = expandedWaves.has(wave.id);
         const accessibility = isWaveAccessible(wave);
         
@@ -306,6 +313,11 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
                   {accessibility.accessible ? (
                     <p className="text-sm text-gray-500">
                       {waveEvents.length} мероприятий
+                      {registeredCount > 0 && (
+                        <span className="ml-2 text-blue-600 font-medium">
+                          • Записаны на {registeredCount}
+                        </span>
+                      )}
                     </p>
                   ) : (
                     <p className="text-sm text-gray-500">
@@ -357,7 +369,7 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
                     </p>
                   ) : (
                     waveEvents.map((event) => (
-                      <EventCard key={event.id} event={event} />
+                      <EventCard key={event.id} event={event} eventumSlug={eventumSlug} />
                     ))
                   )}
                 </div>
@@ -371,7 +383,37 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
 };
 
 // Компонент карточки мероприятия
-const EventCard: React.FC<{ event: Event }> = ({ event }) => {
+const EventCard: React.FC<{ event: Event; eventumSlug: string }> = ({ event, eventumSlug }) => {
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleRegister = async () => {
+    setIsLoading(true);
+    try {
+      await registerForEvent(eventumSlug, event.id);
+      // Обновляем состояние события
+      event.is_registered = true;
+      event.registrations_count += 1;
+    } catch (error) {
+      console.error('Ошибка записи на мероприятие:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleUnregister = async () => {
+    setIsLoading(true);
+    try {
+      await unregisterFromEvent(eventumSlug, event.id);
+      // Обновляем состояние события
+      event.is_registered = false;
+      event.registrations_count -= 1;
+    } catch (error) {
+      console.error('Ошибка отписки от мероприятия:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const getLocationText = () => {
     if (!event.locations || event.locations.length === 0) {
       return 'Локация не указана';
@@ -383,7 +425,7 @@ const EventCard: React.FC<{ event: Event }> = ({ event }) => {
     if (event.participant_type === 'all') {
       return 'Для всех участников';
     } else if (event.participant_type === 'registration' && event.max_participants) {
-      return `До ${event.max_participants} участников`;
+      return `${event.registrations_count}/${event.max_participants} участников`;
     } else if (event.participant_type === 'manual') {
       return 'По приглашению';
     }
@@ -428,6 +470,42 @@ const EventCard: React.FC<{ event: Event }> = ({ event }) => {
           </div>
         )}
       </div>
+      
+      {/* Кнопка записи для мероприятий с типом "По записи" */}
+      {event.participant_type === 'registration' && (
+        <div className="mt-4 pt-4 border-t border-gray-100">
+          {event.is_registered ? (
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-green-600 font-medium">
+                ✓ Вы записаны на это мероприятие
+              </span>
+              <button
+                onClick={handleUnregister}
+                disabled={isLoading}
+                className="px-3 py-1 text-sm text-gray-600 hover:text-gray-700 hover:bg-gray-50 border border-gray-300 rounded-md transition-colors disabled:opacity-50"
+              >
+                {isLoading ? 'Отмена...' : 'Отменить запись'}
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-500">
+                {event.max_participants && event.registrations_count >= event.max_participants
+                  ? 'Мест нет'
+                  : 'Запись открыта'
+                }
+              </span>
+              <button
+                onClick={handleRegister}
+                disabled={isLoading || !!(event.max_participants && event.registrations_count >= event.max_participants)}
+                className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isLoading ? 'Запись...' : 'Записаться'}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };

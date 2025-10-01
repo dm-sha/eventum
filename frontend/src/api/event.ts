@@ -60,3 +60,13 @@ export const getDevUser = async (): Promise<{access: string, refresh: string, us
     const response = await apiClient.get('/auth/dev-user/');
     return response.data;
 };
+
+// Записаться на мероприятие
+export const registerForEvent = async (eventumSlug: string, eventId: number): Promise<void> => {
+    await apiClient.post(`/eventums/${eventumSlug}/events/${eventId}/register/`);
+};
+
+// Отписаться от мероприятия
+export const unregisterFromEvent = async (eventumSlug: string, eventId: number): Promise<void> => {
+    await apiClient.delete(`/eventums/${eventumSlug}/events/${eventId}/unregister/`);
+};
