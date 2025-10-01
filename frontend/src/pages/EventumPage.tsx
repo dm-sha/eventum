@@ -171,6 +171,18 @@ const GeneralTab: React.FC<{ eventum: Eventum }> = ({ eventum }) => {
 // Компонент для вкладки "Запись на мероприятия"
 const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; currentParticipant: Participant | null; eventumSlug: string }> = ({ eventWaves, events, currentParticipant, eventumSlug }) => {
   const [expandedWaves, setExpandedWaves] = useState<Set<number>>(new Set());
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  useEffect(() => {
+    const handleRegistrationChange = () => {
+      setRefreshKey(prev => prev + 1);
+    };
+
+    window.addEventListener('eventRegistrationChanged', handleRegistrationChange);
+    return () => {
+      window.removeEventListener('eventRegistrationChanged', handleRegistrationChange);
+    };
+  }, []);
 
   const toggleWave = (waveId: number) => {
     const newExpanded = new Set(expandedWaves);
@@ -285,7 +297,7 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" key={refreshKey}>
       <h2 className="text-xl font-semibold text-gray-900 mb-6">Волны регистрации</h2>
       
       {eventWaves.map((wave) => {
@@ -313,11 +325,9 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
                   {accessibility.accessible ? (
                     <p className="text-sm text-gray-500">
                       {waveEvents.length} мероприятий
-                      {registeredCount > 0 && (
-                        <span className="ml-2 text-blue-600 font-medium">
-                          • Записаны на {registeredCount}
-                        </span>
-                      )}
+                      <span className="ml-2 text-blue-600 font-medium">
+                        • Записаны на {registeredCount}
+                      </span>
                     </p>
                   ) : (
                     <p className="text-sm text-gray-500">
@@ -393,6 +403,8 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string }> = ({ event, eve
       // Обновляем состояние события
       event.is_registered = true;
       event.registrations_count += 1;
+      // Принудительно обновляем компонент
+      window.dispatchEvent(new CustomEvent('eventRegistrationChanged'));
     } catch (error) {
       console.error('Ошибка записи на мероприятие:', error);
     } finally {
@@ -407,6 +419,8 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string }> = ({ event, eve
       // Обновляем состояние события
       event.is_registered = false;
       event.registrations_count -= 1;
+      // Принудительно обновляем компонент
+      window.dispatchEvent(new CustomEvent('eventRegistrationChanged'));
     } catch (error) {
       console.error('Ошибка отписки от мероприятия:', error);
     } finally {
