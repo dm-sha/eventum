@@ -32,6 +32,17 @@ class EventumViewSet(viewsets.ModelViewSet):
     serializer_class = EventumSerializer
     lookup_field = 'slug'
     permission_classes = [IsEventumOrganizerOrReadOnlyForList]  # Список - чтение, конкретный - только организаторы
+    
+    def get_object(self):
+        """
+        Переопределяем get_object для работы с поддоменами
+        """
+        # Если мы на поддомене, получаем eventum из middleware
+        if hasattr(self.request, 'eventum'):
+            return self.request.eventum
+        
+        # Иначе используем стандартную логику
+        return super().get_object()
 
 class EventumScopedViewSet:
     def get_eventum(self):

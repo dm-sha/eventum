@@ -12,8 +12,8 @@ export const getAllEventums = async (): Promise<Eventum[]> => {
 export const getEventumBySlug = async (slug: string): Promise<Eventum> => {
     const subdomainSlug = getSubdomainSlug();
     if (subdomainSlug) {
-        // Если мы на поддомене, используем обычный API клиент без slug в пути
-        const response = await apiClient.get<Eventum>('/eventums/');
+        // Если мы на поддомене, используем endpoint details для получения текущего eventum
+        const response = await apiClient.get<EventumDetails>('/details/');
         return response.data;
     } else {
         // Если не на поддомене, используем slug в пути
@@ -43,7 +43,7 @@ export const checkSlugAvailability = async (slug: string): Promise<boolean> => {
 export const getEventumDetails = async (slug: string): Promise<EventumDetails> => {
     const subdomainSlug = getSubdomainSlug();
     if (subdomainSlug) {
-        const response = await apiClient.get<EventumDetails>('/eventums/details/');
+        const response = await apiClient.get<EventumDetails>('/details/');
         return response.data;
     } else {
         const response = await apiClient.get<EventumDetails>(`/eventums/${slug}/details/`);
@@ -55,6 +55,7 @@ export const getEventumDetails = async (slug: string): Promise<EventumDetails> =
 export const updateEventumName = async (slug: string, name: string): Promise<Eventum> => {
     const subdomainSlug = getSubdomainSlug();
     if (subdomainSlug) {
+        // При работе с поддоменами используем основной router для обновления
         const response = await apiClient.patch<Eventum>('/eventums/', { name });
         return response.data;
     } else {
@@ -67,6 +68,7 @@ export const updateEventumName = async (slug: string, name: string): Promise<Eve
 export const updateEventumDescription = async (slug: string, description: string): Promise<Eventum> => {
     const subdomainSlug = getSubdomainSlug();
     if (subdomainSlug) {
+        // При работе с поддоменами используем основной router для обновления
         const response = await apiClient.patch<Eventum>('/eventums/', { description });
         return response.data;
     } else {

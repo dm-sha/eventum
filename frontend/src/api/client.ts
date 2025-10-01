@@ -8,7 +8,21 @@ const getApiBaseUrl = () => {
     if (import.meta.env.DEV) {
         return 'http://localhost:8000/api';
     }
-    // В продакшене используем переменную окружения или fallback на продакшн URL
+    
+    // В продакшене определяем API URL на основе текущего домена
+    const hostname = window.location.hostname;
+    
+    // Если мы на поддомене merup.ru, используем основной домен для API
+    if (hostname.endsWith('.merup.ru')) {
+        return 'https://bbapo5ibqs4eg6dail89.containers.yandexcloud.net/api';
+    }
+    
+    // Если мы на основном домене merup.ru
+    if (hostname === 'merup.ru') {
+        return 'https://bbapo5ibqs4eg6dail89.containers.yandexcloud.net/api';
+    }
+    
+    // Fallback на переменную окружения или продакшн URL
     return import.meta.env.VITE_API_BASE_URL || 'https://bbapo5ibqs4eg6dail89.containers.yandexcloud.net/api';
 };
 
