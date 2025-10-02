@@ -327,9 +327,9 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
             />
           </svg>
         </div>
-        <h3 className="mt-4 text-lg font-semibold text-gray-900">Нет доступных волн регистрации</h3>
+        <h3 className="mt-4 text-lg font-semibold text-gray-900">Нет доступных волн мероприятий</h3>
         <p className="mt-2 text-gray-600">
-          Волны регистрации пока не созданы организаторами.
+          Волны мероприятий пока не созданы организаторами.
         </p>
       </div>
     );
@@ -337,8 +337,10 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
 
   return (
     <div className="space-y-4" key={refreshKey}>
-      <h2 className="text-xl font-semibold text-gray-900 mb-6">Волны регистрации</h2>
-      
+      <h2 className="text-xl font-semibold text-gray-900 mb-6">Волны мероприятий</h2>
+      <p className="text-gray-600 mb-4">
+        В одной волне проходит несколько событий одновременно, попасть можно только на одно. Выберите все интересные варианты — система распределит вас случайным образом.
+      </p>
       {eventWaves.map((wave) => {
         const waveEvents = getEventsForWave(wave);
         const registeredCount = getRegisteredEventsCountForWave(wave);
