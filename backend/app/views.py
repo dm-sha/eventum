@@ -37,13 +37,8 @@ class EventumViewSet(EventumMixin, viewsets.ModelViewSet):
     
     def get_object(self):
         """
-        Переопределяем get_object для работы с поддоменами (для обратной совместимости)
+        Используем стандартную логику с URL параметрами
         """
-        # Fallback: если мы на поддомене, получаем eventum из middleware
-        if hasattr(self.request, 'eventum'):
-            return self.request.eventum
-        
-        # Основной способ: используем стандартную логику с URL параметрами
         return super().get_object()
 
 
@@ -937,21 +932,6 @@ def dev_user_auth(request):
         )
 
 
-@api_view(['GET'])
-@permission_classes([AllowAny])
-def test_subdomain(request):
-    """Тестовый endpoint для проверки работы поддоменов"""
-    host = request.META.get('HTTP_HOST', '')
-    eventum_slug = getattr(request, 'eventum_slug', None)
-    eventum = getattr(request, 'eventum', None)
-    
-    return Response({
-        'host': host,
-        'eventum_slug': eventum_slug,
-        'eventum_name': eventum.name if eventum else None,
-        'message': 'Subdomain middleware is working!' if eventum_slug else 'Not a subdomain request'
-    })
-    
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def check_slug_availability(request, slug):

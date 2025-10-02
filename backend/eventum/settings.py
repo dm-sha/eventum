@@ -58,7 +58,6 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'app.middleware.SubdomainMiddleware',  # Наш middleware для обработки поддоменов
 ]
 
 CORS_ALLOWED_ORIGINS = [
@@ -360,11 +359,6 @@ LOGGING = {
         },
     },
     'loggers': {
-        'app.middleware': {
-            'handlers': ['console', 'file'],
-            'level': 'INFO',
-            'propagate': True,
-        },
         'django.request': {
             'handlers': ['console', 'file'],
             'level': 'WARNING',

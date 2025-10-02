@@ -20,8 +20,7 @@ from .views import (
     eventum_details,
     eventum_organizers,
     remove_eventum_organizer,
-    search_users,
-    test_subdomain
+    search_users
 )
 
 router = DefaultRouter()
@@ -39,17 +38,11 @@ eventum_scoped_router.register(r'locations', LocationViewSet, basename='location
 urlpatterns = [
     path('', include(router.urls)),
     
-    # Основные маршруты с slug (работают и для основного домена, и для поддоменов)
+    # Основные маршруты с slug
     path('eventums/<slug:eventum_slug>/', include(eventum_scoped_router.urls)),
     path('eventums/<slug:slug>/details/', eventum_details, name='eventum_details'),
     path('eventums/<slug:slug>/organizers/', eventum_organizers, name='eventum_organizers'),
     path('eventums/<slug:slug>/organizers/<int:role_id>/', remove_eventum_organizer, name='remove_eventum_organizer'),
-    
-    # Fallback маршруты для поддоменов (для обратной совместимости)
-    path('', include(eventum_scoped_router.urls)),
-    path('details/', eventum_details, name='eventum_details_subdomain'),
-    path('organizers/', eventum_organizers, name='eventum_organizers_subdomain'),
-    path('organizers/<int:role_id>/', remove_eventum_organizer, name='remove_eventum_organizer_subdomain'),
     
     # Аутентификация
     path('auth/vk/', VKAuthView.as_view(), name='vk_auth'),
@@ -62,9 +55,6 @@ urlpatterns = [
     
     # Проверка доступности slug
     path('eventums/check-slug/<slug:slug>/', check_slug_availability, name='check_slug_availability'),
-    
-    # Тестовый endpoint для поддоменов
-    path('test-subdomain/', test_subdomain, name='test_subdomain'),
     
     # Поиск пользователей
     path('users/search/', search_users, name='search_users'),

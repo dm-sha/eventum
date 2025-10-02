@@ -11,20 +11,14 @@ from .models import Eventum, UserRole, Participant
 
 def get_eventum_from_request(request, view=None, kwargs=None):
     """
-    Упрощенная функция для получения eventum из запроса.
-    Поддерживает:
-    1. URL параметры (eventum_slug, slug) - основной способ
-    2. Поддомены (через middleware) - для обратной совместимости
-    3. Кэширование результата в request
+    Функция для получения eventum из запроса по URL параметрам.
+    Поддерживает кэширование результата в request.
     """
     # Проверяем кэш в request
     if hasattr(request, '_cached_eventum'):
         return request._cached_eventum
     
-    eventum = None
-    eventum_slug = None
-    
-    # 1. Основной способ: получаем из URL параметров
+    # Получаем из URL параметров
     if view and hasattr(view, 'kwargs'):
         kwargs = view.kwargs
     elif kwargs is None:
@@ -33,22 +27,14 @@ def get_eventum_from_request(request, view=None, kwargs=None):
     # Пробуем разные варианты slug в URL
     eventum_slug = kwargs.get('eventum_slug') or kwargs.get('slug')
     
-    # 2. Fallback: пробуем получить из middleware (поддомены) - для обратной совместимости
     if not eventum_slug:
-        if hasattr(request, 'eventum'):
-            eventum = request.eventum
-        elif hasattr(request, 'eventum_slug'):
-            eventum_slug = request.eventum_slug
+        raise Http404("Eventum slug not found in URL")
     
-    # 3. Получаем eventum по slug
-    if not eventum and eventum_slug:
-        try:
-            eventum = Eventum.objects.get(slug=eventum_slug)
-        except Eventum.DoesNotExist:
-            raise Http404(f"Eventum with slug '{eventum_slug}' not found")
-    
-    if not eventum:
-        raise Http404("Eventum not found")
+    # Получаем eventum по slug
+    try:
+        eventum = Eventum.objects.get(slug=eventum_slug)
+    except Eventum.DoesNotExist:
+        raise Http404(f"Eventum with slug '{eventum_slug}' not found")
     
     # Кэшируем результат
     request._cached_eventum = eventum
