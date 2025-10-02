@@ -14,8 +14,14 @@ import type {
 } from '../types';
 
 // Базовая функция для определения eventumSlug
-const getEventumSlugForRequest = (providedSlug?: string): string | undefined => {
-  return getSubdomainSlug() || providedSlug;
+const getEventumSlugForRequest = (providedSlug?: string): string => {
+  const slug = getSubdomainSlug() || providedSlug;
+
+  if (!slug) {
+    throw new Error('Eventum slug is required for eventum-scoped API requests');
+  }
+
+  return slug;
 };
 
 // ============= EVENTUM API =============

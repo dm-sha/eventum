@@ -3,7 +3,6 @@
  */
 import axios, { type AxiosResponse, type AxiosError, type AxiosRequestConfig } from 'axios';
 import { getCookie, setCookie, deleteCookie, getMerupCookieOptions } from '../utils/cookies';
-import { getSubdomainSlug } from '../utils/eventumSlug';
 
 // Определяем базовый URL API
 const getApiBaseUrl = (): string => {
@@ -141,17 +140,11 @@ apiClient.interceptors.response.use(
 // Функция для создания URL с учетом поддоменов
 export const createApiUrl = (path: string, eventumSlug?: string): string => {
   const baseUrl = getApiBaseUrl();
-  const subdomainSlug = getSubdomainSlug();
-  
-  // Определяем slug: либо переданный явно, либо из поддомена
-  const slug = eventumSlug || subdomainSlug;
-  
-  // Если есть slug, всегда добавляем его в путь
-  if (slug) {
-    return `${baseUrl}/eventums/${slug}${path}`;
+
+  if (eventumSlug) {
+    return `${baseUrl}/eventums/${eventumSlug}${path}`;
   }
-  
-  // Если нет slug, возвращаем путь без него (для общих endpoints)
+
   return `${baseUrl}${path}`;
 };
 
