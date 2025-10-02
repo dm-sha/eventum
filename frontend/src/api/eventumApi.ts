@@ -295,7 +295,7 @@ export const authApi = {
   
   // Обновление токена
   refreshToken: (data: { refresh: string }) => 
-    createApiRequest<{ access: string }>('POST', '/auth/refresh/', undefined, data),
+    createApiRequest<{ access: string; refresh?: string }>('POST', '/auth/refresh/', undefined, data),
   
   // Получение профиля
   getProfile: () => 

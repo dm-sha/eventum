@@ -110,9 +110,10 @@ apiClient.interceptors.response.use(
             refresh: tokens.refresh
           });
 
+          const { access, refresh: rotatedRefresh } = response.data as { access: string; refresh?: string };
           const newTokens = {
-            access: response.data.access,
-            refresh: tokens.refresh
+            access,
+            refresh: rotatedRefresh ?? tokens.refresh
           };
 
           TokenManager.saveTokens(newTokens);
