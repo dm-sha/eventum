@@ -3,7 +3,7 @@ import {
   getEventsForEventum,
   updateEvent,
 } from '../../api';
-import { eventTagApi } from '../../api/eventTag';
+import { eventTagsApi } from '../../api/eventumApi';
 import type { EventTag, Event } from '../../types';
 import { IconPencil, IconX, IconPlus, IconInformationCircle, IconTrash } from '../../components/icons';
 import { useEventumSlug } from '../../hooks/useEventumSlug';
@@ -35,7 +35,7 @@ const AdminEventTagsPage = () => {
       setIsLoading(true);
       try {
         const [tagsData, eventsData] = await Promise.all([
-          eventTagApi.getEventTags(eventumSlug),
+          eventTagsApi.getAll(eventumSlug).then(res => res.data),
           getEventsForEventum(eventumSlug)
         ]);
         setTags(tagsData);
@@ -96,7 +96,7 @@ const AdminEventTagsPage = () => {
       const data = {
         name: tagName,
       };
-      const created = await eventTagApi.createEventTag(eventumSlug, data);
+      const created = (await eventTagsApi.create(data, eventumSlug)).data;
       setTags([...tags, created]);
       
       // Обновляем мероприятия, добавляя к ним новый тег
@@ -162,7 +162,7 @@ const AdminEventTagsPage = () => {
       const data = {
         name: tagName,
       };
-      const updated = await eventTagApi.updateEventTag(eventumSlug, tagId, data);
+      const updated = (await eventTagsApi.update(tagId, data, eventumSlug)).data;
       setTags(tags.map(t => t.id === tagId ? updated : t));
       
       // Обновляем связи тега с мероприятиями
@@ -303,7 +303,7 @@ const AdminEventTagsPage = () => {
     if (!eventumSlug) return;
     
     try {
-      await eventTagApi.deleteEventTag(eventumSlug, tagId);
+      await eventTagsApi.delete(tagId, eventumSlug);
       setTags(tags.filter(t => t.id !== tagId));
       setEditingTag(null);
     } catch (error) {

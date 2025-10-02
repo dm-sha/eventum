@@ -220,7 +220,7 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
   // Проверяем доступность волны для текущего участника
   const isWaveAccessible = (wave: EventWave) => {
     if (!currentParticipant) {
-      return { accessible: false, reason: 'Вы не являетесь участником этого eventum\'а' };
+      return { accessible: false, reason: 'Вы не являетесь участником этого события' };
     }
 
     const participantGroupIds = currentParticipant.groups?.map(g => g.id) || [];
@@ -302,7 +302,7 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
         </div>
         <h3 className="mt-4 text-lg font-semibold text-gray-900">Вы не являетесь участником</h3>
         <p className="mt-2 text-gray-600">
-          Чтобы записываться на мероприятия, вам нужно стать участником этого eventum'а. 
+          Чтобы записываться на мероприятия, вам нужно стать участником этого события. 
           Обратитесь к организаторам для получения доступа.
         </p>
       </div>

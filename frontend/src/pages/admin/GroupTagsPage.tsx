@@ -3,7 +3,7 @@ import {
   getGroupsForEventum,
   updateGroup,
 } from '../../api';
-import { groupTagApi } from '../../api/groupTag';
+import { groupTagsApi } from '../../api/eventumApi';
 import type { GroupTag, ParticipantGroup } from '../../types';
 import { IconPencil, IconX, IconPlus, IconInformationCircle, IconTrash } from '../../components/icons';
 import { useEventumSlug } from '../../hooks/useEventumSlug';
@@ -34,7 +34,7 @@ const AdminGroupTagsPage = () => {
       setIsLoading(true);
       try {
         const [tagsData, groupsData] = await Promise.all([
-          groupTagApi.getGroupTags(eventumSlug),
+          groupTagsApi.getAll(eventumSlug).then(res => res.data),
           getGroupsForEventum(eventumSlug)
         ]);
         setTags(tagsData);
@@ -95,7 +95,7 @@ const AdminGroupTagsPage = () => {
       const data = {
         name: tagName,
       };
-      const created = await groupTagApi.createGroupTag(eventumSlug, data);
+      const created = (await groupTagsApi.create(data, eventumSlug)).data;
       setTags([...tags, created]);
       
       // Обновляем группы, добавляя к ним новый тег
@@ -157,7 +157,7 @@ const AdminGroupTagsPage = () => {
       const data = {
         name: tagName,
       };
-      const updated = await groupTagApi.updateGroupTag(eventumSlug, tagId, data);
+      const updated = (await groupTagsApi.update(tagId, data, eventumSlug)).data;
       setTags(tags.map(t => t.id === tagId ? updated : t));
       
       // Обновляем связи тега с группами
@@ -235,7 +235,7 @@ const AdminGroupTagsPage = () => {
     if (!eventumSlug) return;
     
     try {
-      await groupTagApi.deleteGroupTag(eventumSlug, tagId);
+      await groupTagsApi.delete(tagId, eventumSlug);
       setTags(tags.filter(t => t.id !== tagId));
       setEditingTag(null);
     } catch (error) {

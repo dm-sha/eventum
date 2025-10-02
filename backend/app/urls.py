@@ -39,15 +39,14 @@ eventum_scoped_router.register(r'locations', LocationViewSet, basename='location
 urlpatterns = [
     path('', include(router.urls)),
     
-    # Маршруты с slug для основного домена
+    # Основные маршруты с slug (работают и для основного домена, и для поддоменов)
     path('eventums/<slug:eventum_slug>/', include(eventum_scoped_router.urls)),
     path('eventums/<slug:slug>/details/', eventum_details, name='eventum_details'),
     path('eventums/<slug:slug>/organizers/', eventum_organizers, name='eventum_organizers'),
     path('eventums/<slug:slug>/organizers/<int:role_id>/', remove_eventum_organizer, name='remove_eventum_organizer'),
     
-    # Маршруты без slug для поддоменов (будут обрабатываться middleware)
-    path('', include(eventum_scoped_router.urls)),  # Для поддоменов
-    path('', include(router.urls)),  # Для обновления eventum на поддоменах
+    # Fallback маршруты для поддоменов (для обратной совместимости)
+    path('', include(eventum_scoped_router.urls)),
     path('details/', eventum_details, name='eventum_details_subdomain'),
     path('organizers/', eventum_organizers, name='eventum_organizers_subdomain'),
     path('organizers/<int:role_id>/', remove_eventum_organizer, name='remove_eventum_organizer_subdomain'),

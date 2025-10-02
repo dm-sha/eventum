@@ -37,13 +37,13 @@ class EventumViewSet(EventumMixin, viewsets.ModelViewSet):
     
     def get_object(self):
         """
-        Переопределяем get_object для работы с поддоменами
+        Переопределяем get_object для работы с поддоменами (для обратной совместимости)
         """
-        # Если мы на поддомене, получаем eventum из middleware
+        # Fallback: если мы на поддомене, получаем eventum из middleware
         if hasattr(self.request, 'eventum'):
             return self.request.eventum
         
-        # Иначе используем стандартную логику
+        # Основной способ: используем стандартную логику с URL параметрами
         return super().get_object()
 
 

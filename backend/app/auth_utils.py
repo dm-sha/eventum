@@ -11,10 +11,10 @@ from .models import Eventum, UserRole, Participant
 
 def get_eventum_from_request(request, view=None, kwargs=None):
     """
-    Единая функция для получения eventum из запроса.
+    Упрощенная функция для получения eventum из запроса.
     Поддерживает:
-    1. Поддомены (через middleware)
-    2. URL параметры (eventum_slug, slug)
+    1. URL параметры (eventum_slug, slug) - основной способ
+    2. Поддомены (через middleware) - для обратной совместимости
     3. Кэширование результата в request
     """
     # Проверяем кэш в request
@@ -24,21 +24,21 @@ def get_eventum_from_request(request, view=None, kwargs=None):
     eventum = None
     eventum_slug = None
     
-    # 1. Пробуем получить из middleware (поддомены)
-    if hasattr(request, 'eventum'):
-        eventum = request.eventum
-    elif hasattr(request, 'eventum_slug'):
-        eventum_slug = request.eventum_slug
+    # 1. Основной способ: получаем из URL параметров
+    if view and hasattr(view, 'kwargs'):
+        kwargs = view.kwargs
+    elif kwargs is None:
+        kwargs = getattr(request, 'resolver_match', {}).kwargs or {}
     
-    # 2. Пробуем получить из URL параметров
-    if not eventum and not eventum_slug:
-        if view and hasattr(view, 'kwargs'):
-            kwargs = view.kwargs
-        elif kwargs is None:
-            kwargs = getattr(request, 'resolver_match', {}).kwargs or {}
-        
-        # Пробуем разные варианты slug в URL
-        eventum_slug = kwargs.get('eventum_slug') or kwargs.get('slug')
+    # Пробуем разные варианты slug в URL
+    eventum_slug = kwargs.get('eventum_slug') or kwargs.get('slug')
+    
+    # 2. Fallback: пробуем получить из middleware (поддомены) - для обратной совместимости
+    if not eventum_slug:
+        if hasattr(request, 'eventum'):
+            eventum = request.eventum
+        elif hasattr(request, 'eventum_slug'):
+            eventum_slug = request.eventum_slug
     
     # 3. Получаем eventum по slug
     if not eventum and eventum_slug:

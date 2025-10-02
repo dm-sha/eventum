@@ -143,16 +143,15 @@ export const createApiUrl = (path: string, eventumSlug?: string): string => {
   const baseUrl = getApiBaseUrl();
   const subdomainSlug = getSubdomainSlug();
   
-  // Если мы на поддомене, не добавляем eventumSlug в путь
-  if (subdomainSlug) {
-    return `${baseUrl}${path}`;
+  // Определяем slug: либо переданный явно, либо из поддомена
+  const slug = eventumSlug || subdomainSlug;
+  
+  // Если есть slug, всегда добавляем его в путь
+  if (slug) {
+    return `${baseUrl}/eventums/${slug}${path}`;
   }
   
-  // Если передан eventumSlug, добавляем его в путь
-  if (eventumSlug) {
-    return `${baseUrl}/eventums/${eventumSlug}${path}`;
-  }
-  
+  // Если нет slug, возвращаем путь без него (для общих endpoints)
   return `${baseUrl}${path}`;
 };
 
