@@ -12,4 +12,6 @@ export * from './eventWave';
 export * from './groupTag';
 export * from './organizers';
 export * from './location';
-export * from './auth';
+
+// Экспортируем только типы из auth.ts, чтобы избежать конфликта с authApi из eventumApi
+export type { AuthTokens, VKAuthRequest, VKAuthResponse, RefreshTokenRequest, RefreshTokenResponse } from './auth';

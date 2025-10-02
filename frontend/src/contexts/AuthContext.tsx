@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import { authApi } from '../api/eventumApi';
 import { TokenManager } from '../api/apiClient';
-import { getCookie, setCookie, deleteCookie, getMerupCookieOptions } from '../utils/cookies';
+import { getCookie, setCookie, getMerupCookieOptions } from '../utils/cookies';
 
 export interface User {
   id: number;

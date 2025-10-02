@@ -23,7 +23,7 @@ export const createEvent = async (eventumSlug: string, data: {
   group_tag_ids?: number[];
   location_ids?: number[];
 }): Promise<Event> => {
-    const response = await eventsApi.create(data, eventumSlug);
+    const response = await eventsApi.create(data as any, eventumSlug);
     return response.data;
 };
 
@@ -43,7 +43,7 @@ export const updateEvent = async (eventumSlug: string, eventId: number, data: {
   group_tag_ids?: number[];
   location_ids?: number[];
 }): Promise<Event> => {
-    const response = await eventsApi.update(eventId, data, eventumSlug);
+    const response = await eventsApi.update(eventId, data as any, eventumSlug);
     return response.data;
 };
 

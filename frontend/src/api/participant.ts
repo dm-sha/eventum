@@ -16,7 +16,11 @@ export const createParticipant = async (eventumSlug: string, participantData: {
     name: string; 
     user_id?: number | null; 
 }): Promise<Participant> => {
-    const response = await participantsApi.create(participantData, eventumSlug);
+    const data = {
+        name: participantData.name,
+        user_id: participantData.user_id ?? undefined
+    };
+    const response = await participantsApi.create(data, eventumSlug);
     return response.data;
 };
 
@@ -29,7 +33,11 @@ export const updateParticipant = async (
         user_id?: number | null; 
     }
 ): Promise<Participant> => {
-    const response = await participantsApi.update(participantId, participantData, eventumSlug);
+    const data = {
+        name: participantData.name,
+        user_id: participantData.user_id ?? undefined
+    };
+    const response = await participantsApi.update(participantId, data, eventumSlug);
     return response.data;
 };
 
