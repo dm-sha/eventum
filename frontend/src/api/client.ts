@@ -36,6 +36,15 @@ const apiClient = axios.create({
 // Интерцептор для добавления токена аутентификации
 apiClient.interceptors.request.use(
     (config) => {
+        // Пропускаем добавление токенов для эндпоинтов аутентификации
+        const isAuthEndpoint = config.url?.includes('/auth/vk/') || 
+                              config.url?.includes('/auth/refresh/') ||
+                              config.url?.includes('/auth/dev-user/');
+        
+        if (isAuthEndpoint) {
+            return config;
+        }
+        
         let tokens = null;
         const userAgent = navigator.userAgent;
         const isSafari = /Safari/.test(userAgent) && !/Chrome/.test(userAgent);

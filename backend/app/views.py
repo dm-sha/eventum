@@ -595,6 +595,8 @@ class LocationViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
 class VKAuthView(TokenObtainPairView):
     """Авторизация через VK ID"""
     serializer_class = CustomTokenObtainPairSerializer
+    permission_classes = [AllowAny]  # Разрешаем доступ без аутентификации
+    authentication_classes = []  # Отключаем аутентификацию для этого view
     
     def post(self, request, *args, **kwargs):
         import logging
@@ -830,7 +832,8 @@ class VKAuthView(TokenObtainPairView):
 
 class CustomTokenRefreshView(TokenRefreshView):
     """Обновление JWT токенов"""
-    pass
+    permission_classes = [AllowAny]  # Разрешаем доступ без аутентификации для обновления токенов
+    authentication_classes = []  # Отключаем аутентификацию для этого view
 
 
 @api_view(['GET'])

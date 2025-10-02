@@ -78,16 +78,23 @@ const apiClient = axios.create({
 // Интерцептор для добавления токена
 apiClient.interceptors.request.use(
   (config) => {
-    const tokens = TokenManager.getTokens();
-    if (tokens?.access) {
-      // Используем Authorization header как основной способ
-      config.headers.Authorization = `Bearer ${tokens.access}`;
-      
-      // Добавляем query параметр как fallback для совместимости
-      config.params = {
-        ...config.params,
-        access_token: tokens.access
-      };
+    // Пропускаем добавление токенов для эндпоинтов аутентификации
+    const isAuthEndpoint = config.url?.includes('/auth/vk/') || 
+                          config.url?.includes('/auth/refresh/') ||
+                          config.url?.includes('/auth/dev-user/');
+    
+    if (!isAuthEndpoint) {
+      const tokens = TokenManager.getTokens();
+      if (tokens?.access) {
+        // Используем Authorization header как основной способ
+        config.headers.Authorization = `Bearer ${tokens.access}`;
+        
+        // Добавляем query параметр как fallback для совместимости
+        config.params = {
+          ...config.params,
+          access_token: tokens.access
+        };
+      }
     }
     return config;
   },
