@@ -32,13 +32,23 @@ const EventumPage = () => {
         setLoading(true);
         setError(null);
         
-        // Загружаем данные параллельно
-        const [eventumData, wavesData, eventsData, participantData] = await Promise.all([
+        // Загружаем основные данные параллельно (кроме участника)
+        const [eventumData, wavesData, eventsData] = await Promise.all([
           getEventumBySlug(eventumSlug),
           listEventWaves(eventumSlug),
-          getEventsForEventum(eventumSlug),
-          getCurrentParticipant(eventumSlug)
+          getEventsForEventum(eventumSlug)
         ]);
+        
+        // Загружаем данные участника отдельно, чтобы 404 не ломал всю страницу
+        let participantData = null;
+        try {
+          participantData = await getCurrentParticipant(eventumSlug);
+        } catch (participantErr: any) {
+          // Если пользователь не является участником (404), это нормально
+          if (participantErr?.response?.status !== 404) {
+            console.error('Ошибка загрузки данных участника:', participantErr);
+          }
+        }
         
         setEventum(eventumData);
         setEventWaves(wavesData);
@@ -210,7 +220,7 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
   // Проверяем доступность волны для текущего участника
   const isWaveAccessible = (wave: EventWave) => {
     if (!currentParticipant) {
-      return { accessible: false, reason: 'Вы не являетесь участником этого события' };
+      return { accessible: false, reason: 'Вы не являетесь участником этого eventum\'а' };
     }
 
     const participantGroupIds = currentParticipant.groups?.map(g => g.id) || [];
@@ -270,6 +280,34 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
 
     return { accessible: true, reason: '' };
   };
+
+  // Если пользователь не является участником
+  if (!currentParticipant) {
+    return (
+      <div className="text-center py-8">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-amber-100">
+          <svg
+            className="h-8 w-8 text-amber-600"
+            fill="none"
+            viewBox="0 0 24 24"
+            strokeWidth="1.5"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"
+            />
+          </svg>
+        </div>
+        <h3 className="mt-4 text-lg font-semibold text-gray-900">Вы не являетесь участником</h3>
+        <p className="mt-2 text-gray-600">
+          Чтобы записываться на мероприятия, вам нужно стать участником этого eventum'а. 
+          Обратитесь к организаторам для получения доступа.
+        </p>
+      </div>
+    );
+  }
 
   if (eventWaves.length === 0) {
     return (

@@ -76,16 +76,31 @@ def get_user_role_in_eventum(user, eventum):
 
 def require_authentication(view_func):
     """
-    Декоратор для проверки аутентификации пользователя
+    Декоратор для проверки аутентификации пользователя.
+    Работает как с function-based views, так и с ViewSet методами.
     """
     @wraps(view_func)
-    def wrapper(request, *args, **kwargs):
+    def wrapper(*args, **kwargs):
+        # Определяем, это ViewSet метод или function-based view
+        if len(args) > 0 and hasattr(args[0], 'request'):
+            # ViewSet метод: первый аргумент - self, request в self.request
+            request = args[0].request
+        elif len(args) > 0:
+            # Function-based view: первый аргумент - request
+            request = args[0]
+        else:
+            # Не можем определить request
+            return Response(
+                {'error': 'Internal server error'}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
         if not request.user.is_authenticated:
             return Response(
                 {'error': 'Authentication required'}, 
                 status=status.HTTP_401_UNAUTHORIZED
             )
-        return view_func(request, *args, **kwargs)
+        return view_func(*args, **kwargs)
     return wrapper
 
 
@@ -93,13 +108,31 @@ def require_eventum_role(required_roles):
     """
     Декоратор для проверки роли пользователя в eventum.
     required_roles: список ролей ['organizer', 'participant'] или строка 'organizer'
+    Работает как с function-based views, так и с ViewSet методами.
     """
     if isinstance(required_roles, str):
         required_roles = [required_roles]
     
     def decorator(view_func):
         @wraps(view_func)
-        def wrapper(request, *args, **kwargs):
+        def wrapper(*args, **kwargs):
+            # Определяем, это ViewSet метод или function-based view
+            if len(args) > 0 and hasattr(args[0], 'request'):
+                # ViewSet метод: первый аргумент - self, request в self.request
+                view_instance = args[0]
+                request = view_instance.request
+                view = view_instance
+            elif len(args) > 0:
+                # Function-based view: первый аргумент - request
+                request = args[0]
+                view = None
+            else:
+                # Не можем определить request
+                return Response(
+                    {'error': 'Internal server error'}, 
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+            
             if not request.user.is_authenticated:
                 return Response(
                     {'error': 'Authentication required'}, 
@@ -107,7 +140,7 @@ def require_eventum_role(required_roles):
                 )
             
             try:
-                eventum = get_eventum_from_request(request, kwargs=kwargs)
+                eventum = get_eventum_from_request(request, view, kwargs)
                 user_role = get_user_role_in_eventum(request.user, eventum)
                 
                 if user_role not in required_roles:
@@ -120,7 +153,7 @@ def require_eventum_role(required_roles):
                 request.eventum = eventum
                 request.user_role = user_role
                 
-                return view_func(request, *args, **kwargs)
+                return view_func(*args, **kwargs)
                 
             except Http404 as e:
                 return Response(
