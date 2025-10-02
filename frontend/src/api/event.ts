@@ -1,24 +1,15 @@
-import apiClient from './client';
+/**
+ * @deprecated Используйте eventsApi и authApi из eventumApi.ts
+ * Этот файл оставлен для обратной совместимости
+ */
+import { eventsApi, authApi } from './eventumApi';
 import type { Event } from '../types';
-import { getSubdomainSlug, shouldUseSubdomainApi, shouldUseContainerApi } from '../utils/eventumSlug';
 
 // Получить список всех мероприятий для конкретного Eventum.
 export const getEventsForEventum = async (eventumSlug: string): Promise<Event[]> => {
-    if (shouldUseSubdomainApi()) {
-        // Если мы на поддомене merup.ru в режиме разработки, используем endpoint events
-        const response = await apiClient.get('/events/');
-        return response.data;
-    } else if (shouldUseContainerApi()) {
-        // Если мы на основном домене контейнера или поддомене merup.ru в продакшене
-        const response = await apiClient.get(`/eventums/${eventumSlug}/events/`);
-        return response.data;
-    } else {
-        // Fallback для других случаев
-        const response = await apiClient.get(`/eventums/${eventumSlug}/events/`);
-        return response.data;
-    }
+    const response = await eventsApi.getAll(eventumSlug);
+    return response.data;
 };
-
 
 // Создать новое мероприятие
 export const createEvent = async (eventumSlug: string, data: {
@@ -32,14 +23,8 @@ export const createEvent = async (eventumSlug: string, data: {
   group_tag_ids?: number[];
   location_ids?: number[];
 }): Promise<Event> => {
-    const subdomainSlug = getSubdomainSlug();
-    if (subdomainSlug) {
-        const response = await apiClient.post('/events/', data);
-        return response.data;
-    } else {
-        const response = await apiClient.post(`/eventums/${eventumSlug}/events/`, data);
-        return response.data;
-    }
+    const response = await eventsApi.create(data, eventumSlug);
+    return response.data;
 };
 
 // Обновить мероприятие
@@ -58,56 +43,33 @@ export const updateEvent = async (eventumSlug: string, eventId: number, data: {
   group_tag_ids?: number[];
   location_ids?: number[];
 }): Promise<Event> => {
-    const subdomainSlug = getSubdomainSlug();
-    if (subdomainSlug) {
-        const response = await apiClient.put(`/events/${eventId}/`, data);
-        return response.data;
-    } else {
-        const response = await apiClient.put(`/eventums/${eventumSlug}/events/${eventId}/`, data);
-        return response.data;
-    }
+    const response = await eventsApi.update(eventId, data, eventumSlug);
+    return response.data;
 };
 
 // Удалить мероприятие
 export const deleteEvent = async (eventumSlug: string, eventId: number): Promise<void> => {
-    const subdomainSlug = getSubdomainSlug();
-    if (subdomainSlug) {
-        await apiClient.delete(`/events/${eventId}/`);
-    } else {
-        await apiClient.delete(`/eventums/${eventumSlug}/events/${eventId}/`);
-    }
+    await eventsApi.delete(eventId, eventumSlug);
 };
 
 // Получить eventum'ы пользователя (где он имеет какую-либо роль)
 export const getUserEventums = async (): Promise<any[]> => {
-    const response = await apiClient.get('/auth/eventums/');
+    const response = await authApi.getUserEventums();
     return response.data;
 };
 
 // Получить пользователя разработчика для локального режима
 export const getDevUser = async (): Promise<{access: string, refresh: string, user: any}> => {
-    const response = await apiClient.get('/auth/dev-user/');
+    const response = await authApi.getDevUser();
     return response.data;
 };
 
 // Записаться на мероприятие
 export const registerForEvent = async (eventumSlug: string, eventId: number): Promise<void> => {
-    if (shouldUseSubdomainApi()) {
-        await apiClient.post(`/events/${eventId}/register/`);
-    } else if (shouldUseContainerApi()) {
-        await apiClient.post(`/eventums/${eventumSlug}/events/${eventId}/register/`);
-    } else {
-        await apiClient.post(`/eventums/${eventumSlug}/events/${eventId}/register/`);
-    }
+    await eventsApi.register(eventId, eventumSlug);
 };
 
 // Отписаться от мероприятия
 export const unregisterFromEvent = async (eventumSlug: string, eventId: number): Promise<void> => {
-    if (shouldUseSubdomainApi()) {
-        await apiClient.delete(`/events/${eventId}/unregister/`);
-    } else if (shouldUseContainerApi()) {
-        await apiClient.delete(`/eventums/${eventumSlug}/events/${eventId}/unregister/`);
-    } else {
-        await apiClient.delete(`/eventums/${eventumSlug}/events/${eventId}/unregister/`);
-    }
+    await eventsApi.unregister(eventId, eventumSlug);
 };

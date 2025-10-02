@@ -1,4 +1,8 @@
-import { apiClient } from './client';
+/**
+ * @deprecated Используйте authApi из eventumApi.ts
+ * Этот файл оставлен для обратной совместимости
+ */
+import { authApi as newAuthApi } from './eventumApi';
 import type { User } from '../contexts/AuthContext';
 
 export interface AuthTokens {
@@ -25,28 +29,25 @@ export interface RefreshTokenResponse {
   access: string;
 }
 
+// Экспортируем новый API для обратной совместимости
 export const authApi = {
-  // Авторизация через VK
   vkAuth: async (data: VKAuthRequest): Promise<VKAuthResponse> => {
-    const response = await apiClient.post('/auth/vk/', data);
+    const response = await newAuthApi.vkAuth(data);
     return response.data;
   },
 
-  // Обновление токена
   refreshToken: async (data: RefreshTokenRequest): Promise<RefreshTokenResponse> => {
-    const response = await apiClient.post('/auth/refresh/', data);
+    const response = await newAuthApi.refreshToken(data);
     return response.data;
   },
 
-  // Получение профиля пользователя
   getProfile: async (): Promise<User> => {
-    const response = await apiClient.get('/auth/profile/');
+    const response = await newAuthApi.getProfile();
     return response.data;
   },
 
-  // Получение ролей пользователя
   getUserRoles: async () => {
-    const response = await apiClient.get('/auth/roles/');
+    const response = await newAuthApi.getRoles();
     return response.data;
   }
 };

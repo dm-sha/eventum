@@ -23,11 +23,13 @@ from .serializers import (
 )
 from .permissions import IsEventumOrganizer, IsEventumParticipant, IsEventumOrganizerOrReadOnly, IsEventumOrganizerOrReadOnlyForList, IsEventumOrganizerOrPublicReadOnly
 from .utils import log_execution_time, csrf_exempt_class_api
+from .auth_utils import EventumMixin, require_authentication, require_eventum_role, get_eventum_from_request
+from .base_views import EventumScopedViewSet, CachedListMixin
 import logging
 
 logger = logging.getLogger(__name__)
 
-class EventumViewSet(viewsets.ModelViewSet):
+class EventumViewSet(EventumMixin, viewsets.ModelViewSet):
     queryset = Eventum.objects.all()
     serializer_class = EventumSerializer
     lookup_field = 'slug'
@@ -44,36 +46,8 @@ class EventumViewSet(viewsets.ModelViewSet):
         # Иначе используем стандартную логику
         return super().get_object()
 
-class EventumScopedViewSet:
-    def get_eventum(self):
-        if not hasattr(self, '_cached_eventum'):
-            # Сначала пробуем получить slug из URL параметров (для основного домена)
-            eventum_slug = self.kwargs.get('eventum_slug')
-            
-            # Если slug нет в URL, пробуем получить из request (для поддоменов)
-            if not eventum_slug and hasattr(self.request, 'eventum_slug'):
-                eventum_slug = self.request.eventum_slug
-            
-            if not eventum_slug:
-                raise Http404("Eventum slug не найден")
-                
-            self._cached_eventum = get_object_or_404(Eventum, slug=eventum_slug)
-        return self._cached_eventum
-    
-    def get_queryset(self):
-        eventum = self.get_eventum()
-        return self.queryset.filter(eventum=eventum)
-    
-    def perform_create(self, serializer):
-        eventum = self.get_eventum()
-        serializer.save(eventum=eventum)
-    
-    def get_serializer_context(self):
-        context = super().get_serializer_context()
-        context['eventum'] = self.get_eventum()
-        return context
 
-class ParticipantViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
+class ParticipantViewSet(CachedListMixin, EventumScopedViewSet):
     queryset = Participant.objects.select_related('user', 'eventum').all()
     serializer_class = ParticipantSerializer
     permission_classes = [IsEventumOrganizerOrReadOnly]  # Организаторы CRUD, участники только чтение
@@ -81,71 +55,17 @@ class ParticipantViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
     
     def get_queryset(self):
         """Оптимизированный queryset для списка участников"""
-        eventum = self.get_eventum()
-        return Participant.objects.filter(eventum=eventum).select_related(
+        return super().get_queryset().select_related(
             'user', 
             'eventum'
         ).prefetch_related(
             'groups__tags'  # Оптимизируем загрузку групп и их тегов
         )
     
-    @log_execution_time("Получение списка участников")
-    def list(self, request, *args, **kwargs):
-        """Переопределяем list для добавления кэширования"""
-        # Для пагинированных запросов не используем кэширование
-        if request.GET.get('page'):
-            return super().list(request, *args, **kwargs)
-        
-        eventum_slug = kwargs.get('eventum_slug')
-        cache_key = f"participants_list_{eventum_slug}"
-        
-        # Пытаемся получить данные из кэша
-        cached_data = cache.get(cache_key)
-        if cached_data is not None:
-            logger.info(f"Данные участников получены из кэша для {eventum_slug}")
-            return Response(cached_data)
-        
-        # Если данных нет в кэше, выполняем запрос
-        logger.info(f"Загрузка участников из БД для {eventum_slug}")
-        queryset = self.filter_queryset(self.get_queryset())
-        serializer = self.get_serializer(queryset, many=True)
-        
-        # Кэшируем результат на 5 минут
-        cache.set(cache_key, serializer.data, 300)
-        logger.info(f"Кэшировано {len(serializer.data)} участников для {eventum_slug}")
-        
-        return Response(serializer.data)
-    
-    def perform_create(self, serializer):
-        """Переопределяем для инвалидации кэша при создании"""
-        eventum = self.get_eventum()
-        serializer.save(eventum=eventum)
-        # Инвалидируем кэш
-        cache_key = f"participants_list_{eventum.slug}"
-        cache.delete(cache_key)
-    
-    def perform_update(self, serializer):
-        """Переопределяем для инвалидации кэша при обновлении"""
-        eventum = self.get_eventum()
-        serializer.save()
-        # Инвалидируем кэш
-        cache_key = f"participants_list_{eventum.slug}"
-        cache.delete(cache_key)
-    
-    def perform_destroy(self, instance):
-        """Переопределяем для инвалидации кэша при удалении"""
-        eventum = self.get_eventum()
-        instance.delete()
-        # Инвалидируем кэш
-        cache_key = f"participants_list_{eventum.slug}"
-        cache.delete(cache_key)
-    
     @action(detail=False, methods=['get'])
+    @require_authentication
     def me(self, request, eventum_slug=None):
         """Получить участника для текущего пользователя в данном eventum"""
-        if not request.user.is_authenticated:
-            return Response({'error': 'Not authenticated'}, status=status.HTTP_401_UNAUTHORIZED)
-        
         eventum = self.get_eventum()
         try:
             participant = Participant.objects.get(user=request.user, eventum=eventum)
@@ -155,11 +75,9 @@ class ParticipantViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
             return Response({'error': 'User is not a participant in this eventum'}, status=status.HTTP_404_NOT_FOUND)
     
     @action(detail=False, methods=['post'])
+    @require_authentication
     def join(self, request, eventum_slug=None):
         """Присоединиться к eventum как участник"""
-        if not request.user.is_authenticated:
-            return Response({'error': 'Not authenticated'}, status=status.HTTP_401_UNAUTHORIZED)
-        
         eventum = self.get_eventum()
         
         # Проверяем, не является ли пользователь уже участником
@@ -176,30 +94,22 @@ class ParticipantViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
         serializer = self.get_serializer(data=participant_data)
         if serializer.is_valid():
             participant = serializer.save()
-            # Инвалидируем кэш
-            cache_key = f"participants_list_{eventum.slug}"
-            cache.delete(cache_key)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
     @action(detail=False, methods=['delete'])
+    @require_authentication
     def leave(self, request, eventum_slug=None):
         """Покинуть eventum"""
-        if not request.user.is_authenticated:
-            return Response({'error': 'Not authenticated'}, status=status.HTTP_401_UNAUTHORIZED)
-        
         eventum = self.get_eventum()
         try:
             participant = Participant.objects.get(user=request.user, eventum=eventum)
             participant.delete()
-            # Инвалидируем кэш
-            cache_key = f"participants_list_{eventum.slug}"
-            cache.delete(cache_key)
             return Response({'status': 'success'}, status=status.HTTP_200_OK)
         except Participant.DoesNotExist:
             return Response({'error': 'User is not a participant in this eventum'}, status=status.HTTP_404_NOT_FOUND)
 
-class ParticipantGroupViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
+class ParticipantGroupViewSet(CachedListMixin, EventumScopedViewSet):
     queryset = ParticipantGroup.objects.all().prefetch_related(
         'participants',
         'participants__user',  # Добавляем prefetch для пользователей участников
@@ -929,45 +839,27 @@ class CustomTokenRefreshView(TokenRefreshView):
 
 
 @api_view(['GET'])
+@require_authentication
 def user_profile(request):
     """Получение профиля текущего пользователя"""
-    if not request.user.is_authenticated:
-        return Response({'error': 'Not authenticated'}, status=status.HTTP_401_UNAUTHORIZED)
-    
     serializer = UserProfileSerializer(request.user)
     return Response(serializer.data)
 
 
 @api_view(['GET'])
+@require_authentication
 def user_roles(request):
     """Получение ролей пользователя"""
-    if not request.user.is_authenticated:
-        return Response({'error': 'Not authenticated'}, status=status.HTTP_401_UNAUTHORIZED)
-    
     roles = UserRole.objects.filter(user=request.user).select_related('eventum', 'user')
     serializer = UserRoleSerializer(roles, many=True)
     return Response(serializer.data)
 
 
 @api_view(['GET'])
+@require_authentication
 def user_eventums(request):
     """Получение eventum'ов пользователя (где он имеет какую-либо роль)"""
-    import logging
-    logger = logging.getLogger(__name__)
-    
-    logger.info(f"user_eventums called by user: {request.user} (authenticated: {request.user.is_authenticated})")
-    logger.info(f"User type: {type(request.user)}")
-    logger.info(f"User ID: {getattr(request.user, 'id', 'No ID')}")
-    
-    # Проверяем, что пользователь аутентифицирован
-    if not request.user.is_authenticated:
-        logger.warning("User not authenticated for user_eventums")
-        return Response({'error': 'Not authenticated'}, status=status.HTTP_401_UNAUTHORIZED)
-    
-    # Проверяем, что это наш пользователь
-    if not hasattr(request.user, 'id'):
-        logger.warning("User has no ID attribute")
-        return Response({'error': 'Invalid user'}, status=status.HTTP_401_UNAUTHORIZED)
+    logger.info(f"user_eventums called by user: {request.user} (ID: {request.user.id})")
     
     try:
         # Получаем все роли организатора пользователя
@@ -1085,34 +977,13 @@ def check_slug_availability(request, slug):
 def eventum_details(request, slug=None):
     """Получение детальной информации о eventum"""
     try:
-        # Получаем slug из параметров URL или из поддомена
-        eventum_slug = slug
-        if not eventum_slug and hasattr(request, 'eventum_slug'):
-            eventum_slug = request.eventum_slug
-            
-        if not eventum_slug:
-            return Response(
-                {'error': 'Eventum slug не найден'}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        # Проверяем существование eventum
-        try:
-            eventum = Eventum.objects.get(slug=eventum_slug)
-        except Eventum.DoesNotExist:
-            return Response(
-                {'error': f'Eventum with slug "{eventum_slug}" not found'}, 
-                status=status.HTTP_404_NOT_FOUND
-            )
+        # Используем новую утилиту для получения eventum
+        eventum = get_eventum_from_request(request, kwargs={'slug': slug})
         
         # Если пользователь аутентифицирован, проверяем права организатора для расширенной информации
-        is_organizer = False
-        if request.user.is_authenticated:
-            is_organizer = UserRole.objects.filter(
-                user=request.user, 
-                eventum=eventum, 
-                role='organizer'
-            ).exists()
+        from .auth_utils import get_user_role_in_eventum
+        user_role = get_user_role_in_eventum(request.user, eventum) if request.user.is_authenticated else None
+        is_organizer = user_role == 'organizer'
         
         # Базовые данные eventum всегда доступны
         eventum_data = EventumSerializer(eventum).data
@@ -1164,156 +1035,96 @@ def eventum_details(request, slug=None):
 
 
 @api_view(['GET', 'POST'])
+@require_eventum_role('organizer')
 def eventum_organizers(request, slug=None):
     """Получение списка организаторов eventum и добавление нового организатора"""
-    if not request.user.is_authenticated:
-        return Response({'error': 'Not authenticated'}, status=status.HTTP_401_UNAUTHORIZED)
+    # eventum уже получен и проверен в декораторе
+    eventum = request.eventum
     
-    try:
-        # Получаем slug из параметров URL или из поддомена
-        eventum_slug = slug
-        if not eventum_slug and hasattr(request, 'eventum_slug'):
-            eventum_slug = request.eventum_slug
-            
-        if not eventum_slug:
-            return Response(
-                {'error': 'Eventum slug не найден'}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        eventum = get_object_or_404(Eventum, slug=eventum_slug)
-        
-        # Проверяем, что пользователь является организатором
-        is_organizer = UserRole.objects.filter(
-            user=request.user, 
+    if request.method == 'GET':
+        # Получение списка организаторов
+        organizer_roles = UserRole.objects.filter(
             eventum=eventum, 
             role='organizer'
-        ).exists()
+        ).select_related('user')
         
-        if not is_organizer:
-            return Response({'error': 'Access denied'}, status=status.HTTP_403_FORBIDDEN)
-        
-        if request.method == 'GET':
-            # Получение списка организаторов
-            organizer_roles = UserRole.objects.filter(
-                eventum=eventum, 
-                role='organizer'
-            ).select_related('user')
-            
-            organizers_data = []
-            for role in organizer_roles:
-                organizers_data.append({
-                    'id': role.id,
-                    'user': UserProfileSerializer(role.user).data,
-                    'eventum': eventum.id,
-                    'role': role.role,
-                    'created_at': role.created_at.isoformat()
-                })
-            
-            return Response(organizers_data)
-        
-        elif request.method == 'POST':
-            # Добавление нового организатора
-            user_id = request.data.get('user_id')
-            if not user_id:
-                return Response({'error': 'user_id is required'}, status=status.HTTP_400_BAD_REQUEST)
-            
-            try:
-                user = UserProfile.objects.get(id=user_id)
-            except UserProfile.DoesNotExist:
-                return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
-            
-            # Проверяем, не является ли пользователь уже организатором
-            existing_role = UserRole.objects.filter(
-                user=user, 
-                eventum=eventum, 
-                role='organizer'
-            ).first()
-            
-            if existing_role:
-                return Response({'error': 'User is already an organizer'}, status=status.HTTP_400_BAD_REQUEST)
-            
-            # Создаем роль организатора
-            role = UserRole.objects.create(
-                user=user,
-                eventum=eventum,
-                role='organizer'
-            )
-            
-            role_data = {
+        organizers_data = []
+        for role in organizer_roles:
+            organizers_data.append({
                 'id': role.id,
-                'user': UserProfileSerializer(user).data,
+                'user': UserProfileSerializer(role.user).data,
                 'eventum': eventum.id,
                 'role': role.role,
                 'created_at': role.created_at.isoformat()
-            }
-            
-            return Response(role_data, status=status.HTTP_201_CREATED)
+            })
         
-    except Exception as e:
-        return Response(
-            {'error': f'Error with organizers: {str(e)}'}, 
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        return Response(organizers_data)
+    
+    elif request.method == 'POST':
+        # Добавление нового организатора
+        user_id = request.data.get('user_id')
+        if not user_id:
+            return Response({'error': 'user_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            user = UserProfile.objects.get(id=user_id)
+        except UserProfile.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Проверяем, не является ли пользователь уже организатором
+        existing_role = UserRole.objects.filter(
+            user=user, 
+            eventum=eventum, 
+            role='organizer'
+        ).first()
+        
+        if existing_role:
+            return Response({'error': 'User is already an organizer'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Создаем роль организатора
+        role = UserRole.objects.create(
+            user=user,
+            eventum=eventum,
+            role='organizer'
         )
+        
+        role_data = {
+            'id': role.id,
+            'user': UserProfileSerializer(user).data,
+            'eventum': eventum.id,
+            'role': role.role,
+            'created_at': role.created_at.isoformat()
+        }
+        
+        return Response(role_data, status=status.HTTP_201_CREATED)
 
 
 
 
 @api_view(['DELETE'])
+@require_eventum_role('organizer')
 def remove_eventum_organizer(request, slug=None, role_id=None):
     """Удаление организатора из eventum"""
-    if not request.user.is_authenticated:
-        return Response({'error': 'Not authenticated'}, status=status.HTTP_401_UNAUTHORIZED)
+    eventum = request.eventum
     
     try:
-        # Получаем slug из параметров URL или из поддомена
-        eventum_slug = slug
-        if not eventum_slug and hasattr(request, 'eventum_slug'):
-            eventum_slug = request.eventum_slug
-            
-        if not eventum_slug:
-            return Response(
-                {'error': 'Eventum slug не найден'}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        eventum = get_object_or_404(Eventum, slug=eventum_slug)
-        
-        # Проверяем, что пользователь является организатором
-        is_organizer = UserRole.objects.filter(
-            user=request.user, 
-            eventum=eventum, 
-            role='organizer'
-        ).exists()
-        
-        if not is_organizer:
-            return Response({'error': 'Access denied'}, status=status.HTTP_403_FORBIDDEN)
-        
-        try:
-            role = UserRole.objects.get(id=role_id, eventum=eventum, role='organizer')
-        except UserRole.DoesNotExist:
-            return Response({'error': 'Organizer role not found'}, status=status.HTTP_404_NOT_FOUND)
-        
-        # Проверяем, что не удаляем последнего организатора
-        organizers_count = UserRole.objects.filter(eventum=eventum, role='organizer').count()
-        if organizers_count <= 1:
-            return Response({'error': 'Cannot remove the last organizer'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        role.delete()
-        return Response({'status': 'success'}, status=status.HTTP_200_OK)
-        
-    except Exception as e:
-        return Response(
-            {'error': f'Error removing organizer: {str(e)}'}, 
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+        role = UserRole.objects.get(id=role_id, eventum=eventum, role='organizer')
+    except UserRole.DoesNotExist:
+        return Response({'error': 'Organizer role not found'}, status=status.HTTP_404_NOT_FOUND)
+    
+    # Проверяем, что не удаляем последнего организатора
+    organizers_count = UserRole.objects.filter(eventum=eventum, role='organizer').count()
+    if organizers_count <= 1:
+        return Response({'error': 'Cannot remove the last organizer'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    role.delete()
+    return Response({'status': 'success'}, status=status.HTTP_200_OK)
 
 
 @api_view(['GET'])
+@require_authentication
 def search_users(request):
     """Поиск пользователей для добавления в организаторы"""
-    if not request.user.is_authenticated:
-        return Response({'error': 'Not authenticated'}, status=status.HTTP_401_UNAUTHORIZED)
     
     query = request.GET.get('q', '').strip()
     if len(query) < 2:

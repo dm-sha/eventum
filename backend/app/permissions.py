@@ -1,23 +1,7 @@
 from rest_framework import permissions
+from django.http import Http404
 from .models import UserRole, Participant
-
-
-def get_eventum_slug_from_request(request, view):
-    """
-    Получает eventum_slug из URL параметров или из поддомена
-    """
-    # Сначала пробуем получить из URL параметров (для основного домена)
-    eventum_slug = view.kwargs.get('eventum_slug')
-    
-    # Если eventum_slug нет, пробуем получить slug (для EventumViewSet)
-    if not eventum_slug:
-        eventum_slug = view.kwargs.get('slug')
-    
-    # Если slug нет в URL, пробуем получить из request (для поддоменов)
-    if not eventum_slug and hasattr(request, 'eventum_slug'):
-        eventum_slug = request.eventum_slug
-    
-    return eventum_slug
+from .auth_utils import get_eventum_from_request, get_user_role_in_eventum
 
 
 class IsEventumOrganizer(permissions.BasePermission):
@@ -29,17 +13,12 @@ class IsEventumOrganizer(permissions.BasePermission):
         if not request.user or not request.user.is_authenticated:
             return False
         
-        # Получаем eventum_slug из URL или поддомена
-        eventum_slug = get_eventum_slug_from_request(request, view)
-        if not eventum_slug:
+        try:
+            eventum = get_eventum_from_request(request, view)
+            user_role = get_user_role_in_eventum(request.user, eventum)
+            return user_role == 'organizer'
+        except Http404:
             return False
-        
-        # Проверяем, является ли пользователь организатором этого eventum'а
-        return UserRole.objects.filter(
-            user=request.user,
-            eventum__slug=eventum_slug,
-            role='organizer'
-        ).exists()
 
 
 class IsEventumOrganizerOrReadOnlyForList(permissions.BasePermission):
@@ -60,16 +39,12 @@ class IsEventumOrganizerOrReadOnlyForList(permissions.BasePermission):
             return True
         
         # Для конкретного eventum'а проверяем права организатора
-        # Получаем eventum_slug из URL или поддомена
-        eventum_slug = get_eventum_slug_from_request(request, view)
-        if not eventum_slug:
+        try:
+            eventum = get_eventum_from_request(request, view)
+            user_role = get_user_role_in_eventum(request.user, eventum)
+            return user_role == 'organizer'
+        except Http404:
             return False
-        
-        return UserRole.objects.filter(
-            user=request.user,
-            eventum__slug=eventum_slug,
-            role='organizer'
-        ).exists()
 
 
 class IsEventumParticipant(permissions.BasePermission):
@@ -81,25 +56,12 @@ class IsEventumParticipant(permissions.BasePermission):
         if not request.user or not request.user.is_authenticated:
             return False
         
-        # Получаем eventum_slug из URL или поддомена
-        eventum_slug = get_eventum_slug_from_request(request, view)
-        if not eventum_slug:
+        try:
+            eventum = get_eventum_from_request(request, view)
+            user_role = get_user_role_in_eventum(request.user, eventum)
+            return user_role in ['organizer', 'participant']
+        except Http404:
             return False
-        
-        # Проверяем, является ли пользователь организатором
-        is_organizer = UserRole.objects.filter(
-            user=request.user,
-            eventum__slug=eventum_slug,
-            role='organizer'
-        ).exists()
-        
-        # Проверяем, является ли пользователь участником (через модель Participant)
-        is_participant = Participant.objects.filter(
-            user=request.user,
-            eventum__slug=eventum_slug
-        ).exists()
-        
-        return is_organizer or is_participant
 
 
 class IsEventumOrganizerOrReadOnly(permissions.BasePermission):
@@ -111,33 +73,21 @@ class IsEventumOrganizerOrReadOnly(permissions.BasePermission):
         if not request.user or not request.user.is_authenticated:
             return False
         
-        # Получаем eventum_slug из URL или поддомена
-        eventum_slug = get_eventum_slug_from_request(request, view)
-        if not eventum_slug:
+        try:
+            eventum = get_eventum_from_request(request, view)
+            user_role = get_user_role_in_eventum(request.user, eventum)
+            
+            # Организаторы могут все
+            if user_role == 'organizer':
+                return True
+            
+            # Участники только чтение
+            if user_role == 'participant':
+                return request.method in permissions.SAFE_METHODS
+            
             return False
-        
-        # Проверяем, является ли пользователь организатором
-        is_organizer = UserRole.objects.filter(
-            user=request.user,
-            eventum__slug=eventum_slug,
-            role='organizer'
-        ).exists()
-        
-        # Если пользователь организатор - разрешаем все
-        if is_organizer:
-            return True
-        
-        # Проверяем, является ли пользователь участником (через модель Participant)
-        is_participant = Participant.objects.filter(
-            user=request.user,
-            eventum__slug=eventum_slug
-        ).exists()
-        
-        # Если пользователь участник - разрешаем только чтение
-        if is_participant:
-            return request.method in permissions.SAFE_METHODS
-        
-        return False
+        except Http404:
+            return False
 
 
 class IsEventumOrganizerOrPublicReadOnly(permissions.BasePermission):
@@ -154,14 +104,9 @@ class IsEventumOrganizerOrPublicReadOnly(permissions.BasePermission):
         if not request.user or not request.user.is_authenticated:
             return False
         
-        # Получаем eventum_slug из URL или поддомена
-        eventum_slug = get_eventum_slug_from_request(request, view)
-        if not eventum_slug:
+        try:
+            eventum = get_eventum_from_request(request, view)
+            user_role = get_user_role_in_eventum(request.user, eventum)
+            return user_role == 'organizer'
+        except Http404:
             return False
-        
-        # Проверяем, является ли пользователь организатором
-        return UserRole.objects.filter(
-            user=request.user,
-            eventum__slug=eventum_slug,
-            role='organizer'
-        ).exists()
