@@ -837,6 +837,7 @@ class CustomTokenRefreshView(TokenRefreshView):
 
 
 @api_view(['GET'])
+@permission_classes([AllowAny])  # Отключаем глобальные permission classes
 @require_authentication
 def user_profile(request):
     """Получение профиля текущего пользователя"""
@@ -845,6 +846,7 @@ def user_profile(request):
 
 
 @api_view(['GET'])
+@permission_classes([AllowAny])  # Отключаем глобальные permission classes
 @require_authentication
 def user_roles(request):
     """Получение ролей пользователя"""
@@ -854,6 +856,7 @@ def user_roles(request):
 
 
 @api_view(['GET'])
+@permission_classes([AllowAny])  # Отключаем глобальные permission classes
 @require_authentication
 def user_eventums(request):
     """Получение eventum'ов пользователя (где он имеет какую-либо роль)"""
@@ -1105,6 +1108,7 @@ def remove_eventum_organizer(request, slug=None, role_id=None):
 
 
 @api_view(['GET'])
+@permission_classes([AllowAny])  # Отключаем глобальные permission classes
 @require_authentication
 def search_users(request):
     """Поиск пользователей для добавления в организаторы"""
