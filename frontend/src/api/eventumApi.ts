@@ -74,7 +74,7 @@ export const participantsApi = {
     createApiRequest<Participant[]>('GET', '/participants/', getEventumSlugForRequest(eventumSlug)),
   
   // Создать участника
-  create: (data: { name: string; user_id?: number }, eventumSlug?: string) => 
+  create: (data: { name: string; user_id?: number | null }, eventumSlug?: string) => 
     createApiRequest<Participant>('POST', '/participants/', getEventumSlugForRequest(eventumSlug), data),
   
   // Обновить участника

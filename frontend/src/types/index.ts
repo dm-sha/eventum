@@ -20,7 +20,7 @@ export interface Participant {
   id: number;
   name: string;
   user?: User;
-  user_id?: number;
+  user_id?: number | null;
   eventum: number; // ID of the eventum
   groups?: ParticipantGroup[];
 }

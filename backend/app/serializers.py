@@ -180,7 +180,9 @@ class ParticipantSerializer(serializers.ModelSerializer):
             try:
                 user = UserProfile.objects.get(id=user_id)
                 validated_data['user'] = user
-                validated_data['name'] = user.name  # Автоматически заполняем имя
+                # Не перезаписываем имя, если оно явно передано в запросе
+                if 'name' not in validated_data or not validated_data['name']:
+                    validated_data['name'] = user.name
             except UserProfile.DoesNotExist:
                 raise serializers.ValidationError(f"Пользователь с ID {user_id} не найден")
         

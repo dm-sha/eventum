@@ -18,7 +18,7 @@ export const createParticipant = async (eventumSlug: string, participantData: {
 }): Promise<Participant> => {
     const data = {
         name: participantData.name,
-        user_id: participantData.user_id ?? undefined
+        user_id: participantData.user_id
     };
     const response = await participantsApi.create(data, eventumSlug);
     return response.data;
@@ -35,7 +35,7 @@ export const updateParticipant = async (
 ): Promise<Participant> => {
     const data = {
         name: participantData.name,
-        user_id: participantData.user_id ?? undefined
+        user_id: participantData.user_id
     };
     const response = await participantsApi.update(participantId, data, eventumSlug);
     return response.data;
