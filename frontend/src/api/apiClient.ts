@@ -86,10 +86,7 @@ apiClient.interceptors.request.use(
     if (!isAuthEndpoint) {
       const tokens = TokenManager.getTokens();
       if (tokens?.access) {
-        // Используем Authorization header как основной способ
-        config.headers.Authorization = `Bearer ${tokens.access}`;
-        
-        // Добавляем query параметр как fallback для совместимости
+        // Используем только query параметр для передачи токена
         config.params = {
           ...config.params,
           access_token: tokens.access
@@ -125,10 +122,7 @@ apiClient.interceptors.response.use(
 
           TokenManager.saveTokens(newTokens);
 
-          // Повторяем оригинальный запрос с новым токеном
-          if (originalRequest.headers) {
-            originalRequest.headers.Authorization = `Bearer ${newTokens.access}`;
-          }
+          // Повторяем оригинальный запрос с новым токеном (только query параметр)
           if (originalRequest.params) {
             originalRequest.params.access_token = newTokens.access;
           }
