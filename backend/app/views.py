@@ -394,7 +394,7 @@ class EventViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], permission_classes=[IsEventumParticipant])
     def register(self, request, eventum_slug=None, pk=None):
-        """Записаться на мероприятие"""
+        """Подать заявку на мероприятие"""
         if not request.user.is_authenticated:
             return Response({'error': 'Not authenticated'}, status=status.HTTP_401_UNAUTHORIZED)
         

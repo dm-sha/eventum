@@ -139,7 +139,7 @@ const EventumPage = () => {
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
-              Запись на мероприятия
+              Подача заявок на мероприятия
             </button>
           </nav>
         </div>
@@ -179,7 +179,7 @@ const GeneralTab: React.FC<{ eventum: Eventum }> = ({ eventum }) => {
   );
 };
 
-// Компонент для вкладки "Запись на мероприятия"
+// Компонент для вкладки "Подача заявок на мероприятия"
 const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; currentParticipant: Participant | null; eventumSlug: string }> = ({ eventWaves, events, currentParticipant, eventumSlug }) => {
   const [expandedWaves, setExpandedWaves] = useState<Set<number>>(new Set());
   const [refreshKey, setRefreshKey] = useState(0);
@@ -367,7 +367,7 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
                     <p className="text-sm text-gray-500">
                       {waveEvents.length} мероприятий
                       <span className="ml-2 text-blue-600 font-medium">
-                        • Записаны на {registeredCount}
+                        • Заявок: {registeredCount}
                       </span>
                     </p>
                   ) : (
@@ -447,7 +447,7 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string }> = ({ event, eve
       // Принудительно обновляем компонент
       window.dispatchEvent(new CustomEvent('eventRegistrationChanged'));
     } catch (error) {
-      console.error('Ошибка записи на мероприятие:', error);
+      console.error('Ошибка подачи заявки на мероприятие:', error);
     } finally {
       setIsLoading(false);
     }
@@ -463,7 +463,7 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string }> = ({ event, eve
       // Принудительно обновляем компонент
       window.dispatchEvent(new CustomEvent('eventRegistrationChanged'));
     } catch (error) {
-      console.error('Ошибка отписки от мероприятия:', error);
+      console.error('Ошибка отмены заявки на мероприятие:', error);
     } finally {
       setIsLoading(false);
     }
@@ -538,20 +538,20 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string }> = ({ event, eve
         )}
       </div>
       
-      {/* Кнопка записи для мероприятий с типом "По записи" */}
+      {/* Кнопка подачи заявки для мероприятий с типом "По записи" */}
       {event.participant_type === 'registration' && (
         <div className="mt-4 pt-4 border-t border-gray-100">
           {event.is_registered ? (
             <div className="flex items-center justify-between">
               <span className="text-sm text-green-600 font-medium">
-                ✓ Вы записаны на это мероприятие
+                ✓ Заявка принята
               </span>
               <button
                 onClick={handleUnregister}
                 disabled={isLoading}
                 className="px-3 py-1 text-sm text-gray-600 hover:text-gray-700 hover:bg-gray-50 border border-gray-300 rounded-md transition-colors disabled:opacity-50"
               >
-                {isLoading ? 'Отмена...' : 'Отменить запись'}
+                {isLoading ? 'Отмена...' : 'Отменить заявку'}
               </button>
             </div>
           ) : (
@@ -559,7 +559,7 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string }> = ({ event, eve
               <span className="text-sm text-gray-500">
                 {event.max_participants && event.registrations_count >= event.max_participants
                   ? 'Мест нет'
-                  : 'Запись открыта'
+                  : 'Подача заявок открыта'
                 }
               </span>
               <button
@@ -567,7 +567,7 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string }> = ({ event, eve
                 disabled={isLoading || !!(event.max_participants && event.registrations_count >= event.max_participants)}
                 className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isLoading ? 'Запись...' : 'Записаться'}
+                {isLoading ? 'Подача заявки...' : 'Подать заявку'}
               </button>
             </div>
           )}

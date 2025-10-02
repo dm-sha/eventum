@@ -551,7 +551,7 @@ class EventWave(models.Model):
         for group in participant_groups:
             participant_group_tags.update(group.tags.all())
         
-        # Проверяем blacklist - если участник в blacklist, он не может записаться
+        # Проверяем blacklist - если участник в blacklist, он не может подать заявку
         if self.blacklist_groups.exists():
             if participant_groups.filter(id__in=self.blacklist_groups.values_list('id', flat=True)).exists():
                 return False
@@ -580,7 +580,7 @@ class EventWave(models.Model):
 
 
 class EventRegistration(models.Model):
-    """Запись участника на мероприятие"""
+    """Заявка участника на мероприятие"""
     participant = models.ForeignKey(
         Participant, 
         on_delete=models.CASCADE, 
@@ -612,10 +612,10 @@ class EventRegistration(models.Model):
                     f"должны принадлежать одному мероприятию (eventum)"
                 )
         
-        # Валидация: можно записываться только на мероприятия с типом "По записи"
+        # Валидация: можно подавать заявки только на мероприятия с типом "По записи"
         if self.event_id and self.event.participant_type != Event.ParticipantType.REGISTRATION:
             raise ValidationError(
-                f"Запись на мероприятие '{self.event.name}' возможна только для мероприятий "
+                f"Подача заявки на мероприятие '{self.event.name}' возможна только для мероприятий "
                 f"с типом участников 'По записи'"
             )
     

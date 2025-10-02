@@ -64,12 +64,12 @@ export const getDevUser = async (): Promise<{access: string, refresh: string, us
     return response.data;
 };
 
-// Записаться на мероприятие
+// Подать заявку на мероприятие
 export const registerForEvent = async (eventumSlug: string, eventId: number): Promise<void> => {
     await eventsApi.register(eventId, eventumSlug);
 };
 
-// Отписаться от мероприятия
+// Отменить заявку на мероприятие
 export const unregisterFromEvent = async (eventumSlug: string, eventId: number): Promise<void> => {
     await eventsApi.unregister(eventId, eventumSlug);
 };

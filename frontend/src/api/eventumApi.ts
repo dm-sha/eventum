@@ -137,11 +137,11 @@ export const eventsApi = {
   delete: (id: number, eventumSlug?: string) => 
     createApiRequest<void>('DELETE', `/events/${id}/`, getEventumSlugForRequest(eventumSlug)),
   
-  // Записаться на событие
+  // Подать заявку на событие
   register: (id: number, eventumSlug?: string) => 
     createApiRequest<void>('POST', `/events/${id}/register/`, getEventumSlugForRequest(eventumSlug)),
   
-  // Отписаться от события
+  // Отменить заявку на событие
   unregister: (id: number, eventumSlug?: string) => 
     createApiRequest<void>('DELETE', `/events/${id}/unregister/`, getEventumSlugForRequest(eventumSlug))
 };
