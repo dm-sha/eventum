@@ -133,6 +133,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     
     // Используем TokenManager для очистки токенов
     TokenManager.clearTokens();
+    
+    // Очищаем все хранилища данных пользователя
+    localStorage.removeItem('auth_user');
+    sessionStorage.removeItem('auth_user');
+    
+    // Перенаправляем на главную страницу merup.ru с формой аутентификации
+    window.location.href = 'https://merup.ru';
   };
 
   const isAuthenticated = !!user && !!tokens && !!tokens.access;
