@@ -472,7 +472,7 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string }> = ({ event, eve
     if (event.participant_type === 'all') {
       return 'Для всех участников';
     } else if (event.participant_type === 'registration' && event.max_participants) {
-      return `${event.registrations_count}/${event.max_participants} участников`;
+      return `Заявок: ${event.registrations_count}, мест: ${event.max_participants}`;
     } else if (event.participant_type === 'manual') {
       return 'По приглашению';
     }
@@ -537,14 +537,16 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string }> = ({ event, eve
           ) : (
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-500">
-                {event.max_participants && event.registrations_count >= event.max_participants
-                  ? 'Мест нет'
-                  : 'Подача заявок открыта'
-                }
+                Подача заявок открыта
+                {event.registrations_count > 0 && (
+                  <span className="ml-2">
+                    ({event.registrations_count} заявок)
+                  </span>
+                )}
               </span>
               <button
                 onClick={handleRegister}
-                disabled={isLoading || !!(event.max_participants && event.registrations_count >= event.max_participants)}
+                disabled={isLoading}
                 className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLoading ? 'Подача заявки...' : 'Подать заявку'}
