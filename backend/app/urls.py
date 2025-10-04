@@ -38,6 +38,9 @@ eventum_scoped_router.register(r'event-waves', EventWaveViewSet, basename='event
 eventum_scoped_router.register(r'locations', LocationViewSet, basename='location')
 
 urlpatterns = [
+    # Поиск пользователей (должен быть ДО роутера users)
+    path('users/search/', search_users, name='search_users'),
+    
     path('', include(router.urls)),
     
     # Основные маршруты с slug
@@ -60,7 +63,4 @@ urlpatterns = [
     
     # Проверка доступности slug
     path('eventums/check-slug/<slug:slug>/', check_slug_availability, name='check_slug_availability'),
-    
-    # Поиск пользователей
-    path('users/search/', search_users, name='search_users'),
 ]
