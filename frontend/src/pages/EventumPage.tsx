@@ -538,11 +538,6 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string }> = ({ event, eve
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-500">
                 Подача заявок открыта
-                {event.registrations_count > 0 && (
-                  <span className="ml-2">
-                    ({event.registrations_count} заявок)
-                  </span>
-                )}
               </span>
               <button
                 onClick={handleRegister}
