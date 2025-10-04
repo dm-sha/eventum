@@ -90,16 +90,16 @@ class Command(BaseCommand):
                         )
                         vk_id = None
                 
-                if not full_name or not groups_str:
+                if not full_name:
                     self.stdout.write(
-                        self.style.WARNING(f'Row {row_num}: Empty name or groups, skipping: {row}')
+                        self.style.WARNING(f'Row {row_num}: Empty name, skipping: {row}')
                     )
                     continue
                 
                 # Разделяем группы по запятой и очищаем от пробелов
                 group_names = [group.strip() for group in groups_str.split(',') if group.strip()]
                 
-                # Добавляем участника для каждой группы из колонки "Участие"
+                # Добавляем участника для каждой группы из колонки "Участие" (если группы есть)
                 for group_name in group_names:
                     participants_data.append({
                         'row_num': row_num,
@@ -111,6 +111,7 @@ class Command(BaseCommand):
                     })
                 
                 # Добавляем участника в группу по региону (если регион указан)
+                # Это делается независимо от наличия групп в столбце "Участие"
                 if region:
                     participants_data.append({
                         'row_num': row_num,
