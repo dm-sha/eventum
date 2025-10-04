@@ -323,7 +323,10 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
     );
   }
 
-  if (eventWaves.length === 0) {
+  // Фильтруем только доступные волны
+  const accessibleWaves = eventWaves.filter(wave => isWaveAccessible(wave).accessible);
+
+  if (accessibleWaves.length === 0) {
     return (
       <div className="text-center py-8">
         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-gray-100">
@@ -343,7 +346,10 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
         </div>
         <h3 className="mt-4 text-lg font-semibold text-gray-900">Нет доступных волн мероприятий</h3>
         <p className="mt-2 text-gray-600">
-          Волны мероприятий пока не созданы организаторами.
+          {eventWaves.length === 0 
+            ? 'Волны мероприятий пока не созданы организаторами.'
+            : 'Нет доступных волн мероприятий.'
+          }
         </p>
       </div>
     );
@@ -355,77 +361,48 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
       <p className="text-gray-600 mb-4">
         В одной волне проходит несколько событий одновременно, попасть можно только на одно. Выберите все интересные варианты — система распределит вас случайным образом.
       </p>
-      {eventWaves.map((wave) => {
+      {accessibleWaves.map((wave) => {
         const waveEvents = getEventsForWave(wave);
         const registeredCount = getRegisteredEventsCountForWave(wave);
         const isExpanded = expandedWaves.has(wave.id);
-        const accessibility = isWaveAccessible(wave);
         
         return (
           <div key={wave.id} className="border border-gray-200 rounded-lg">
             <button
-              onClick={() => accessibility.accessible ? toggleWave(wave.id) : undefined}
-              disabled={!accessibility.accessible}
-              className={`w-full px-4 py-3 text-left flex items-center justify-between transition-colors ${
-                accessibility.accessible 
-                  ? 'hover:bg-gray-50 cursor-pointer' 
-                  : 'cursor-not-allowed'
-              }`}
+              onClick={() => toggleWave(wave.id)}
+              className="w-full px-4 py-3 text-left flex items-center justify-between transition-colors hover:bg-gray-50 cursor-pointer"
             >
               <div className="flex items-center space-x-3">
                 <div className="flex-1">
                   <h3 className="text-lg font-medium text-gray-900">
                     {wave.name}
                   </h3>
-                  {accessibility.accessible ? (
-                    <p className="text-sm text-gray-500">
-                      {waveEvents.length} мероприятий
-                      <span className="ml-2 text-blue-600 font-medium">
-                        • Заявок: {registeredCount}
-                      </span>
-                    </p>
-                  ) : (
-                    <p className="text-sm text-gray-500">
-                      {accessibility.reason}
-                    </p>
-                  )}
+                  <p className="text-sm text-gray-500">
+                    {waveEvents.length} мероприятий
+                    <span className="ml-2 text-blue-600 font-medium">
+                      • Заявок: {registeredCount}
+                    </span>
+                  </p>
                 </div>
               </div>
-              {accessibility.accessible && (
-                <svg
-                  className={`w-5 h-5 text-gray-400 transition-transform ${
-                    isExpanded ? 'rotate-180' : ''
-                  }`}
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  strokeWidth="1.5"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M19.5 8.25l-7.5 7.5-7.5-7.5"
-                  />
-                </svg>
-              )}
-              {!accessibility.accessible && (
-                <svg
-                  className="w-5 h-5 text-gray-400"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  strokeWidth="1.5"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"
-                  />
-                </svg>
-              )}
+              <svg
+                className={`w-5 h-5 text-gray-400 transition-transform ${
+                  isExpanded ? 'rotate-180' : ''
+                }`}
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth="1.5"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M19.5 8.25l-7.5 7.5-7.5-7.5"
+                />
+              </svg>
             </button>
             
-            {isExpanded && accessibility.accessible && (
+            {isExpanded && (
               <div className="border-t border-gray-200 bg-gray-50">
                 <div className="p-4 space-y-3">
                   {waveEvents.length === 0 ? (
