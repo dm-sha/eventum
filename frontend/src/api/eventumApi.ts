@@ -169,7 +169,11 @@ export const organizersApi = {
 export const usersApi = {
   // Поиск пользователей
   search: (query: string) => 
-    createApiRequest<User[]>('GET', `/users/search/?q=${encodeURIComponent(query)}`)
+    createApiRequest<User[]>('GET', `/users/search/?q=${encodeURIComponent(query)}`),
+  
+  // Создать пользователя
+  create: (data: { name: string; vk_id: number }) => 
+    createApiRequest<User>('POST', '/users/', undefined, data)
 };
 
 // ============= EVENT TAGS API =============

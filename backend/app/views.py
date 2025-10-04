@@ -2,7 +2,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.exceptions import NotFound, ValidationError
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.pagination import PageNumberPagination
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -1105,6 +1105,34 @@ def remove_eventum_organizer(request, slug=None, role_id=None):
     
     role.delete()
     return Response({'status': 'success'}, status=status.HTTP_200_OK)
+
+
+class UserViewSet(viewsets.ModelViewSet):
+    """ViewSet для управления пользователями"""
+    queryset = UserProfile.objects.all()
+    serializer_class = UserProfileSerializer
+    permission_classes = [IsAuthenticated]  # Требуем аутентификации
+    
+    def get_queryset(self):
+        """Возвращаем всех пользователей"""
+        return UserProfile.objects.all()
+    
+    def create(self, request, *args, **kwargs):
+        """Создание нового пользователя"""
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        # Проверяем, что пользователь с таким VK ID не существует
+        vk_id = serializer.validated_data.get('vk_id')
+        if UserProfile.objects.filter(vk_id=vk_id).exists():
+            return Response(
+                {'vk_id': ['Пользователь с таким VK ID уже существует']}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
 
 @api_view(['GET'])

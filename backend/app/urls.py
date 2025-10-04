@@ -10,6 +10,7 @@ from .views import (
     EventTagViewSet,
     EventWaveViewSet,
     LocationViewSet,
+    UserViewSet,
     VKAuthView,
     CustomTokenRefreshView,
     user_profile,
@@ -25,6 +26,7 @@ from .views import (
 
 router = DefaultRouter()
 router.register(r'eventums', EventumViewSet)
+router.register(r'users', UserViewSet)
 
 eventum_scoped_router = DefaultRouter()
 eventum_scoped_router.register(r'participants', ParticipantViewSet, basename='participant')

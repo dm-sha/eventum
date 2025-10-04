@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { IconX, IconUser, IconSearch, IconCheck } from "../icons";
 import type { Participant, User } from "../../types";
 import { searchUsers } from "../../api/organizers";
+import { usersApi } from "../../api/eventumApi";
 
 interface ParticipantModalProps {
   isOpen: boolean;
@@ -24,6 +25,7 @@ const ParticipantModal = ({
   const [searchResults, setSearchResults] = useState<User[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const [showAddUserModal, setShowAddUserModal] = useState(false);
 
   useEffect(() => {
     if (participant) {
@@ -155,9 +157,19 @@ const ParticipantModal = ({
           </div>
 
           <div className="relative user-search-container">
-            <label htmlFor="user-search" className="block text-sm font-medium text-gray-700 mb-1">
-              VK
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label htmlFor="user-search" className="block text-sm font-medium text-gray-700">
+                VK
+              </label>
+              <button
+                type="button"
+                onClick={() => setShowAddUserModal(true)}
+                disabled={isLoading}
+                className="text-xs text-blue-600 hover:text-blue-800 disabled:opacity-50"
+              >
+                + Добавить VK пользователя
+              </button>
+            </div>
             <div className="relative">
               <input
                 id="user-search"
@@ -339,6 +351,203 @@ const ParticipantModal = ({
               className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
             >
               {isLoading ? "Сохранение..." : participant ? "Сохранить" : "Добавить"}
+            </button>
+          </div>
+        </form>
+      </div>
+      
+      {/* Модальное окно для добавления VK пользователя */}
+      {showAddUserModal && (
+        <AddVKUserModal
+          isOpen={showAddUserModal}
+          onClose={() => setShowAddUserModal(false)}
+          onUserCreated={(user) => {
+            setSelectedUser(user);
+            setUserSearchQuery(user.name);
+            setShowAddUserModal(false);
+          }}
+        />
+      )}
+    </div>
+  );
+};
+
+// Компонент для добавления VK пользователя
+interface AddVKUserModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onUserCreated: (user: User) => void;
+}
+
+const AddVKUserModal = ({ isOpen, onClose, onUserCreated }: AddVKUserModalProps) => {
+  const [userName, setUserName] = useState("");
+  const [vkId, setVkId] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<{name?: string; vk_id?: string}>({});
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userName.trim() || !vkId.trim()) return;
+
+    setIsLoading(true);
+    setError("");
+    setFieldErrors({});
+
+    try {
+      const newUser = await usersApi.create({ 
+        name: userName.trim(), 
+        vk_id: parseInt(vkId) 
+      });
+      onUserCreated(newUser.data);
+    } catch (error: any) {
+      console.error("Ошибка при создании пользователя:", error);
+      
+      // Обрабатываем ошибки полей
+      if (error?.response?.data) {
+        const errorData = error.response.data;
+        
+        // Обрабатываем ошибки полей
+        if (errorData.vk_id) {
+          const vkIdError = Array.isArray(errorData.vk_id) ? errorData.vk_id[0] : errorData.vk_id;
+          if (vkIdError.includes('already exists')) {
+            setFieldErrors({vk_id: "Пользователь с таким VK ID уже существует"});
+          } else {
+            setFieldErrors({vk_id: vkIdError});
+          }
+        }
+        
+        if (errorData.name) {
+          const nameError = Array.isArray(errorData.name) ? errorData.name[0] : errorData.name;
+          setFieldErrors(prev => ({...prev, name: nameError}));
+        }
+        
+        // Общие ошибки
+        if (errorData.detail) {
+          setError(errorData.detail);
+        } else if (errorData.non_field_errors) {
+          setError(Array.isArray(errorData.non_field_errors) 
+            ? errorData.non_field_errors.join(', ')
+            : errorData.non_field_errors);
+        } else if (!errorData.vk_id && !errorData.name) {
+          setError("Ошибка при создании пользователя");
+        }
+      } else if (error?.message) {
+        setError(error.message);
+      } else {
+        setError("Ошибка при создании пользователя");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleClose = () => {
+    if (!isLoading) {
+      setUserName("");
+      setVkId("");
+      setError("");
+      setFieldErrors({});
+      onClose();
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-60 flex items-center justify-center bg-black bg-opacity-50">
+      <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-gray-900">
+            Добавить VK пользователя
+          </h3>
+          <button
+            onClick={handleClose}
+            disabled={isLoading}
+            className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 disabled:opacity-50"
+          >
+            <IconX size={20} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label htmlFor="user-name" className="block text-sm font-medium text-gray-700 mb-1">
+              Имя пользователя *
+            </label>
+            <input
+              id="user-name"
+              type="text"
+              value={userName}
+              onChange={(e) => {
+                setUserName(e.target.value);
+                if (fieldErrors.name) {
+                  setFieldErrors(prev => ({...prev, name: undefined}));
+                }
+              }}
+              required
+              disabled={isLoading}
+              className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 disabled:bg-gray-50 ${
+                fieldErrors.name 
+                  ? 'border-red-300 focus:border-red-500 focus:ring-red-200' 
+                  : 'border-gray-300 focus:border-blue-500 focus:ring-blue-200'
+              }`}
+              placeholder="Введите имя пользователя"
+            />
+            {fieldErrors.name && (
+              <p className="mt-1 text-sm text-red-600">{fieldErrors.name}</p>
+            )}
+          </div>
+
+          <div>
+            <label htmlFor="vk-id" className="block text-sm font-medium text-gray-700 mb-1">
+              VK ID *
+            </label>
+            <input
+              id="vk-id"
+              type="number"
+              value={vkId}
+              onChange={(e) => {
+                setVkId(e.target.value);
+                if (fieldErrors.vk_id) {
+                  setFieldErrors(prev => ({...prev, vk_id: undefined}));
+                }
+              }}
+              required
+              disabled={isLoading}
+              className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 disabled:bg-gray-50 ${
+                fieldErrors.vk_id 
+                  ? 'border-red-300 focus:border-red-500 focus:ring-red-200' 
+                  : 'border-gray-300 focus:border-blue-500 focus:ring-blue-200'
+              }`}
+              placeholder="Введите VK ID"
+            />
+            {fieldErrors.vk_id && (
+              <p className="mt-1 text-sm text-red-600">{fieldErrors.vk_id}</p>
+            )}
+          </div>
+
+          {error && (
+            <div className="text-sm text-red-600 bg-red-50 p-3 rounded-lg">
+              {error}
+            </div>
+          )}
+
+          <div className="flex justify-end gap-3 pt-4">
+            <button
+              type="button"
+              onClick={handleClose}
+              disabled={isLoading}
+              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            >
+              Отмена
+            </button>
+            <button
+              type="submit"
+              disabled={isLoading || !userName.trim() || !vkId.trim()}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              {isLoading ? "Создание..." : "Создать"}
             </button>
           </div>
         </form>
