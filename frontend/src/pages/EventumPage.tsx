@@ -529,9 +529,6 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string }> = ({ event, eve
               >
                 {isLoading ? 'Отмена...' : 'Отменить заявку'}
               </button>
-              <span className="text-sm text-green-600 font-medium">
-                ✓ Заявка принята
-              </span>
             </div>
           ) : (
             <div className="flex items-center">

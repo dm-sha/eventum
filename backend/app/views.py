@@ -1137,7 +1137,6 @@ class UserViewSet(viewsets.ModelViewSet):
 
 @api_view(['GET'])
 @permission_classes([AllowAny])  # Отключаем глобальные permission classes
-@require_authentication
 def search_users(request):
     """Поиск пользователей для добавления в организаторы"""
     
