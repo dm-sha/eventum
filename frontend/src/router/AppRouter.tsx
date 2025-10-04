@@ -53,7 +53,7 @@ export const AppRouter = () => {
   );
 
   const homeElement = subdomainSlug
-    ? <EventumPage />
+    ? (isAuthenticated ? <EventumPage /> : <VKAuth />)
     : (isAuthenticated ? <Navigate to="/dashboard" replace /> : <HomePage />);
 
   return (
@@ -78,8 +78,8 @@ export const AppRouter = () => {
           // При использовании поддомена не включаем slug в путь
           <>
             <Route index element={<Navigate to="general" replace />} />
-            <Route path="general" element={<EventumPage />} />
-            <Route path="registration" element={<EventumPage />} />
+            <Route path="general" element={isAuthenticated ? <EventumPage /> : <VKAuth />} />
+            <Route path="registration" element={isAuthenticated ? <EventumPage /> : <VKAuth />} />
           </>
         ) : (
           // При использовании основного домена включаем slug в путь

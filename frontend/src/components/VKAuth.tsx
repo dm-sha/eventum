@@ -2,6 +2,8 @@ import React, { useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { authApi } from '../api/auth';
 import LoadingSpinner from './LoadingSpinner';
+import { useNavigate } from 'react-router-dom';
+import { getSubdomainSlug } from '../utils/eventumSlug';
 
 declare global {
   interface Window {
@@ -11,6 +13,7 @@ declare global {
 
 const VKAuth: React.FC = () => {
   const { login } = useAuth();
+  const navigate = useNavigate();
   const containerRef = useRef<HTMLDivElement>(null);
   const [isLoading, setIsLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -25,6 +28,16 @@ const VKAuth: React.FC = () => {
       const response = await authApi.vkAuth({ code: data.code });
       console.log('VK Auth API response:', response);
       login(response, response.user);
+
+      // Перенаправляем пользователя после успешной авторизации
+      const subdomainSlug = getSubdomainSlug();
+      if (subdomainSlug) {
+        // Если мы на поддомене, перенаправляем на главную страницу поддомена
+        navigate('/', { replace: true });
+      } else {
+        // Если мы на основном домене, перенаправляем на dashboard
+        navigate('/dashboard', { replace: true });
+      }
 
     } catch (err: any) {
       console.error('VK Auth error:', err);
@@ -109,7 +122,7 @@ const VKAuth: React.FC = () => {
         script.parentNode.removeChild(script);
       }
     };
-  }, [login]);
+  }, [login, navigate]);
 
   if (isLoading) {
     return (
