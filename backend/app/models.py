@@ -11,6 +11,10 @@ class Eventum(models.Model):
     name = models.CharField(max_length=200)
     slug = models.SlugField(max_length=200, unique=True)
     description = models.TextField(blank=True)
+    image_url = models.URLField(
+        blank=True,
+        help_text="URL изображения для eventum"
+    )
 
     def save(self, *args, **kwargs):
         # Если slug не предоставлен, генерируем его из названия

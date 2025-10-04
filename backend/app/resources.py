@@ -109,5 +109,5 @@ class EventResource(resources.ModelResource):
 
     class Meta:
         model = Event
-        fields = ('id', 'name', 'description', 'start_time', 'end_time', 'eventum', 'participants', 'groups', 'tags', 'group_tags')
+        fields = ('id', 'name', 'description', 'start_time', 'end_time', 'eventum', 'participants', 'groups', 'tags', 'group_tags', 'image_url')
         import_id_fields = ('name', 'eventum') # Более надежно чем только id

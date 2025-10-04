@@ -3,6 +3,7 @@ export interface Eventum {
     name: string;
     slug: string;
     description?: string;
+    image_url?: string;
     // password_hash мы не получаем на фронтенде, поэтому его здесь нет
 }
 

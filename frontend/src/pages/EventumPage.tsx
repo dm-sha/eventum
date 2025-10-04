@@ -182,6 +182,15 @@ const GeneralTab: React.FC<{ eventum: Eventum }> = ({ eventum }) => {
         <h2 className="text-2xl font-bold text-gray-900 mb-4">
           {eventum.name}
         </h2>
+        {eventum.image_url && (
+          <div className="mb-6">
+            <img
+              src={eventum.image_url}
+              alt={eventum.name}
+              className="w-full max-w-2xl h-auto rounded-lg shadow-sm"
+            />
+          </div>
+        )}
         {eventum.description && (
           <div>
             <h3 className="text-lg font-semibold text-gray-900 mb-2">Описание</h3>
@@ -361,7 +370,7 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
     <div className="space-y-4" key={refreshKey}>
       <h2 className="text-xl font-semibold text-gray-900 mb-6">Волны мероприятий</h2>
       <p className="text-gray-600 mb-4">
-        В одной волне проходит несколько событий одновременно, попасть можно только на одно. Выберите все интересные варианты — система распределит вас случайным образом.
+        В одной волне проходит несколько событий одновременно, попасть можно только на одно. Т.к. желающих может быть больше, чем мест, после подачи заявокВыберите все интересные варианты — система распределит вас случайным образом.
       </p>
       {accessibleWaves.map((wave) => {
         const waveEvents = getEventsForWave(wave);

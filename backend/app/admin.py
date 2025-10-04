@@ -1,6 +1,7 @@
 from django import forms
 from django.contrib import admin
 from django.core.exceptions import ValidationError
+from django.utils.html import format_html
 from import_export.admin import ImportExportModelAdmin
 
 # Импортируем все модели
@@ -55,6 +56,9 @@ class EventumAdminForm(forms.ModelForm):
     class Meta:
         model = Eventum
         fields = '__all__'
+        widgets = {
+            'image_url': forms.URLInput(attrs={'placeholder': 'https://example.com/image.jpg'}),
+        }
 
 class ParticipantAdminForm(forms.ModelForm):
     class Meta:
@@ -161,10 +165,28 @@ class LocationAdminForm(forms.ModelForm):
 @admin.register(Eventum)
 class EventumAdmin(admin.ModelAdmin):
     form = EventumAdminForm
-    list_display = ('name', 'slug')
+    list_display = ('name', 'slug', 'has_image')
     prepopulated_fields = {'slug': ('name',)}
     inlines = [ParticipantInline, EventInline]
     search_fields = ('name', 'slug')
+    fields = ('name', 'slug', 'description', 'image_url', 'image_preview')
+    readonly_fields = ('image_preview',)
+    
+    def has_image(self, obj):
+        """Показывает, есть ли изображение у eventum"""
+        return bool(obj.image_url)
+    has_image.boolean = True
+    has_image.short_description = 'Есть изображение'
+    
+    def image_preview(self, obj):
+        """Показывает превью изображения в админке"""
+        if obj.image_url:
+            return format_html(
+                '<img src="{}" style="max-width: 200px; max-height: 150px; border-radius: 8px;" />',
+                obj.image_url
+            )
+        return "Нет изображения"
+    image_preview.short_description = 'Превью изображения'
 
 # --- ParticipantAdmin ---
 @admin.register(Participant)
