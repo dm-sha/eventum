@@ -171,7 +171,7 @@ const DashboardPage: React.FC = () => {
                         </div>
                         
                         {eventum.description && (
-                          <p className="text-sm text-gray-600">
+                          <p className="text-sm text-gray-600 line-clamp-2">
                             {eventum.description}
                           </p>
                         )}

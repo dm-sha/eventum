@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useEventumSlug } from "../../hooks/useEventumSlug";
 import { getEventumDetails, updateEventumName, updateEventumDescription } from "../../api/eventum";
 import { addEventumOrganizer, removeEventumOrganizer, searchUsers } from "../../api/organizers";
@@ -26,6 +26,8 @@ const EventumInfoPage = () => {
   const [tempDescription, setTempDescription] = useState("");
   const [isSavingName, setIsSavingName] = useState(false);
   const [isSavingDescription, setIsSavingDescription] = useState(false);
+  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   
   // Состояние для модального окна добавления организатора
   const [isAddOrganizerModalOpen, setIsAddOrganizerModalOpen] = useState(false);
@@ -38,6 +40,21 @@ const EventumInfoPage = () => {
       loadEventumData();
     }
   }, [eventumSlug]);
+
+  // Функция для автоматического изменения размера textarea
+  const adjustTextareaHeight = () => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
+    }
+  };
+
+  // Автоматически подстраиваем размер textarea при изменении содержимого
+  useEffect(() => {
+    if (isEditingDescription) {
+      adjustTextareaHeight();
+    }
+  }, [isEditingDescription, tempDescription]);
 
   const loadEventumData = async () => {
     if (!eventumSlug) return;
@@ -261,10 +278,13 @@ const EventumInfoPage = () => {
           {isEditingDescription ? (
             <div className="space-y-3">
               <textarea
+                ref={textareaRef}
                 value={tempDescription}
-                onChange={(e) => setTempDescription(e.target.value)}
-                className="w-full bg-transparent border-none focus:outline-none resize-none"
-                rows={4}
+                onChange={(e) => {
+                  setTempDescription(e.target.value);
+                  adjustTextareaHeight();
+                }}
+                className="w-full bg-transparent border-none focus:outline-none resize-none min-h-[100px]"
                 placeholder="Введите описание мероприятия..."
                 autoFocus
                 onKeyDown={(e) => {
@@ -293,16 +313,30 @@ const EventumInfoPage = () => {
               </div>
             </div>
           ) : (
-            <p className="text-gray-700 whitespace-pre-wrap">
-              {eventum.description || (
-                <span 
-                  className="text-gray-400 cursor-pointer hover:text-gray-500 transition-colors"
-                  onClick={() => setIsEditingDescription(true)}
+            <div>
+              <p 
+                className={`text-gray-700 whitespace-pre-wrap ${
+                  !isDescriptionExpanded ? 'line-clamp-3' : ''
+                }`}
+              >
+                {eventum.description || (
+                  <span 
+                    className="text-gray-400 cursor-pointer hover:text-gray-500 transition-colors"
+                    onClick={() => setIsEditingDescription(true)}
+                  >
+                    Описание мероприятия не указано
+                  </span>
+                )}
+              </p>
+              {eventum.description && (
+                <button
+                  onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
+                  className="mt-2 text-sm text-blue-600 hover:text-blue-800 font-medium transition-colors"
                 >
-                  Описание мероприятия не указано
-                </span>
+                  {isDescriptionExpanded ? 'Показать меньше' : 'Показать больше'}
+                </button>
               )}
-            </p>
+            </div>
           )}
         </div>
       </section>
