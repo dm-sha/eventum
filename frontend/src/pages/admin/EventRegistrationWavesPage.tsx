@@ -201,25 +201,19 @@ const WaveCard: React.FC<WaveCardProps> = ({ wave, mode, onStartEdit, onDelete, 
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
       <div className="space-y-3">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="space-y-1">
-            {mode === 'edit' ? (
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-base font-semibold text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                placeholder="Название волны"
-                required
-                autoFocus
-              />
-            ) : (
-              <h4 className="text-base font-semibold text-gray-900">{wave.name}</h4>
-            )}
-            <p className="text-sm text-gray-500">Тег: {wave.tag.name}</p>
-          </div>
-          <div className="flex items-center gap-2">
-            {mode === 'edit' ? (
+        {mode === 'edit' ? (
+          <div className="space-y-3">
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-base font-semibold text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+              placeholder="Название волны"
+              required
+              autoFocus
+            />
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-gray-500">Тег: {wave.tag.name}</p>
               <button
                 onClick={onDelete}
                 className="p-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
@@ -227,7 +221,15 @@ const WaveCard: React.FC<WaveCardProps> = ({ wave, mode, onStartEdit, onDelete, 
               >
                 <IconTrash size={16} />
               </button>
-            ) : (
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-1">
+              <h4 className="text-base font-semibold text-gray-900">{wave.name}</h4>
+              <p className="text-sm text-gray-500">Тег: {wave.tag.name}</p>
+            </div>
+            <div className="flex items-center gap-2">
               <button
                 onClick={onStartEdit}
                 className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
@@ -235,9 +237,9 @@ const WaveCard: React.FC<WaveCardProps> = ({ wave, mode, onStartEdit, onDelete, 
               >
                 <IconPencil size={16} />
               </button>
-            )}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Информация о фильтрах (только если есть ограничения и не в режиме редактирования) */}
         {mode !== 'edit' && (whitelistItems.length > 0 || blacklistItems.length > 0) && (
