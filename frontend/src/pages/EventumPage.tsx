@@ -204,17 +204,32 @@ const GeneralTab: React.FC<{ eventum: Eventum }> = ({ eventum }) => {
 const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; currentParticipant: Participant | null; eventumSlug: string }> = ({ eventWaves, events, currentParticipant, eventumSlug }) => {
   const [expandedWaves, setExpandedWaves] = useState<Set<number>>(new Set());
   const [refreshKey, setRefreshKey] = useState(0);
+  const [localEvents, setLocalEvents] = useState<Event[]>(events);
+
+  // Обновляем локальное состояние при изменении props
+  useEffect(() => {
+    setLocalEvents(events);
+  }, [events]);
 
   useEffect(() => {
-    const handleRegistrationChange = () => {
-      setRefreshKey(prev => prev + 1);
+    const handleRegistrationChange = async () => {
+      // Перезагружаем данные с сервера для получения актуального registrations_count
+      try {
+        const updatedEvents = await getEventsForEventum(eventumSlug);
+        setLocalEvents(updatedEvents);
+        setRefreshKey(prev => prev + 1);
+      } catch (error) {
+        console.error('Ошибка обновления данных:', error);
+        // Если не удалось загрузить с сервера, просто перерендериваем
+        setRefreshKey(prev => prev + 1);
+      }
     };
 
     window.addEventListener('eventRegistrationChanged', handleRegistrationChange);
     return () => {
       window.removeEventListener('eventRegistrationChanged', handleRegistrationChange);
     };
-  }, []);
+  }, [eventumSlug]);
 
   const toggleWave = (waveId: number) => {
     const newExpanded = new Set(expandedWaves);
@@ -227,7 +242,7 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
   };
 
   const getEventsForWave = (wave: EventWave) => {
-    return events.filter(event => 
+    return localEvents.filter(event => 
       event.tags.some(tag => tag.id === wave.tag.id)
     );
   };
@@ -417,7 +432,10 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
                     </p>
                   ) : (
                     waveEvents.map((event) => (
-                      <EventCard key={event.id} event={event} eventumSlug={eventumSlug} />
+                      <EventCard key={event.id} event={event} eventumSlug={eventumSlug} onEventUpdate={(updatedEvent) => {
+                        // Обновляем событие в локальном состоянии
+                        setLocalEvents(prev => prev.map(e => e.id === updatedEvent.id ? updatedEvent : e));
+                      }} />
                     ))
                   )}
                 </div>
@@ -431,7 +449,7 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
 };
 
 // Компонент карточки мероприятия
-const EventCard: React.FC<{ event: Event; eventumSlug: string }> = ({ event, eventumSlug }) => {
+const EventCard: React.FC<{ event: Event; eventumSlug: string; onEventUpdate?: (event: Event) => void }> = ({ event, eventumSlug, onEventUpdate }) => {
   const [isLoading, setIsLoading] = useState(false);
 
   const handleRegister = async () => {
@@ -439,8 +457,8 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string }> = ({ event, eve
     try {
       await registerForEvent(eventumSlug, event.id);
       // Обновляем состояние события
-      event.is_registered = true;
-      // Не обновляем registrations_count вручную - получаем актуальные данные с сервера
+      const updatedEvent = { ...event, is_registered: true };
+      onEventUpdate?.(updatedEvent);
       // Принудительно обновляем компонент
       window.dispatchEvent(new CustomEvent('eventRegistrationChanged'));
     } catch (error) {
@@ -455,8 +473,8 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string }> = ({ event, eve
     try {
       await unregisterFromEvent(eventumSlug, event.id);
       // Обновляем состояние события
-      event.is_registered = false;
-      // Не обновляем registrations_count вручную - получаем актуальные данные с сервера
+      const updatedEvent = { ...event, is_registered: false };
+      onEventUpdate?.(updatedEvent);
       // Принудительно обновляем компонент
       window.dispatchEvent(new CustomEvent('eventRegistrationChanged'));
     } catch (error) {
