@@ -519,7 +519,7 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string }> = ({ event, eve
       {event.participant_type === 'registration' && (
         <div className="mt-4 pt-4 border-t border-gray-100">
           {event.is_registered ? (
-            <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
               <button
                 onClick={handleUnregister}
                 disabled={isLoading}
