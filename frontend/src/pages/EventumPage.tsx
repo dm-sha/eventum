@@ -159,15 +159,13 @@ const EventumPage = () => {
         </div>
 
         {/* Контент вкладок */}
-        <div className="rounded-2xl bg-white shadow-sm ring-1 ring-gray-100">
-          <div className="px-2 py-4 sm:px-8 sm:py-8">
-            {currentTab === 'general' && (
-              <GeneralTab eventum={eventum} />
-            )}
-            {currentTab === 'registration' && eventumSlug && (
-              <RegistrationTab eventWaves={eventWaves} events={events} currentParticipant={currentParticipant} eventumSlug={eventumSlug} />
-            )}
-          </div>
+        <div>
+          {currentTab === 'general' && (
+            <GeneralTab eventum={eventum} />
+          )}
+          {currentTab === 'registration' && eventumSlug && (
+            <RegistrationTab eventWaves={eventWaves} events={events} currentParticipant={currentParticipant} eventumSlug={eventumSlug} />
+          )}
         </div>
       </div>
     </main>
