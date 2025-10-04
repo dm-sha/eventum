@@ -47,7 +47,7 @@ export const eventumApi = {
   update: (slug: string, data: Partial<Eventum>) => {
     const subdomainSlug = getSubdomainSlug();
     if (subdomainSlug) {
-      return createApiRequest<Eventum>('PATCH', '/eventums/', subdomainSlug, data);
+      return createApiRequest<Eventum>('PATCH', '/', subdomainSlug, data);
     }
     return createApiRequest<Eventum>('PATCH', `/eventums/${slug}/`, undefined, data);
   },

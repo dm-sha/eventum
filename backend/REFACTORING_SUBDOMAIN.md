@@ -14,23 +14,9 @@
 
 **Теперь:**
 1. URL параметры (`eventum_slug`) - **основной способ**
-2. Middleware (поддомены) - fallback для обратной совместимости
+2. Поддержка поддоменов через frontend логику
 
-### 2. Упрощение SubdomainMiddleware
-
-**Раньше:**
-- Делал запрос к БД для проверки существования eventum
-- Сохранял объект `eventum` в `request.eventum`
-- Выбрасывал 404 для несуществующих eventum'ов
-- Много логирования
-
-**Теперь:**
-- Только извлекает slug из поддомена
-- Сохраняет только `request.eventum_slug`
-- Проверка существования eventum перенесена в `get_eventum_from_request`
-- Минимальное логирование
-
-### 3. Упрощение URL роутинга
+### 2. Упрощение URL роутинга
 
 **Раньше:**
 ```python
@@ -49,11 +35,10 @@ path('eventums/<slug:eventum_slug>/', include(eventum_scoped_router.urls)),
 path('', include(eventum_scoped_router.urls)),
 ```
 
-### 4. Обновление get_eventum_from_request
+### 3. Обновление get_eventum_from_request
 
 **Приоритет изменен:**
 1. **URL параметры** (`eventum_slug`, `slug`) - основной способ
-2. **Middleware** (`request.eventum_slug`) - fallback
 
 ## Преимущества
 
@@ -76,7 +61,7 @@ path('', include(eventum_scoped_router.urls)),
 
 Все изменения **полностью обратно совместимы**:
 
-- ✅ Поддомены продолжают работать
+- ✅ Поддомены продолжают работать через frontend логику
 - ✅ Старые URL продолжают работать
 - ✅ API не изменился
 - ✅ Фронтенд работает и с поддоменами, и без них
@@ -85,10 +70,9 @@ path('', include(eventum_scoped_router.urls)),
 
 В будущем можно полностью убрать поддержку поддоменов:
 
-1. **Удалить SubdomainMiddleware** из `settings.py`
-2. **Убрать fallback маршруты** из `urls.py`
-3. **Упростить get_eventum_from_request** (убрать проверку middleware)
-4. **Упростить EventumViewSet.get_object**
+1. **Убрать fallback маршруты** из `urls.py`
+2. **Упростить get_eventum_from_request** (убрать проверку middleware)
+3. **Упростить EventumViewSet.get_object**
 
 Но это не обязательно - текущая реализация легковесна и не мешает.
 

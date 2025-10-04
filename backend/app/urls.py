@@ -44,6 +44,9 @@ urlpatterns = [
     path('eventums/<slug:slug>/organizers/', eventum_organizers, name='eventum_organizers'),
     path('eventums/<slug:slug>/organizers/<int:role_id>/', remove_eventum_organizer, name='remove_eventum_organizer'),
     
+    # Fallback для поддоменов (обратная совместимость)
+    path('', include(eventum_scoped_router.urls)),
+    
     # Аутентификация
     path('auth/vk/', VKAuthView.as_view(), name='vk_auth'),
     path('auth/refresh/', CustomTokenRefreshView.as_view(), name='token_refresh'),
