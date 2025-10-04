@@ -3,6 +3,7 @@ import {
   getGroupsForEventum,
   createGroup,
   updateGroup,
+  deleteGroup,
   getParticipantsForEventum,
 } from '../../api';
 import type { ParticipantGroup, Participant } from '../../types';
@@ -157,10 +158,10 @@ const AdminGroupsPage = () => {
 
   const handleDeleteGroup = async (groupId: number) => {
     if (!confirm('Вы уверены, что хотите удалить эту группу?')) return;
+    if (!eventumSlug) return;
     
     try {
-      // Здесь нужно добавить API для удаления группы
-      // await deleteGroup(eventumSlug, groupId);
+      await deleteGroup(eventumSlug, groupId);
       setGroups(groups.filter(g => g.id !== groupId));
     } catch (error) {
       console.error('Error deleting group:', error);
