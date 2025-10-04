@@ -473,7 +473,20 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string }> = ({ event, eve
       return 'Локация не указана';
     }
     
-    return event.locations.map(loc => loc.full_path).join(', ');
+    // Функция для получения уникальных частей пути локаций
+    const getUniqueLocationParts = (locations: any[]) => {
+      const allParts = new Set<string>();
+      
+      locations.forEach(loc => {
+        const parts = loc.full_path.split(', ');
+        parts.forEach((part: string) => allParts.add(part.trim()));
+      });
+      
+      return Array.from(allParts);
+    };
+    
+    const uniqueParts = getUniqueLocationParts(event.locations);
+    return uniqueParts.join(', ');
   };
 
   const getParticipantsInfo = () => {
