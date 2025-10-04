@@ -460,12 +460,13 @@ class LocationSerializer(serializers.ModelSerializer):
     parent = serializers.SerializerMethodField(read_only=True)
     parent_id = serializers.IntegerField(write_only=True, required=False, allow_null=True)
     children = serializers.SerializerMethodField(read_only=True)
+    full_path = serializers.SerializerMethodField(read_only=True)
     
     class Meta:
         model = Location
         fields = [
             'id', 'name', 'slug', 'kind', 'address', 'floor', 'notes',
-            'parent', 'parent_id', 'children'
+            'parent', 'parent_id', 'children', 'full_path'
         ]
         read_only_fields = ['slug']
     
@@ -495,6 +496,18 @@ class LocationSerializer(serializers.ModelSerializer):
         context = getattr(self, 'context', {})
         serializer = self.__class__(children, many=True, context=context)
         return serializer.data
+    
+    def get_full_path(self, obj):
+        """Возвращает полный путь локации от корня до текущей локации"""
+        path = []
+        current = obj
+        
+        # Собираем путь от текущей локации до корня
+        while current:
+            path.insert(0, current.name)
+            current = current.parent
+        
+        return ', '.join(path)
     
     
     def validate_parent_id(self, value):

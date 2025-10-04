@@ -488,22 +488,7 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string }> = ({ event, eve
       return 'Локация не указана';
     }
     
-    const buildLocationPath = (location: any): string[] => {
-      const path = [location.name];
-      
-      // Рекурсивно добавляем всех родителей
-      if (location.parent) {
-        const parentPath = buildLocationPath(location.parent);
-        return [...parentPath, ...path];
-      }
-      
-      return path;
-    };
-    
-    return event.locations.map(loc => {
-      const path = buildLocationPath(loc);
-      return path.join(', ');
-    }).join(', ');
+    return event.locations.map(loc => loc.full_path).join(', ');
   };
 
   const getParticipantsInfo = () => {

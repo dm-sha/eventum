@@ -112,6 +112,7 @@ export interface Location {
     kind: string;
   } | null;
   children?: Location[];
+  full_path: string;
 }
 
 export interface CreateLocationData {
