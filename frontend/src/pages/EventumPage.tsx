@@ -440,7 +440,7 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string }> = ({ event, eve
       await registerForEvent(eventumSlug, event.id);
       // Обновляем состояние события
       event.is_registered = true;
-      event.registrations_count += 1;
+      // Не обновляем registrations_count вручную - получаем актуальные данные с сервера
       // Принудительно обновляем компонент
       window.dispatchEvent(new CustomEvent('eventRegistrationChanged'));
     } catch (error) {
@@ -456,7 +456,7 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string }> = ({ event, eve
       await unregisterFromEvent(eventumSlug, event.id);
       // Обновляем состояние события
       event.is_registered = false;
-      event.registrations_count -= 1;
+      // Не обновляем registrations_count вручную - получаем актуальные данные с сервера
       // Принудительно обновляем компонент
       window.dispatchEvent(new CustomEvent('eventRegistrationChanged'));
     } catch (error) {

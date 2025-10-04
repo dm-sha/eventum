@@ -394,7 +394,7 @@ class EventViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], permission_classes=[IsEventumParticipant])
     def register(self, request, eventum_slug=None, pk=None):
-        """Подать заявку на мероприятие"""
+        """Подать заявку на мероприятие (заявки принимаются без ограничений по количеству)"""
         if not request.user.is_authenticated:
             return Response({'error': 'Not authenticated'}, status=status.HTTP_401_UNAUTHORIZED)
         
@@ -415,13 +415,7 @@ class EventViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
         if EventRegistration.objects.filter(participant=participant, event=event).exists():
             return Response({'error': 'Already registered for this event'}, status=status.HTTP_400_BAD_REQUEST)
         
-        # Проверяем лимит участников
-        if event.max_participants:
-            current_registrations = EventRegistration.objects.filter(event=event).count()
-            if current_registrations >= event.max_participants:
-                return Response({'error': 'Event is full'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Создаем регистрацию
+        # Создаем заявку на мероприятие (заявки принимаются без ограничений по количеству)
         try:
             registration = EventRegistration.objects.create(participant=participant, event=event)
             return Response({'status': 'success', 'message': 'Successfully registered for event'}, status=status.HTTP_201_CREATED)
