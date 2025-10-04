@@ -4,7 +4,8 @@ import { getEventumBySlug } from "../api/eventum";
 import { listEventWaves } from "../api/eventWave";
 import { getEventsForEventum, registerForEvent, unregisterFromEvent } from "../api/event";
 import { getCurrentParticipant } from "../api/participant";
-import type { Eventum, Event, Participant } from "../types";
+import { authApi } from "../api/eventumApi";
+import type { Eventum, Event, Participant, UserRole } from "../types";
 import type { EventWave } from "../api/eventWave";
 import LoadingSpinner from "../components/LoadingSpinner";
 import { useEventumSlug } from "../hooks/useEventumSlug";
@@ -18,11 +19,19 @@ const EventumPage = () => {
   const [eventWaves, setEventWaves] = useState<EventWave[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
   const [currentParticipant, setCurrentParticipant] = useState<Participant | null>(null);
+  const [userRoles, setUserRoles] = useState<UserRole[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   // Определяем текущую вкладку из URL
   const currentTab = location.pathname.split('/').pop() || 'general';
+
+  // Функция для проверки, является ли пользователь организатором данного eventum
+  const isUserOrganizer = (eventumId: number): boolean => {
+    return userRoles.some(role => 
+      role.eventum === eventumId && role.role === 'organizer'
+    );
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -33,19 +42,21 @@ const EventumPage = () => {
         setError(null);
         
         // Загружаем основные данные параллельно (кроме участника)
-        const [eventumData, wavesData, eventsData] = await Promise.all([
+        const [eventumData, wavesData, eventsData, rolesData] = await Promise.all([
           getEventumBySlug(eventumSlug),
           listEventWaves(eventumSlug),
-          getEventsForEventum(eventumSlug)
+          getEventsForEventum(eventumSlug),
+          authApi.getRoles()
         ]);
         
         // Загружаем данные участника отдельно, чтобы 404 не ломал всю страницу
         let participantData = null;
         try {
           participantData = await getCurrentParticipant(eventumSlug);
-        } catch (participantErr: any) {
+        } catch (participantErr: unknown) {
           // Если пользователь не является участником (404), это нормально
-          if (participantErr?.response?.status !== 404) {
+          const error = participantErr as { response?: { status?: number } };
+          if (error?.response?.status !== 404) {
             console.error('Ошибка загрузки данных участника:', participantErr);
           }
         }
@@ -54,6 +65,7 @@ const EventumPage = () => {
         setEventWaves(wavesData);
         setEvents(eventsData);
         setCurrentParticipant(participantData);
+        setUserRoles(rolesData.data);
       } catch (err) {
         console.error('Ошибка загрузки данных:', err);
         setError('Не удалось загрузить информацию о событии');
@@ -110,12 +122,14 @@ const EventumPage = () => {
               {eventum.name}
             </h1>
           </div>
-          <Link
-            to={eventumSlug ? getEventumScopedPath(eventumSlug, "/admin") : "/"}
-            className="inline-flex items-center justify-center rounded-lg border border-blue-200 px-4 py-2 text-sm font-semibold text-blue-700 transition-colors hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-          >
-            Админка
-          </Link>
+          {isUserOrganizer(eventum.id) && (
+            <Link
+              to={eventumSlug ? getEventumScopedPath(eventumSlug, "/admin") : "/"}
+              className="inline-flex items-center justify-center rounded-lg border border-blue-200 px-4 py-2 text-sm font-semibold text-blue-700 transition-colors hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            >
+              Админка
+            </Link>
+          )}
         </div>
 
         {/* Вкладки */}
@@ -477,11 +491,10 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string }> = ({ event, eve
       const path = [loc.name];
       
       // Добавляем родительские локации
-      let parent = loc.parent;
-      while (parent) {
+      const parent = loc.parent;
+      if (parent) {
         path.unshift(parent.name);
         // Для parent у нас нет информации о его родителе, поэтому останавливаемся
-        break;
       }
       
       return path.join(' → ');

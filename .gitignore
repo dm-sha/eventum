@@ -102,3 +102,7 @@ ehthumbs_vista.db
 *.njsproj
 *.sln
 *.sw?
+
+
+/participant_import/*
+/participant_import/
