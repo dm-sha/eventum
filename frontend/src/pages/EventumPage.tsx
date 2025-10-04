@@ -457,7 +457,11 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string; onEventUpdate?: (
     try {
       await registerForEvent(eventumSlug, event.id);
       // Обновляем состояние события
-      const updatedEvent = { ...event, is_registered: true };
+      const updatedEvent = { 
+        ...event, 
+        is_registered: true,
+        registrations_count: event.registrations_count + 1
+      };
       onEventUpdate?.(updatedEvent);
       // Принудительно обновляем компонент
       window.dispatchEvent(new CustomEvent('eventRegistrationChanged'));
@@ -473,7 +477,11 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string; onEventUpdate?: (
     try {
       await unregisterFromEvent(eventumSlug, event.id);
       // Обновляем состояние события
-      const updatedEvent = { ...event, is_registered: false };
+      const updatedEvent = { 
+        ...event, 
+        is_registered: false,
+        registrations_count: Math.max(0, event.registrations_count - 1)
+      };
       onEventUpdate?.(updatedEvent);
       // Принудительно обновляем компонент
       window.dispatchEvent(new CustomEvent('eventRegistrationChanged'));
