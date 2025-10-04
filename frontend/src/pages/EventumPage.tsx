@@ -520,9 +520,6 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string }> = ({ event, eve
         <div className="mt-4 pt-4 border-t border-gray-100">
           {event.is_registered ? (
             <div className="flex items-center justify-between">
-              <span className="text-sm text-green-600 font-medium">
-                ✓ Заявка принята
-              </span>
               <button
                 onClick={handleUnregister}
                 disabled={isLoading}
@@ -530,12 +527,12 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string }> = ({ event, eve
               >
                 {isLoading ? 'Отмена...' : 'Отменить заявку'}
               </button>
+              <span className="text-sm text-green-600 font-medium">
+                ✓ Заявка принята
+              </span>
             </div>
           ) : (
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-500">
-                Подача заявок открыта
-              </span>
+            <div className="flex items-center">
               <button
                 onClick={handleRegister}
                 disabled={isLoading}
