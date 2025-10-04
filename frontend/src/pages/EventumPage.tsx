@@ -520,7 +520,7 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string }> = ({ event, eve
             <img
               src={event.image_url}
               alt={event.name}
-              className="w-16 h-16 object-cover rounded-lg"
+              className="w-20 h-20 sm:w-24 sm:h-24 object-cover rounded-lg shadow-sm"
             />
           </div>
         )}
