@@ -25,29 +25,16 @@ class Command(BaseCommand):
         )
 
     def find_group_by_name(self, name, eventum):
-        """Find existing group by name"""
+        """Find existing group by exact name match only"""
         try:
-            # Ищем все группы с таким названием и выбираем первую (с наименьшим ID)
-            groups = ParticipantGroup.objects.filter(eventum=eventum, name=name).order_by('id')
-            if groups.exists():
-                return groups.first()
+            # Ищем только по точному совпадению названия
+            group = ParticipantGroup.objects.get(eventum=eventum, name=name)
+            return group
         except ParticipantGroup.DoesNotExist:
-            pass
-        
-        # Если точного совпадения нет, пробуем найти по частичному совпадению
-        groups = ParticipantGroup.objects.filter(eventum=eventum, name__icontains=name).order_by('id')
-        if groups.count() == 1:
-            return groups.first()
-        elif groups.count() > 1:
-            # Если найдено несколько, пробуем найти наиболее точное совпадение
-            exact_matches = [g for g in groups if g.name.lower() == name.lower()]
-            if len(exact_matches) == 1:
-                return exact_matches[0]
-            elif len(exact_matches) > 1:
-                # Если есть несколько точных совпадений, берем первое по ID
-                return sorted(exact_matches, key=lambda x: x.id)[0]
-        
-        return None
+            return None
+        except ParticipantGroup.MultipleObjectsReturned:
+            # Если найдено несколько групп с одинаковым названием, берем первую по ID
+            return ParticipantGroup.objects.filter(eventum=eventum, name=name).order_by('id').first()
 
     def handle(self, *args, **options):
         csv_file = options['csv_file']
@@ -78,32 +65,61 @@ class Command(BaseCommand):
             
             for row_num, row in enumerate(csv_reader, 2):  # Начинаем с 2, т.к. пропустили заголовок
                 # Пропускаем пустые строки
-                if not row or len(row) < 4:
+                if not row or len(row) < 5:
                     if row:
                         self.stdout.write(
                             self.style.WARNING(f'Row {row_num}: Insufficient data, skipping: {row}')
                         )
                     continue
                 
-                # Извлекаем данные: ФИО, ВК, Регион, Участие
+                # Извлекаем данные: ФИО, ВК, Регион, Участие, vk_id
                 full_name = row[0].strip()
                 vk_url = row[1].strip()
                 region = row[2].strip()
-                group_name = row[3].strip()
+                groups_str = row[3].strip()
+                vk_id_str = row[4].strip()
                 
-                if not full_name or not group_name:
+                # Проверяем VK ID
+                vk_id = None
+                if vk_id_str:
+                    try:
+                        vk_id = int(vk_id_str)
+                    except ValueError:
+                        self.stdout.write(
+                            self.style.WARNING(f'Row {row_num}: Invalid VK ID "{vk_id_str}", will search by name: {full_name}')
+                        )
+                        vk_id = None
+                
+                if not full_name or not groups_str:
                     self.stdout.write(
-                        self.style.WARNING(f'Row {row_num}: Empty name or group, skipping: {row}')
+                        self.style.WARNING(f'Row {row_num}: Empty name or groups, skipping: {row}')
                     )
                     continue
                 
-                participants_data.append({
-                    'row_num': row_num,
-                    'full_name': full_name,
-                    'group_name': group_name,
-                    'vk_url': vk_url,
-                    'region': region,
-                })
+                # Разделяем группы по запятой и очищаем от пробелов
+                group_names = [group.strip() for group in groups_str.split(',') if group.strip()]
+                
+                # Добавляем участника для каждой группы из колонки "Участие"
+                for group_name in group_names:
+                    participants_data.append({
+                        'row_num': row_num,
+                        'full_name': full_name,
+                        'group_name': group_name,
+                        'vk_url': vk_url,
+                        'region': region,
+                        'vk_id': vk_id,
+                    })
+                
+                # Добавляем участника в группу по региону (если регион указан)
+                if region:
+                    participants_data.append({
+                        'row_num': row_num,
+                        'full_name': full_name,
+                        'group_name': region,  # Регион как название группы
+                        'vk_url': vk_url,
+                        'region': region,
+                        'vk_id': vk_id,
+                    })
 
         self.stdout.write(f'Found {len(participants_data)} valid participant-group assignments in CSV')
 
@@ -148,40 +164,57 @@ class Command(BaseCommand):
                     else:
                         groups_not_found += 1
                         self.stdout.write(
-                            self.style.WARNING(f'Group "{group_name}" not found in eventum')
+                            self.style.WARNING(f'Group "{group_name}" not found in {eventum.slug}')
                         )
                         continue
 
                     # Назначаем участников в группу
                     participants_to_add = []
                     for participant_data in group_participants:
-                        try:
-                            # Ищем участника по имени в данном eventum
-                            participant = Participant.objects.get(
-                                eventum=eventum,
-                                name=participant_data['full_name']
-                            )
-                            participants_to_add.append(participant)
-                            
-                        except Participant.DoesNotExist:
-                            self.stdout.write(
-                                self.style.WARNING(
-                                    f'Row {participant_data["row_num"]}: Participant "{participant_data["full_name"]}" not found in eventum'
+                        participant = None
+                        
+                        # Сначала пытаемся найти по VK ID, если он есть
+                        if participant_data['vk_id']:
+                            try:
+                                user = UserProfile.objects.get(vk_id=participant_data['vk_id'])
+                                participant = Participant.objects.get(
+                                    eventum=eventum,
+                                    user=user
                                 )
-                            )
-                            participants_not_found += 1
-                            continue
-                        except Participant.MultipleObjectsReturned:
-                            # Если найдено несколько участников с одинаковым именем
-                            self.stdout.write(
-                                self.style.WARNING(
-                                    f'Row {participant_data["row_num"]}: Multiple participants found with name "{participant_data["full_name"]}", using first one'
+                                self.stdout.write(f'Found participant by VK ID: {participant.name} (VK: {participant_data["vk_id"]})')
+                            except (UserProfile.DoesNotExist, Participant.DoesNotExist):
+                                pass
+                        
+                        # Если не найден по VK ID, ищем по имени
+                        if not participant:
+                            try:
+                                participant = Participant.objects.get(
+                                    eventum=eventum,
+                                    name=participant_data['full_name']
                                 )
-                            )
-                            participant = Participant.objects.filter(
-                                eventum=eventum,
-                                name=participant_data['full_name']
-                            ).first()
+                                vk_info = f"VK: {participant_data['vk_id']}" if participant_data['vk_id'] else "No VK ID"
+                                self.stdout.write(f'Found participant by name: {participant.name} ({vk_info})')
+                            except Participant.DoesNotExist:
+                                self.stdout.write(
+                                    self.style.WARNING(
+                                        f'Row {participant_data["row_num"]}: Participant "{participant_data["full_name"]}" not found in eventum'
+                                    )
+                                )
+                                participants_not_found += 1
+                                continue
+                            except Participant.MultipleObjectsReturned:
+                                # Если найдено несколько участников с одинаковым именем
+                                self.stdout.write(
+                                    self.style.WARNING(
+                                        f'Row {participant_data["row_num"]}: Multiple participants found with name "{participant_data["full_name"]}", using first one'
+                                    )
+                                )
+                                participant = Participant.objects.filter(
+                                    eventum=eventum,
+                                    name=participant_data['full_name']
+                                ).first()
+                        
+                        if participant:
                             participants_to_add.append(participant)
 
                     # Добавляем участников в группу

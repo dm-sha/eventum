@@ -48,6 +48,11 @@ class Command(BaseCommand):
         with open(csv_file, 'r', encoding='utf-8') as file:
             csv_reader = csv.reader(file)
             for row_num, row in enumerate(csv_reader, 1):
+                # Пропускаем первую строку (заголовок)
+                if row_num == 1:
+                    self.stdout.write(f'Skipping header row: {row}')
+                    continue
+                
                 # Пропускаем пустые строки
                 if not row or len(row) < 5:
                     if row:  # Если строка не полностью пустая, но данных недостаточно
@@ -56,31 +61,23 @@ class Command(BaseCommand):
                         )
                     continue
                 
-                # Извлекаем данные: Фамилия, Имя, Отчество, VK URL, VK ID
-                last_name = row[0].strip()
-                first_name = row[1].strip()
-                middle_name = row[2].strip()
-                vk_url = row[3].strip()
-                vk_id_str = row[4].strip()
+                # Извлекаем данные: ФИО, ВК, Регион, Участие, vk_id
+                full_name = row[0].strip()
+                vk_url = row[1].strip()
+                region = row[2].strip()
+                participation = row[3].strip()
+                vk_id_str = row[4].strip()  # vk_id в последней колонке
                 
                 # Проверяем VK ID
-                if not vk_id_str:
-                    self.stdout.write(
-                        self.style.WARNING(f'Row {row_num}: Empty VK ID, skipping: {row}')
-                    )
-                    continue
-                
-                try:
-                    vk_id = int(vk_id_str)
-                except ValueError:
-                    self.stdout.write(
-                        self.style.WARNING(f'Row {row_num}: Invalid VK ID "{vk_id_str}", skipping: {row}')
-                    )
-                    continue
-                
-                # Склеиваем ФИО
-                full_name_parts = [last_name, first_name, middle_name]
-                full_name = ' '.join(part for part in full_name_parts if part).strip()
+                vk_id = None
+                if vk_id_str:
+                    try:
+                        vk_id = int(vk_id_str)
+                    except ValueError:
+                        self.stdout.write(
+                            self.style.WARNING(f'Row {row_num}: Invalid VK ID "{vk_id_str}", will search by name: {full_name}')
+                        )
+                        vk_id = None
                 
                 if not full_name:
                     self.stdout.write(
@@ -93,6 +90,8 @@ class Command(BaseCommand):
                     'vk_id': vk_id,
                     'full_name': full_name,
                     'vk_url': vk_url,
+                    'region': region,
+                    'participation': participation,
                 })
 
         self.stdout.write(f'Found {len(participants_data)} valid participants in CSV')
@@ -107,24 +106,46 @@ class Command(BaseCommand):
         created_participants = 0
         skipped_participants = 0
         errors = 0
+        found_by_name = 0
 
         with transaction.atomic():
             for data in participants_data:
                 try:
-                    # Создаем или получаем пользователя
-                    user, user_created = UserProfile.objects.get_or_create(
-                        vk_id=data['vk_id'],
-                        defaults={
-                            'name': data['full_name'],
-                            'avatar_url': '',
-                            'email': '',
-                        }
-                    )
+                    user = None
+                    user_created = False
+                    
+                    if data['vk_id']:
+                        # Создаем или получаем пользователя по VK ID
+                        user, user_created = UserProfile.objects.get_or_create(
+                            vk_id=data['vk_id'],
+                            defaults={
+                                'name': data['full_name'],
+                                'avatar_url': '',
+                                'email': '',
+                            }
+                        )
+                    else:
+                        # Ищем пользователя по имени
+                        try:
+                            user = UserProfile.objects.get(name=data['full_name'])
+                            self.stdout.write(f'Found user by name: {user.name} (VK: {user.vk_id or "None"})')
+                            found_by_name += 1
+                        except UserProfile.DoesNotExist:
+                            # Если пользователь не найден по имени, создаем нового без VK ID
+                            user = UserProfile.objects.create(
+                                vk_id=None,
+                                name=data['full_name'],
+                                avatar_url='',
+                                email='',
+                            )
+                            user_created = True
+                            self.stdout.write(f'Created user without VK ID: {user.name}')
                     
                     if user_created:
                         created_users += 1
                         if not dry_run:
-                            self.stdout.write(f'Created user: {user.name} (VK: {user.vk_id})')
+                            vk_info = f"VK: {user.vk_id}" if user.vk_id else "No VK ID"
+                            self.stdout.write(f'Created user: {user.name} ({vk_info}, Region: {data["region"]})')
                     else:
                         # Обновляем имя пользователя, если оно изменилось
                         if user.name != data['full_name']:
@@ -133,7 +154,8 @@ class Command(BaseCommand):
                                 user.save()
                             updated_users += 1
                             if not dry_run:
-                                self.stdout.write(f'Updated user name: {user.name} (VK: {user.vk_id})')
+                                vk_info = f"VK: {user.vk_id}" if user.vk_id else "No VK ID"
+                                self.stdout.write(f'Updated user name: {user.name} ({vk_info}, Region: {data["region"]})')
                     
                     # Проверяем, существует ли участник в данном eventum
                     participant_exists = Participant.objects.filter(
@@ -164,14 +186,15 @@ class Command(BaseCommand):
                             eventum=eventum,
                             name=user.name
                         )
-                        self.stdout.write(f'Created participant: {participant.name}')
+                        self.stdout.write(f'Created participant: {participant.name} (Region: {data["region"]}, Participation: {data["participation"]})')
                     
                     created_participants += 1
                     
                 except Exception as e:
+                    vk_info = f"VK: {data['vk_id']}" if data['vk_id'] else "No VK ID"
                     self.stdout.write(
                         self.style.ERROR(
-                            f'Row {data["row_num"]}: Error processing {data["full_name"]} (VK: {data["vk_id"]}): {str(e)}'
+                            f'Row {data["row_num"]}: Error processing {data["full_name"]} ({vk_info}): {str(e)}'
                         )
                     )
                     errors += 1
@@ -180,6 +203,7 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS('\n=== Import Summary ==='))
         self.stdout.write(f'Users created: {created_users}')
         self.stdout.write(f'Users updated: {updated_users}')
+        self.stdout.write(f'Users found by name: {found_by_name}')
         self.stdout.write(f'Participants created: {created_participants}')
         self.stdout.write(f'Participants skipped: {skipped_participants}')
         self.stdout.write(f'Errors: {errors}')
