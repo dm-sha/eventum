@@ -160,17 +160,16 @@ class LocationAdminForm(forms.ModelForm):
         return cleaned_data
 
 # --- EventumAdmin ---
-# Мы НЕ делаем его ImportExportModelAdmin, так как это корневая сущность,
-# которую логично создавать вручную. Вся ваша кастомная логика здесь сохранена.
+# Упрощенная версия без inline-компонентов для избежания таймаутов
 @admin.register(Eventum)
 class EventumAdmin(admin.ModelAdmin):
     form = EventumAdminForm
-    list_display = ('name', 'slug', 'has_image')
+    list_display = ('name', 'slug', 'has_image', 'participants_count', 'events_count')
     prepopulated_fields = {'slug': ('name',)}
-    inlines = [ParticipantInline, EventInline]
+    # Убираем inlines для избежания таймаутов
     search_fields = ('name', 'slug')
     fields = ('name', 'slug', 'description', 'image_url', 'image_preview')
-    readonly_fields = ('image_preview',)
+    readonly_fields = ('image_preview', 'participants_count', 'events_count')
     
     def has_image(self, obj):
         """Показывает, есть ли изображение у eventum"""
@@ -187,6 +186,20 @@ class EventumAdmin(admin.ModelAdmin):
             )
         return "Нет изображения"
     image_preview.short_description = 'Превью изображения'
+    
+    def participants_count(self, obj):
+        """Показывает количество участников"""
+        if obj.pk:
+            return obj.participants.count()
+        return 0
+    participants_count.short_description = 'Участников'
+    
+    def events_count(self, obj):
+        """Показывает количество событий"""
+        if obj.pk:
+            return obj.events.count()
+        return 0
+    events_count.short_description = 'Событий'
 
 # --- ParticipantAdmin ---
 @admin.register(Participant)
@@ -198,18 +211,25 @@ class ParticipantAdmin(ImportExportModelAdmin):
     autocomplete_fields = ('user',)
 
 # --- ParticipantGroupAdmin ---
-# Наследуемся от ImportExportModelAdmin и добавляем resource_class
+# Упрощенная версия для лучшей производительности
 @admin.register(ParticipantGroup)
 class ParticipantGroupAdmin(ImportExportModelAdmin):
     form = ParticipantGroupAdminForm
     resource_class = ParticipantGroupResource
-    # Вся ваша логика отображения и фильтров сохранена
-    list_display = ('name', 'slug', 'eventum')
+    list_display = ('name', 'slug', 'eventum', 'participants_count')
     list_filter = ('eventum',)
-    filter_horizontal = ['participants', 'tags']
-    # Добавлено для удобства
+    # Убираем filter_horizontal для больших M2M полей
+    autocomplete_fields = ['eventum']
     prepopulated_fields = {'slug': ('name',)}
     search_fields = ('name',)
+    readonly_fields = ('participants_count',)
+    
+    def participants_count(self, obj):
+        """Показывает количество участников в группе"""
+        if obj.pk:
+            return obj.participants.count()
+        return 0
+    participants_count.short_description = 'Участников в группе'
 
 # --- GroupTagAdmin ---
 # Наследуемся от ImportExportModelAdmin и добавляем resource_class
@@ -225,17 +245,19 @@ class GroupTagAdmin(ImportExportModelAdmin):
     search_fields = ('name',)
 
 # --- EventAdmin ---
-# Наследуемся от ImportExportModelAdmin и добавляем resource_class
+# Упрощенная версия для лучшей производительности
 @admin.register(Event)
 class EventAdmin(ImportExportModelAdmin):
     form = EventAdminForm
     resource_class = EventResource
-    # Вся ваша логика отображения и фильтров сохранена
-    list_display = ('name', 'start_time', 'end_time', 'eventum')
-    list_filter = ('eventum', 'start_time') # Убрал 'tags' - может быть медленно для M2M
-    filter_horizontal = ['participants', 'groups', 'tags', 'group_tags']
-    # Добавлено для удобства
+    list_display = ('name', 'start_time', 'end_time', 'eventum', 'participant_type')
+    list_filter = ('eventum', 'participant_type', 'start_time')
+    # Убираем filter_horizontal для больших M2M полей - они могут вызывать таймауты
+    # Вместо этого используем autocomplete_fields для более эффективного поиска
+    autocomplete_fields = ['eventum']
     search_fields = ('name', 'description')
+    fields = ('eventum', 'name', 'description', 'start_time', 'end_time', 
+              'participant_type', 'max_participants', 'image_url')
 
 # --- EventTagAdmin ---
 # Наследуемся от ImportExportModelAdmin и добавляем resource_class
@@ -261,15 +283,17 @@ class UserProfileAdmin(admin.ModelAdmin):
 
 
 # --- LocationAdmin ---
+# Упрощенная версия без inline для лучшей производительности
 @admin.register(Location)
 class LocationAdmin(admin.ModelAdmin):
     form = LocationAdminForm
     list_display = ('name', 'kind', 'parent', 'eventum', 'address', 'floor')
-    list_filter = ('kind', 'eventum', 'parent')
+    list_filter = ('kind', 'eventum')
     search_fields = ('name', 'address', 'notes')
     prepopulated_fields = {'slug': ('name',)}
-    autocomplete_fields = ('parent',)
-    inlines = [LocationInline]
+    autocomplete_fields = ('parent', 'eventum')
+    # Убираем inlines для избежания таймаутов
+    fields = ('eventum', 'parent', 'name', 'slug', 'kind', 'address', 'floor', 'notes')
     
     def get_queryset(self, request):
         """Оптимизируем запросы для админки"""
