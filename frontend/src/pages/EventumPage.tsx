@@ -160,7 +160,7 @@ const EventumPage = () => {
 
         {/* Контент вкладок */}
         <div className="rounded-2xl bg-white shadow-sm ring-1 ring-gray-100">
-          <div className="px-4 py-6 sm:px-8 sm:py-8">
+          <div className="px-2 py-4 sm:px-8 sm:py-8">
             {currentTab === 'general' && (
               <GeneralTab eventum={eventum} />
             )}
@@ -367,9 +367,9 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
   }
 
   return (
-    <div className="space-y-4" key={refreshKey}>
-      <h2 className="text-xl font-semibold text-gray-900 mb-6">Волны мероприятий</h2>
-      <p className="text-gray-600 mb-4">
+    <div className="space-y-2 sm:space-y-4" key={refreshKey}>
+      <h2 className="text-xl font-semibold text-gray-900 mb-2 sm:mb-6">Волны мероприятий</h2>
+      <p className="text-gray-600 mb-1 sm:mb-4">
         В одной волне проходит несколько событий одновременно, попасть можно максимум на одно. Выберите все интересные варианты – после окончания регистрации система распределит вас случайным образом на одно мероприятие из каждой волны, на которое вы подали заявку. Обратите внимание, что количество мест ограничено, при большом количестве желающих есть вероятность никуда не попасть.
       </p>
       {accessibleWaves.map((wave) => {
@@ -412,7 +412,7 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
             
             {isExpanded && (
               <div className="border-t border-gray-200 bg-gray-50">
-                <div className="p-4 space-y-3">
+                <div className="p-2 sm:p-4 space-y-3">
                   {waveEvents.length === 0 ? (
                     <p className="text-gray-500 text-center py-4">
                       В этой волне пока нет мероприятий
@@ -501,7 +501,7 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string }> = ({ event, eve
   };
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow">
+    <div className="bg-white rounded-lg border border-gray-200 p-2 sm:p-4 hover:shadow-md transition-shadow">
       {/* Мобильная версия - вертикальная компоновка */}
       <div className="block sm:hidden space-y-3">
         <h4 className="text-lg font-semibold text-gray-900">{event.name}</h4>
