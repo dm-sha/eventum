@@ -389,7 +389,7 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
                     {wave.name}
                   </h3>
                   <p className="text-sm text-gray-500">
-                    Мероприятий: {waveEvents.length}, заявок: {registeredCount}
+                    Мероприятий: {waveEvents.length}, заявлены на: {registeredCount}
                   </p>
                 </div>
               </div>
