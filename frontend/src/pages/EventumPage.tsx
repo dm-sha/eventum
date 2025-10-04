@@ -323,8 +323,10 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
     );
   }
 
-  // Фильтруем только доступные волны
-  const accessibleWaves = eventWaves.filter(wave => isWaveAccessible(wave).accessible);
+  // Фильтруем только доступные волны и сортируем по названию
+  const accessibleWaves = eventWaves
+    .filter(wave => isWaveAccessible(wave).accessible)
+    .sort((a, b) => a.name.localeCompare(b.name, 'ru'));
 
   if (accessibleWaves.length === 0) {
     return (
