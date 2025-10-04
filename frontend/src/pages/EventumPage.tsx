@@ -519,7 +519,7 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string }> = ({ event, eve
           <h4 className="text-lg font-semibold text-gray-900 mb-2">{event.name}</h4>
           
           {event.description && (
-            <p className="text-gray-600 text-sm mb-3 line-clamp-2">{event.description}</p>
+            <p className="text-gray-600 text-sm mb-3">{event.description}</p>
           )}
           
           <div className="space-y-2 text-sm text-gray-500">
