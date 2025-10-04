@@ -378,7 +378,7 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
                     {wave.name}
                   </h3>
                   <p className="text-sm text-gray-500">
-                    Мероприятий: {waveEvents.length}. Заявок: {registeredCount}
+                    Мероприятий: {waveEvents.length}, заявок: {registeredCount}
                   </p>
                 </div>
               </div>
@@ -469,7 +469,7 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string }> = ({ event, eve
     if (event.participant_type === 'all') {
       return 'Для всех участников';
     } else if (event.participant_type === 'registration' && event.max_participants) {
-      return `Заявок: ${event.registrations_count}, мест: ${event.max_participants}`;
+      return `Заявок/мест: ${event.registrations_count}/${event.max_participants}`;
     } else if (event.participant_type === 'manual') {
       return 'По приглашению';
     }
