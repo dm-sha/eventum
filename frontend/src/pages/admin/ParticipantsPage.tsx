@@ -6,6 +6,7 @@ import { groupTagApi } from "../../api/groupTag";
 import { IconUser, IconExternalLink, IconPencil, IconTrash, IconPlus } from "../../components/icons";
 import ParticipantModal from "../../components/participant/ParticipantModal";
 import ParticipantsLoadingSkeleton from "../../components/participant/ParticipantsLoadingSkeleton";
+import LazyImage from "../../components/LazyImage";
 import type { Participant, ParticipantGroup, GroupTag } from "../../types";
 import { useEventumSlug } from "../../hooks/useEventumSlug";
 
@@ -196,10 +197,16 @@ const AdminParticipantsPage = () => {
               >
                 {/* Аватарка или иконка участника слева */}
                 {participant.user?.avatar_url ? (
-                  <img
+                  <LazyImage
                     src={participant.user.avatar_url}
                     alt={participant.name}
                     className="w-8 h-8 rounded-full object-cover flex-shrink-0"
+                    fallbackComponent={
+                      <IconUser 
+                        size={20} 
+                        className="text-gray-400 flex-shrink-0"
+                      />
+                    }
                     onError={(e) => {
                       // Если аватарка не загрузилась, заменяем на иконку
                       const target = e.currentTarget as HTMLImageElement;
@@ -208,11 +215,12 @@ const AdminParticipantsPage = () => {
                       if (nextElement) nextElement.style.display = 'block';
                     }}
                   />
-                ) : null}
-                <IconUser 
-                  size={20} 
-                  className={`text-gray-400 flex-shrink-0 ${participant.user?.avatar_url ? 'hidden' : ''}`}
-                />
+                ) : (
+                  <IconUser 
+                    size={20} 
+                    className="text-gray-400 flex-shrink-0"
+                  />
+                )}
                 
                 {/* Основная информация */}
                 <div className="flex-1 min-w-0">
