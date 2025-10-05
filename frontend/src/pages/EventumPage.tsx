@@ -543,34 +543,20 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string; onEventUpdate?: (
         {event.description && (
           <p className="text-gray-600 text-sm">{event.description}</p>
         )}
-        
-        <div className="space-y-2 text-sm text-gray-500">
-          <div className="flex items-center space-x-2">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
-            </svg>
-            <span>{getLocationText()}</span>
-          </div>
-          
-          <div className="flex items-center space-x-2">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
-            </svg>
-            <span>{getParticipantsInfo()}</span>
-          </div>
-        </div>
       </div>
 
       {/* Десктопная версия - горизонтальная компоновка */}
-      <div className="hidden sm:flex items-start justify-between">
-        <div className="flex-1">
-          <h4 className="text-lg font-semibold text-gray-900 mb-2">{event.name}</h4>
+      <div className="hidden sm:flex items-stretch justify-between">
+        <div className="flex-1 flex flex-col justify-between">
+          <div>
+            <h4 className="text-lg font-semibold text-gray-900 mb-2">{event.name}</h4>
+            
+            {event.description && (
+              <p className="text-gray-600 text-sm">{event.description}</p>
+            )}
+          </div>
           
-          {event.description && (
-            <p className="text-gray-600 text-sm mb-3">{event.description}</p>
-          )}
-          
+          {/* Информация о локации и участниках - выровнена по нижнему краю */}
           <div className="space-y-2 text-sm text-gray-500">
             <div className="flex items-center space-x-2">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
@@ -594,12 +580,30 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string; onEventUpdate?: (
             <img
               src={event.image_url}
               alt={event.name}
-              className="w-20 h-20 sm:w-24 sm:h-24 object-cover rounded-lg shadow-lg"
+              className="w-20 h-20 sm:w-36 sm:h-36 md:w-48 md:h-48 lg:w-56 lg:h-56 xl:w-64 xl:h-64 object-cover rounded-lg shadow-lg"
             />
           </div>
         )}
       </div>
       
+      {/* Информация о локации и участниках для мобильной версии */}
+      <div className="block sm:hidden mt-2 space-y-2 text-sm text-gray-500">
+        <div className="flex items-center space-x-2">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
+          </svg>
+          <span>{getLocationText()}</span>
+        </div>
+        
+        <div className="flex items-center space-x-2">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+          </svg>
+          <span>{getParticipantsInfo()}</span>
+        </div>
+      </div>
+
       {/* Кнопка подачи заявки для мероприятий с типом "По записи" */}
       {event.participant_type === 'registration' && (
         <div className="mt-4 pt-4 border-t border-gray-100">
