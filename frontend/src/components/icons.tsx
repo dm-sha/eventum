@@ -30,16 +30,6 @@ export const IconCalendar = ({ size = 20, ...props }: Props) => (
   </svg>
 );
 
-export const IconUsers = ({ size = 20, ...props }: Props) => (
-  <svg {...base} width={size} height={size} {...props}>
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      d="M15 19.128a3.375 3.375 0 00-6 0M4.5 8.25a3.75 3.75 0 107.5 0 3.75 3.75 0 00-7.5 0zM18.75 8.25a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zM18 19.128a2.625 2.625 0 00-3.113-2.574"
-    />
-  </svg>
-);
-
 export const IconTag = ({ size = 20, ...props }: Props) => (
   <svg {...base} width={size} height={size} {...props}>
     <path

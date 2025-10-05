@@ -20,6 +20,7 @@ from .views import (
     check_slug_availability,
     eventum_details,
     eventum_organizers,
+    eventum_registration_stats,
     remove_eventum_organizer,
     search_users
 )
@@ -48,6 +49,7 @@ urlpatterns = [
     path('eventums/<slug:slug>/details/', eventum_details, name='eventum_details'),
     path('eventums/<slug:slug>/organizers/', eventum_organizers, name='eventum_organizers'),
     path('eventums/<slug:slug>/organizers/<int:role_id>/', remove_eventum_organizer, name='remove_eventum_organizer'),
+    path('eventums/<slug:slug>/registration-stats/', eventum_registration_stats, name='eventum_registration_stats'),
     
     # Fallback для поддоменов (обратная совместимость)
     path('', include(eventum_scoped_router.urls)),

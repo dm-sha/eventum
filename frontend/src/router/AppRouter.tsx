@@ -5,7 +5,7 @@ import NotFoundPage from "../pages/NotFoundPage";
 import AdminLayout from "../components/AdminLayout";
 import EventumInfoPage from "../pages/admin/EventumInfoPage";
 import AdminEventsPage from "../pages/admin/EventsPage";
-import EventRegistrationWavesPage from "../pages/admin/EventRegistrationWavesPage";
+import EventRegistration from "../pages/admin/EventRegistration";
 import AdminParticipantsPage from "../pages/admin/ParticipantsPage";
 import AdminEventTagsPage from "../pages/admin/EventTagsPage";
 import AdminGroupTagsPage from "../pages/admin/GroupTagsPage";
@@ -43,7 +43,7 @@ export const AppRouter = () => {
     <>
       <Route index element={<EventumInfoPage />} />
       <Route path="events" element={<AdminEventsPage />} />
-      <Route path="registration" element={<EventRegistrationWavesPage />} />
+      <Route path="registration" element={<EventRegistration />} />
       <Route path="participants" element={<AdminParticipantsPage />} />
       <Route path="event-tags" element={<AdminEventTagsPage />} />
       <Route path="group-tags" element={<AdminGroupTagsPage />} />
@@ -101,7 +101,7 @@ export const AppRouter = () => {
       <Route path="/:eventumSlug/admin" element={<AdminLayout />}>
         <Route index element={<EventumInfoPage />} />
         <Route path="events" element={<AdminEventsPage />} />
-        <Route path="registration" element={<EventRegistrationWavesPage />} />
+        <Route path="registration" element={<EventRegistration />} />
         <Route path="participants" element={<AdminParticipantsPage />} />
         <Route path="event-tags" element={<AdminEventTagsPage />} />
         <Route path="group-tags" element={<AdminGroupTagsPage />} />

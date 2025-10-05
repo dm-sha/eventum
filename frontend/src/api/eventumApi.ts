@@ -63,6 +63,19 @@ export const eventumApi = {
       return createApiRequest<EventumDetails>('GET', '/details/', subdomainSlug);
     }
     return createApiRequest<EventumDetails>('GET', `/eventums/${slug}/details/`);
+  },
+  
+  // Получить статистику регистраций
+  getRegistrationStats: (slug: string) => {
+    const subdomainSlug = getSubdomainSlug();
+    if (subdomainSlug) {
+      return createApiRequest<{
+        registered_participants_count: number;
+      }>('GET', '/registration-stats/', subdomainSlug);
+    }
+    return createApiRequest<{
+      registered_participants_count: number;
+    }>('GET', `/eventums/${slug}/registration-stats/`);
   }
 };
 

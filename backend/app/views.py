@@ -1014,6 +1014,22 @@ def eventum_details(request, slug=None):
         )
 
 
+@api_view(['GET'])
+@require_eventum_role('organizer')
+def eventum_registration_stats(request, slug=None):
+    """Получение статистики о зарегистрированных участниках"""
+    eventum = request.eventum
+    
+    # Подсчитываем количество участников, которые зарегистрировались хотя бы на одно мероприятие
+    registered_participants_count = EventRegistration.objects.filter(
+        participant__eventum=eventum
+    ).values('participant').distinct().count()
+    
+    return Response({
+        'registered_participants_count': registered_participants_count
+    })
+
+
 @api_view(['GET', 'POST'])
 @require_eventum_role('organizer')
 def eventum_organizers(request, slug=None):

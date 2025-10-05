@@ -3,11 +3,12 @@ import { listEventWaves, createEventWave, updateEventWave, deleteEventWave } fro
 import type { EventWave } from '../../api/eventWave';
 import { eventTagApi } from '../../api/eventTag';
 import { getEventsForEventum } from '../../api/event';
-import { IconPencil, IconTrash, IconCheck, IconX, IconPlus, IconInformationCircle } from '../../components/icons';
+import { IconPencil, IconTrash, IconCheck, IconX, IconPlus, IconInformationCircle, IconUsersCircle } from '../../components/icons';
 import { getGroupsForEventum } from '../../api/group';
 import { groupTagApi } from '../../api/groupTag';
 import { useEventumSlug } from '../../hooks/useEventumSlug';
 import WavesLoadingSkeleton from '../../components/admin/skeletons/WavesLoadingSkeleton';
+import { eventumApi } from '../../api/eventumApi';
 
 type Mode = 'view' | 'edit' | 'create';
 
@@ -518,6 +519,9 @@ const EventRegistration: React.FC = () => {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [registrationStats, setRegistrationStats] = useState<{
+    registered_participants_count: number;
+  } | null>(null);
 
   const load = async () => {
     if (!eventumSlug) {
@@ -526,16 +530,18 @@ const EventRegistration: React.FC = () => {
     }
     setIsLoading(true);
     try {
-      const [ws, ets, gs, gts] = await Promise.all([
+      const [ws, ets, gs, gts, stats] = await Promise.all([
         listEventWaves(eventumSlug),
         eventTagApi.getEventTags(eventumSlug),
         getGroupsForEventum(eventumSlug),
         groupTagApi.getGroupTags(eventumSlug),
+        eventumApi.getRegistrationStats(eventumSlug).then(response => response.data).catch(() => null),
       ]);
       setWaves(ws);
       setTags(ets.map(t => ({ id: t.id, name: t.name })));
       setGroups(gs.map((g: any) => ({ id: g.id, name: g.name })));
       setGroupTags(gts.map((t: any) => ({ id: t.id, name: t.name })));
+      setRegistrationStats(stats);
     } finally {
       setIsLoading(false);
     }
@@ -597,6 +603,15 @@ const EventRegistration: React.FC = () => {
           </div>
         </div>
       </header>
+
+      {/* Статистика регистраций */}
+      {registrationStats && (
+        <div className="flex items-center gap-2 text-sm text-gray-600">
+          <IconUsersCircle size={16} className="text-blue-600" />
+          <span className="font-semibold text-blue-600">{registrationStats.registered_participants_count}</span>
+          <span>зарегистрированных участников</span>
+        </div>
+      )}
 
       {/* Поиск */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
