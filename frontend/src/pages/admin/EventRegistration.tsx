@@ -323,7 +323,7 @@ const WaveCard: React.FC<WaveCardProps> = ({ wave, mode, onStartEdit, onDelete, 
                   <div className="flex-1">
                     <span className="font-medium text-gray-800">{ev.name}</span>
                     <div className="mt-1 text-xs text-gray-500">
-                      <div>Места: {capacityInfo(ev.max_participants, ev.registrations_count)}</div>
+                      <div>Места: {capacityInfo(ev.max_participants, ev.already_assigned_count)}</div>
                       <div>Заявки: {ev.registrations_count}</div>
                       <div>Доступно: {ev.available_participants}</div>
                       {ev.already_assigned_count > 0 && (
