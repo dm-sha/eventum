@@ -683,16 +683,17 @@ class EventViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
                 if event.participant_type == Event.ParticipantType.REGISTRATION:
                     event.participant_type = Event.ParticipantType.MANUAL
                 
-                # Добавляем доступных участников к мероприятию
-                event.participants.set(available_participants)
+                # Добавляем доступных участников к мероприятию (не перезаписываем существующих)
+                event.participants.add(*available_participants)
                 
                 # Сохраняем изменения
                 event.save()
                 
                 return Response({
                     'status': 'success', 
-                    'message': f'Successfully converted {len(available_participants)} registrations to participants',
-                    'participants_count': len(available_participants),
+                    'message': f'Successfully added {len(available_participants)} participants to event',
+                    'participants_count': event.participants.count(),  # Общее количество участников
+                    'added_participants_count': len(available_participants),  # Количество добавленных
                     'total_registrations': registrations.count(),
                     'already_assigned_count': registrations.count() - len(available_participants)
                 }, status=status.HTTP_200_OK)
@@ -801,11 +802,7 @@ class EventViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
         
         event = self.get_object()
         
-        # Проверяем, что мероприятие имеет тип "По записи"
-        if event.participant_type != Event.ParticipantType.REGISTRATION:
-            return Response({
-                'error': 'Can only convert registrations for events with registration type'
-            }, status=status.HTTP_400_BAD_REQUEST)
+        # Убираем проверку типа мероприятия - теперь можно конвертировать и для manual типа
         
         # Получаем все регистрации на это мероприятие
         registrations = EventRegistration.objects.filter(event=event).select_related('participant')
@@ -867,17 +864,19 @@ class EventViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
                         'error': f'Too many participants ({len(participants_to_assign)}) for capacity ({event.max_participants})'
                     }, status=status.HTTP_400_BAD_REQUEST)
                 
-                # Записываем участников на мероприятие
-                event.participants.set(participants_to_assign)
+                # Записываем участников на мероприятие (не перезаписываем существующих)
+                event.participants.add(*participants_to_assign)
                 
-                # Изменяем тип участников на "Вручную"
-                event.participant_type = Event.ParticipantType.MANUAL
+                # Изменяем тип участников на "Вручную" только если он был registration
+                if event.participant_type == Event.ParticipantType.REGISTRATION:
+                    event.participant_type = Event.ParticipantType.MANUAL
                 event.save()
                 
                 return Response({
                     'status': 'success',
-                    'message': f'Successfully assigned {len(participants_to_assign)} participants to event',
-                    'participants_count': len(participants_to_assign),
+                    'message': f'Successfully added {len(participants_to_assign)} participants to event in strict mode',
+                    'participants_count': event.participants.count(),  # Общее количество участников
+                    'added_participants_count': len(participants_to_assign),  # Количество добавленных
                     'total_registrations': registrations.count(),
                     'already_assigned_count': registrations.count() - len(participants_to_assign)
                 }, status=status.HTTP_200_OK)

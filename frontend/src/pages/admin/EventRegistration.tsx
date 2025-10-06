@@ -660,13 +660,15 @@ const EventRegistration: React.FC = () => {
         status: string;
         message: string;
         participants_count: number;
+        added_participants_count: number;
         total_registrations: number;
         already_assigned_count: number;
       };
       
       alert(
-        `Успешно записано ${responseData.participants_count} участников на мероприятие! ` +
-        `Всего заявок было: ${responseData.total_registrations}, ` +
+        `Успешно добавлено ${responseData.added_participants_count} участников к мероприятию! ` +
+        `Всего участников на мероприятии: ${responseData.participants_count}, ` +
+        `всего заявок было: ${responseData.total_registrations}, ` +
         `уже распределено на другие мероприятия: ${responseData.already_assigned_count}`
       );
     } catch (error: any) {
@@ -702,13 +704,15 @@ const EventRegistration: React.FC = () => {
         status: string;
         message: string;
         participants_count: number;
+        added_participants_count: number;
         total_registrations: number;
         already_assigned_count: number;
       };
       
       alert(
-        `Успешно записано ${responseData.participants_count} участников на мероприятие в строгом режиме! ` +
-        `Всего заявок было: ${responseData.total_registrations}, ` +
+        `Успешно добавлено ${responseData.added_participants_count} участников к мероприятию в строгом режиме! ` +
+        `Всего участников на мероприятии: ${responseData.participants_count}, ` +
+        `всего заявок было: ${responseData.total_registrations}, ` +
         `уже распределено на другие мероприятия: ${responseData.already_assigned_count}`
       );
     } catch (error: any) {
