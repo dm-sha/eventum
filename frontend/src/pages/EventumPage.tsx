@@ -1,9 +1,9 @@
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { getEventumBySlug } from "../api/eventum";
 import { listEventWaves } from "../api/eventWave";
 import { getEventsForEventum, registerForEvent, unregisterFromEvent } from "../api/event";
-import { getCurrentParticipant, getMyRegistrations } from "../api/participant";
+import { getCurrentParticipant, getMyRegistrations, getParticipantById, getParticipantRegistrations } from "../api/participant";
 import { authApi } from "../api/eventumApi";
 import type { Eventum, Event, Participant, UserRole, EventRegistration } from "../types";
 import type { EventWave } from "../api/eventWave";
@@ -15,6 +15,7 @@ const EventumPage = () => {
   const eventumSlug = useEventumSlug();
   const location = useLocation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [eventum, setEventum] = useState<Eventum | null>(null);
   const [eventWaves, setEventWaves] = useState<EventWave[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
@@ -23,6 +24,9 @@ const EventumPage = () => {
   const [myRegistrations, setMyRegistrations] = useState<EventRegistration[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Получаем ID участника из URL параметров (для просмотра от лица другого участника)
+  const participantId = searchParams.get('participant');
 
   // Определяем текущую вкладку из URL
   const currentTab = location.pathname.split('/').pop() || 'general';
@@ -54,13 +58,26 @@ const EventumPage = () => {
         let participantData = null;
         let registrationsData: EventRegistration[] = [];
         try {
-          participantData = await getCurrentParticipant(eventumSlug);
-          // Если участник найден, загружаем его заявки
-          if (participantData) {
-            try {
-              registrationsData = await getMyRegistrations(eventumSlug);
-            } catch (registrationsErr: unknown) {
-              console.error('Ошибка загрузки заявок участника:', registrationsErr);
+          if (participantId) {
+            // Если указан ID участника, загружаем данные конкретного участника (для организаторов)
+            participantData = await getParticipantById(eventumSlug, parseInt(participantId));
+            if (participantData) {
+              try {
+                registrationsData = await getParticipantRegistrations(eventumSlug, parseInt(participantId));
+              } catch (registrationsErr: unknown) {
+                console.error('Ошибка загрузки заявок участника:', registrationsErr);
+              }
+            }
+          } else {
+            // Обычная логика для текущего пользователя
+            participantData = await getCurrentParticipant(eventumSlug);
+            // Если участник найден, загружаем его заявки
+            if (participantData) {
+              try {
+                registrationsData = await getMyRegistrations(eventumSlug);
+              } catch (registrationsErr: unknown) {
+                console.error('Ошибка загрузки заявок участника:', registrationsErr);
+              }
             }
           }
         } catch (participantErr: unknown) {
@@ -86,11 +103,17 @@ const EventumPage = () => {
     };
 
     fetchData();
-  }, [eventumSlug]);
+  }, [eventumSlug, participantId]);
 
   const handleTabChange = (tab: string) => {
     if (!eventumSlug) return;
-    navigate(getEventumScopedPath(eventumSlug, `/${tab}`));
+    
+    // Сохраняем существующие параметры URL
+    const currentParams = new URLSearchParams(searchParams);
+    const queryString = currentParams.toString();
+    const pathWithParams = queryString ? `/${tab}?${queryString}` : `/${tab}`;
+    
+    navigate(getEventumScopedPath(eventumSlug, pathWithParams));
   };
 
   if (loading) {
@@ -132,6 +155,15 @@ const EventumPage = () => {
             <h1 className="text-3xl font-bold text-gray-900 sm:text-4xl">
               {eventum.name}
             </h1>
+            {participantId && currentParticipant && (
+              <div className="flex items-center gap-2 text-sm text-blue-600 bg-blue-50 px-3 py-1 rounded-lg">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <span>Просмотр от лица участника: <strong>{currentParticipant.name}</strong></span>
+              </div>
+            )}
           </div>
           {isUserOrganizer(eventum.id) && (
             <Link
@@ -175,7 +207,7 @@ const EventumPage = () => {
             <GeneralTab eventum={eventum} />
           )}
           {currentTab === 'registration' && eventumSlug && (
-            <RegistrationTab eventWaves={eventWaves} events={events} currentParticipant={currentParticipant} eventumSlug={eventumSlug} eventum={eventum} myRegistrations={myRegistrations} />
+            <RegistrationTab eventWaves={eventWaves} events={events} currentParticipant={currentParticipant} eventumSlug={eventumSlug} eventum={eventum} myRegistrations={myRegistrations} participantId={participantId} />
           )}
         </div>
       </div>
@@ -212,7 +244,7 @@ const GeneralTab: React.FC<{ eventum: Eventum }> = ({ eventum }) => {
 };
 
 // Компонент для вкладки "Подача заявок на мероприятия"
-const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; currentParticipant: Participant | null; eventumSlug: string; eventum: Eventum; myRegistrations: EventRegistration[] }> = ({ eventWaves, events, currentParticipant, eventumSlug, eventum, myRegistrations }) => {
+const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; currentParticipant: Participant | null; eventumSlug: string; eventum: Eventum; myRegistrations: EventRegistration[]; participantId: string | null }> = ({ eventWaves, events, currentParticipant, eventumSlug, eventum, myRegistrations, participantId }) => {
   const [expandedWaves, setExpandedWaves] = useState<Set<number>>(new Set());
   const [refreshKey, setRefreshKey] = useState(0);
   const [localEvents, setLocalEvents] = useState<Event[]>(events);
@@ -650,10 +682,16 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
                     </p>
                   ) : (
                     waveEvents.map((event) => (
-                      <EventCard key={event.id} event={event} eventumSlug={eventumSlug} onEventUpdate={(updatedEvent) => {
-                        // Обновляем событие в локальном состоянии
-                        setLocalEvents(prev => prev.map(e => e.id === updatedEvent.id ? updatedEvent : e));
-                      }} />
+                      <EventCard 
+                        key={event.id} 
+                        event={event} 
+                        eventumSlug={eventumSlug} 
+                        isViewingAsOtherParticipant={!!participantId}
+                        onEventUpdate={(updatedEvent) => {
+                          // Обновляем событие в локальном состоянии
+                          setLocalEvents(prev => prev.map(e => e.id === updatedEvent.id ? updatedEvent : e));
+                        }} 
+                      />
                     ))
                   )}
                 </div>
@@ -667,7 +705,7 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
 };
 
 // Компонент карточки мероприятия
-const EventCard: React.FC<{ event: Event; eventumSlug: string; onEventUpdate?: (event: Event) => void }> = ({ event, eventumSlug, onEventUpdate }) => {
+const EventCard: React.FC<{ event: Event; eventumSlug: string; onEventUpdate?: (event: Event) => void; isViewingAsOtherParticipant?: boolean }> = ({ event, eventumSlug, onEventUpdate, isViewingAsOtherParticipant = false }) => {
   const [isLoading, setIsLoading] = useState(false);
 
   const handleRegister = async () => {
@@ -823,7 +861,7 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string; onEventUpdate?: (
       </div>
 
       {/* Кнопка подачи заявки для мероприятий с типом "По записи" */}
-      {event.participant_type === 'registration' && (
+      {event.participant_type === 'registration' && !isViewingAsOtherParticipant && (
         <div className="mt-4 pt-4 border-t border-gray-100">
           {event.is_registered ? (
             <div className="flex items-center gap-4">
@@ -846,6 +884,29 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string; onEventUpdate?: (
               </button>
             </div>
           )}
+        </div>
+      )}
+      
+      {/* Информация о статусе заявки при просмотре от лица другого участника */}
+      {event.participant_type === 'registration' && isViewingAsOtherParticipant && (
+        <div className="mt-4 pt-4 border-t border-gray-100">
+          <div className="flex items-center gap-2 text-sm">
+            {event.is_registered ? (
+              <>
+                <svg className="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span className="text-green-600 font-medium">Заявка подана</span>
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                <span className="text-gray-500">Заявка не подана</span>
+              </>
+            )}
+          </div>
         </div>
       )}
     </div>

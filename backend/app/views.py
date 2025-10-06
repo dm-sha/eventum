@@ -135,6 +135,27 @@ class ParticipantViewSet(CachedListMixin, EventumScopedViewSet):
         
         serializer = EventRegistrationSerializer(registrations, many=True, context={'request': request})
         return Response(serializer.data)
+    
+    @action(detail=True, methods=['get'], permission_classes=[IsEventumOrganizer])
+    def registrations(self, request, eventum_slug=None, pk=None):
+        """Получить заявки конкретного участника на мероприятия (только для организаторов)"""
+        eventum = self.get_eventum()
+        
+        try:
+            participant = self.get_object()
+        except Participant.DoesNotExist:
+            return Response({'error': 'Participant not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Получаем все заявки участника на мероприятия
+        registrations = EventRegistration.objects.filter(
+            participant=participant
+        ).select_related('event').prefetch_related(
+            'event__locations',
+            'event__tags'
+        ).order_by('-registered_at')
+        
+        serializer = EventRegistrationSerializer(registrations, many=True, context={'request': request})
+        return Response(serializer.data)
 
 class ParticipantGroupViewSet(CachedListMixin, EventumScopedViewSet):
     queryset = ParticipantGroup.objects.all().prefetch_related(

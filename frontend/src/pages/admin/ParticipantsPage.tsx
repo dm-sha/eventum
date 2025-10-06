@@ -3,12 +3,13 @@ import { useDelayedLoading } from "../../hooks/useDelayedLoading";
 import { getParticipantsForEventum, createParticipant, updateParticipant, deleteParticipant } from "../../api/participant";
 import { getGroupsForEventum } from "../../api/group";
 import { groupTagApi } from "../../api/groupTag";
-import { IconUser, IconExternalLink, IconPencil, IconTrash, IconPlus } from "../../components/icons";
+import { IconUser, IconExternalLink, IconPencil, IconTrash, IconPlus, IconEye } from "../../components/icons";
 import ParticipantModal from "../../components/participant/ParticipantModal";
 import ParticipantsLoadingSkeleton from "../../components/participant/ParticipantsLoadingSkeleton";
 import LazyImage from "../../components/LazyImage";
 import type { Participant, ParticipantGroup, GroupTag } from "../../types";
 import { useEventumSlug } from "../../hooks/useEventumSlug";
+import { getEventumScopedPath } from "../../utils/eventumSlug";
 
 const AdminParticipantsPage = () => {
   const eventumSlug = useEventumSlug();
@@ -258,6 +259,15 @@ const AdminParticipantsPage = () => {
                 
                 {/* Кнопки действий справа */}
                 <div className="flex items-center gap-2 flex-shrink-0">
+                  <a
+                    href={eventumSlug ? getEventumScopedPath(eventumSlug, `/general?participant=${participant.id}`) : '#'}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-blue-600"
+                    title="Просмотреть от лица участника"
+                  >
+                    <IconEye size={16} />
+                  </a>
                   <button
                     onClick={() => handleEditParticipant(participant)}
                     className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600"

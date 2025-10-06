@@ -65,3 +65,15 @@ export const getMyRegistrations = async (eventumSlug: string): Promise<EventRegi
     const response = await participantsApi.getMyRegistrations(eventumSlug);
     return response.data;
 };
+
+// Получить конкретного участника по ID
+export const getParticipantById = async (eventumSlug: string, participantId: number): Promise<Participant> => {
+    const response = await participantsApi.getById(participantId, eventumSlug);
+    return response.data;
+};
+
+// Получить заявки конкретного участника на мероприятия
+export const getParticipantRegistrations = async (eventumSlug: string, participantId: number): Promise<EventRegistration[]> => {
+    const response = await participantsApi.getRegistrations(participantId, eventumSlug);
+    return response.data;
+};

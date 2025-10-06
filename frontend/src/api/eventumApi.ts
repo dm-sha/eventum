@@ -122,7 +122,15 @@ export const participantsApi = {
   
   // Получить заявки текущего участника на мероприятия
   getMyRegistrations: (eventumSlug?: string) => 
-    createApiRequest<EventRegistration[]>('GET', '/participants/my_registrations/', getEventumSlugForRequest(eventumSlug))
+    createApiRequest<EventRegistration[]>('GET', '/participants/my_registrations/', getEventumSlugForRequest(eventumSlug)),
+  
+  // Получить конкретного участника по ID
+  getById: (id: number, eventumSlug?: string) => 
+    createApiRequest<Participant>('GET', `/participants/${id}/`, getEventumSlugForRequest(eventumSlug)),
+  
+  // Получить заявки конкретного участника на мероприятия
+  getRegistrations: (id: number, eventumSlug?: string) => 
+    createApiRequest<EventRegistration[]>('GET', `/participants/${id}/registrations/`, getEventumSlugForRequest(eventumSlug))
 };
 
 // ============= GROUPS API =============
