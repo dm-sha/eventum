@@ -343,9 +343,9 @@ class EventWaveViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
                 ).annotate(
                     registrations_count=Count('registrations', distinct=True),
                     participants_count=Count('participants', distinct=True)
-                )
+                ).order_by('id')
             ),
-        )
+        ).order_by('id')
 
     @action(detail=True, methods=['post'], permission_classes=[IsEventumParticipant])
     def check_availability(self, request, eventum_slug=None, pk=None):
