@@ -140,24 +140,7 @@ class EventTag(models.Model):
 
     def clean(self):
         """Валидация тега мероприятий"""
-        # Проверяем, что если тег связан с волной, то все мероприятия с этим тегом имеют тип 'registration'
-        try:
-            if hasattr(self, 'event_wave') and self.event_wave:
-                events_with_tag = Event.objects.filter(
-                    eventum=self.eventum,
-                    tags=self
-                ).exclude(participant_type=Event.ParticipantType.REGISTRATION)
-                
-                if events_with_tag.exists():
-                    event_names = list(events_with_tag.values_list('name', flat=True))
-                    raise ValidationError(
-                        f"Все мероприятия с тегом '{self.name}' должны иметь тип участников 'По записи', "
-                        f"так как тег связан с волной регистрации. "
-                        f"Нарушающие мероприятия: {', '.join(event_names)}"
-                    )
-        except EventWave.DoesNotExist:
-            # Тег не связан с волной, проверка не нужна
-            pass
+        pass
 
     def save(self, *args, **kwargs):
         if not self.slug or EventTag.objects.filter(eventum=self.eventum, slug=self.slug).exclude(pk=self.pk).exists():
@@ -261,22 +244,8 @@ class Event(models.Model):
                         )
                 
                 # Валидация изменения participant_type у мероприятия, связанного с волной
-                if self.participant_type != Event.ParticipantType.REGISTRATION:
-                    # Проверяем, есть ли у этого мероприятия тег, связанный с волной
-                    # Используем более эффективный запрос без .all()
-                    event_waves_with_this_event_tag = EventWave.objects.filter(
-                        eventum=self.eventum,
-                        tag__events=self
-                    )
-                    
-                    if event_waves_with_this_event_tag.exists():
-                        wave_names = list(event_waves_with_this_event_tag.values_list('name', flat=True))
-                        raise ValidationError(
-                            f"Нельзя изменить тип участников мероприятия '{self.name}' на '{self.get_participant_type_display()}', "
-                            f"так как оно связано с волной мероприятий: {', '.join(wave_names)}. "
-                            f"Мероприятия в волне должны иметь тип участников 'По записи'"
-                        )
-                    
+                # Удалено: проверка participant_type != REGISTRATION для волн
+                
             except Event.DoesNotExist:
                 # Object doesn't exist yet, no need to check
                 pass
@@ -299,20 +268,7 @@ class Event(models.Model):
                     f"Groups {', '.join(group_names)} belong to a different eventum"
                 )
             
-            # Проверяем, что мероприятие с типом "не по записи" не добавляется к тегам с волнами
-            if self.participant_type != Event.ParticipantType.REGISTRATION:
-                # Оптимизированная проверка без .all()
-                tags_with_waves = EventWave.objects.filter(
-                    tag__events=self
-                ).values_list('tag__name', flat=True)
-                
-                if tags_with_waves.exists():
-                    wave_tag_names = list(tags_with_waves)
-                    raise ValidationError(
-                        f"Нельзя добавить мероприятие с типом участников '{self.get_participant_type_display()}' "
-                        f"к тегам, связанным с волнами регистрации: {', '.join(wave_tag_names)}. "
-                        f"Мероприятия в волнах должны иметь тип участников 'По записи'"
-                    )
+            # Удалено: проверка что мероприятие с типом "не по записи" не добавляется к тегам с волнами
             
             # Ensure all group tags belong to the same eventum (only if object is saved)
             # Оптимизированная проверка без .all()
@@ -533,19 +489,7 @@ class EventWave(models.Model):
         ]
     
     def clean(self):
-        # Валидация: все мероприятия с тегом, связанным с волной, должны иметь participant_type = registration
-        if self.tag_id:
-            events_with_tag = Event.objects.filter(
-                eventum=self.eventum,
-                tags=self.tag
-            ).exclude(participant_type=Event.ParticipantType.REGISTRATION)
-            
-            if events_with_tag.exists():
-                event_names = list(events_with_tag.values_list('name', flat=True))
-                raise ValidationError(
-                    f"Все мероприятия с тегом '{self.tag.name}' должны иметь тип участников 'По записи'. "
-                    f"Нарушающие мероприятия: {', '.join(event_names)}"
-                )
+        pass
     
     def is_available_for_participant(self, participant):
         """
@@ -620,12 +564,7 @@ class EventRegistration(models.Model):
                     f"должны принадлежать одному мероприятию (eventum)"
                 )
         
-        # Валидация: можно подавать заявки только на мероприятия с типом "По записи"
-        if self.event_id and self.event.participant_type != Event.ParticipantType.REGISTRATION:
-            raise ValidationError(
-                f"Подача заявки на мероприятие '{self.event.name}' возможна только для мероприятий "
-                f"с типом участников 'По записи'"
-            )
+        # Удалено: валидация что можно подавать заявки только на мероприятия с типом "По записи"
         
         # Примечание: лимит участников (max_participants) используется только для отображения
         # и распределения мест, но не блокирует подачу заявок
@@ -661,20 +600,5 @@ class UserRole(models.Model):
 
 @receiver(m2m_changed, sender=Event.tags.through)
 def validate_event_tags(sender, instance, action, pk_set, **kwargs):
-    """Проверяет, что мероприятие с типом 'не по записи' не добавляется к тегам с волнами"""
-    if action in ['pre_add']:
-        # Проверяем только если мероприятие имеет тип "не по записи"
-        if instance.participant_type != Event.ParticipantType.REGISTRATION:
-            tags_with_waves = []
-            # Получаем теги, которые будут добавлены
-            for tag_id in pk_set:
-                tag = EventTag.objects.get(id=tag_id)
-                if EventWave.objects.filter(tag=tag).exists():
-                    tags_with_waves.append(tag.name)
-            
-            if tags_with_waves:
-                raise ValidationError(
-                    f"Нельзя добавить мероприятие с типом участников '{instance.get_participant_type_display()}' "
-                    f"к тегам, связанным с волнами регистрации: {', '.join(tags_with_waves)}. "
-                    f"Мероприятия в волнах должны иметь тип участников 'По записи'"
-                )
+    """Удалено: проверка что мероприятие с типом 'не по записи' не добавляется к тегам с волнами"""
+    pass
