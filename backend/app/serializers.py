@@ -325,13 +325,14 @@ class EventBasicInfoSerializer(serializers.ModelSerializer):
     """Максимально оптимизированный сериализатор для событий"""
     registrations_count = serializers.SerializerMethodField()
     participants_count = serializers.SerializerMethodField()
+    assigned_participants_count = serializers.SerializerMethodField()
     available_participants = serializers.SerializerMethodField()
     available_without_unassigned_events = serializers.SerializerMethodField()
     can_convert = serializers.SerializerMethodField()
     
     class Meta:
         model = Event
-        fields = ['id', 'name', 'participant_type', 'max_participants', 'registrations_count', 'participants_count', 'available_participants', 'available_without_unassigned_events', 'can_convert']
+        fields = ['id', 'name', 'participant_type', 'max_participants', 'registrations_count', 'participants_count', 'assigned_participants_count', 'available_participants', 'available_without_unassigned_events', 'can_convert']
 
     def get_registrations_count(self, obj):
         # Используем предварительно вычисленное значение из annotate
@@ -345,6 +346,14 @@ class EventBasicInfoSerializer(serializers.ModelSerializer):
         if hasattr(obj, 'participants_count'):
             return obj.participants_count
         return 0
+
+    def get_assigned_participants_count(self, obj):
+        """Количество участников, реально привязанных к данному мероприятию"""
+        # Используем предварительно вычисленное значение из annotate
+        if hasattr(obj, 'participants_count'):
+            return obj.participants_count
+        # Fallback для случаев, когда annotate не было применено
+        return obj.participants.count()
 
     def get_available_participants(self, obj):
         """Количество участников, которые подали заявку и еще не распределены на другие мероприятия волны"""
