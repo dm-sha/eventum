@@ -313,11 +313,12 @@ class EventWithRegistrationInfoSerializer(serializers.ModelSerializer):
     registrations_count = serializers.SerializerMethodField()
     available_participants = serializers.SerializerMethodField()
     already_assigned_count = serializers.SerializerMethodField()
+    assigned_participants_count = serializers.SerializerMethodField()
     can_convert = serializers.SerializerMethodField()
 
     class Meta:
         model = Event
-        fields = ['id', 'name', 'participant_type', 'max_participants', 'registrations_count', 'available_participants', 'already_assigned_count', 'can_convert']
+        fields = ['id', 'name', 'participant_type', 'max_participants', 'registrations_count', 'available_participants', 'already_assigned_count', 'assigned_participants_count', 'can_convert']
 
     def get_registrations_count(self, obj):
         return EventRegistration.objects.filter(event=obj).count()
@@ -357,6 +358,10 @@ class EventWithRegistrationInfoSerializer(serializers.ModelSerializer):
         registrations_count = self.get_registrations_count(obj)
         available_count = self.get_available_participants(obj)
         return registrations_count - available_count
+    
+    def get_assigned_participants_count(self, obj):
+        """Количество участников, реально привязанных к данному мероприятию"""
+        return obj.participants.count()
     
     def get_can_convert(self, obj):
         """Можно ли конвертировать регистрации для этого мероприятия"""
