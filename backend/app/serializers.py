@@ -337,7 +337,8 @@ class EventBasicInfoSerializer(serializers.ModelSerializer):
         # Используем предварительно вычисленное значение из annotate
         if hasattr(obj, 'registrations_count'):
             return obj.registrations_count
-        return 0
+        # Fallback для случаев, когда annotate не было применено
+        return obj.registrations.count()
 
     def get_participants_count(self, obj):
         # Используем предварительно вычисленное значение из annotate
@@ -346,16 +347,97 @@ class EventBasicInfoSerializer(serializers.ModelSerializer):
         return 0
 
     def get_available_participants(self, obj):
-        """Возвращаем количество регистраций для максимальной производительности"""
-        return self.get_registrations_count(obj)
+        """Количество участников, которые подали заявку и еще не распределены на другие мероприятия волны"""
+        registrations_count = self.get_registrations_count(obj)
+        
+        if registrations_count == 0:
+            return 0
+        
+        # Получаем тег волны для текущего мероприятия
+        wave_tag = None
+        for tag in obj.tags.all():
+            if hasattr(tag, 'event_wave') and tag.event_wave:
+                wave_tag = tag
+                break
+        
+        if not wave_tag:
+            # Если нет волны, все участники доступны
+            return registrations_count
+        
+        # Получаем ID всех участников, уже записанных на мероприятия волны с типом MANUAL
+        assigned_participant_ids = set()
+        for event in wave_tag.events.all():
+            if event.participant_type == Event.ParticipantType.MANUAL:
+                assigned_participant_ids.update(
+                    participant.id for participant in event.participants.all()
+                )
+        
+        # Получаем ID участников текущего события
+        current_event_participant_ids = set(
+            reg.participant_id for reg in obj.registrations.all()
+        )
+        
+        # Подсчитываем доступных участников
+        available_count = len(current_event_participant_ids - assigned_participant_ids)
+        return available_count
 
     def get_available_without_unassigned_events(self, obj):
-        """Возвращаем количество регистраций для максимальной производительности"""
-        return self.get_registrations_count(obj)
+        """Количество участников, которые подали заявку, не попали на другие мероприятия волны 
+        И не имеют заявок на мероприятия, где еще не было распределения (0 привязанных участников)"""
+        registrations_count = self.get_registrations_count(obj)
+        
+        if registrations_count == 0:
+            return 0
+        
+        # Получаем тег волны для текущего мероприятия
+        wave_tag = None
+        for tag in obj.tags.all():
+            if hasattr(tag, 'event_wave') and tag.event_wave:
+                wave_tag = tag
+                break
+        
+        if not wave_tag:
+            # Если нет волны, все участники доступны
+            return registrations_count
+        
+        # Получаем ID всех участников, уже записанных на мероприятия волны с типом MANUAL
+        assigned_participant_ids = set()
+        participants_with_unassigned_registrations = set()
+        
+        for event in wave_tag.events.all():
+            if event.participant_type == Event.ParticipantType.MANUAL:
+                assigned_participant_ids.update(
+                    participant.id for participant in event.participants.all()
+                )
+            elif (event.participant_type == Event.ParticipantType.REGISTRATION and 
+                  event.id != obj.id and 
+                  len(event.participants.all()) == 0):
+                participants_with_unassigned_registrations.update(
+                    reg.participant_id for reg in event.registrations.all()
+                )
+        
+        # Получаем ID участников текущего события
+        current_event_participant_ids = set(
+            reg.participant_id for reg in obj.registrations.all()
+        )
+        
+        # Исключаем участников, которые уже распределены на другие мероприятия волны
+        # И участников, которые имеют заявки на нераспределенные мероприятия
+        excluded_participants = assigned_participant_ids | participants_with_unassigned_registrations
+        available_count = len(current_event_participant_ids - excluded_participants)
+        
+        return available_count
 
     def get_can_convert(self, obj):
-        """Можно конвертировать если есть регистрации"""
-        return self.get_registrations_count(obj) > 0
+        """Можно ли конвертировать регистрации для этого мероприятия"""
+        available_count = self.get_available_participants(obj)
+        registrations_count = self.get_registrations_count(obj)
+        
+        return (
+            registrations_count > 0 and
+            available_count > 0 and
+            (obj.max_participants is None or available_count <= obj.max_participants)
+        )
 
 class EventWithRegistrationInfoSerializer(serializers.ModelSerializer):
     registrations_count = serializers.SerializerMethodField()
