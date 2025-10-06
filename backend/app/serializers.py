@@ -826,11 +826,7 @@ class EventSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({
                     'max_participants': 'max_participants must be specified and greater than 0 for registration type events'
                 })
-        elif participant_type in ['all', 'manual']:
-            if max_participants is not None:
-                raise serializers.ValidationError({
-                    'max_participants': 'max_participants should not be set for all or manual type events'
-                })
+        # Удалено: валидация max_participants для типов all и manual
         
         # Check if trying to change participant_type from manual when there are existing connections
         if self.instance and self.instance.pk:

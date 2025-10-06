@@ -209,9 +209,7 @@ class Event(models.Model):
         if self.participant_type == self.ParticipantType.REGISTRATION:
             if not self.max_participants or self.max_participants <= 0:
                 raise ValidationError("max_participants must be specified and greater than 0 for registration type events")
-        elif self.participant_type in [self.ParticipantType.ALL, self.ParticipantType.MANUAL]:
-            if self.max_participants is not None:
-                raise ValidationError("max_participants should not be set for 'all' or 'manual' type events")
+        # Удалено: валидация max_participants для типов all и manual
         
         # Check if trying to change participant_type from manual when there are existing connections
         if self.pk:
