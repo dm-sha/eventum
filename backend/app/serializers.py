@@ -330,34 +330,25 @@ class EventWithRegistrationInfoSerializer(serializers.ModelSerializer):
         if not registrations.exists():
             return 0
         
-        # Получаем тег волны для текущего мероприятия
-        wave_tag = None
-        for tag in obj.tags.all():
-            if hasattr(tag, 'event_wave'):
-                wave_tag = tag
-                break
+        # Получаем тег волны для текущего мероприятия одним запросом
+        wave_tag = obj.tags.filter(event_wave__isnull=False).first()
         
         if not wave_tag:
             # Если нет волны, все участники доступны
             return registrations.count()
         
-        # Получаем все мероприятия той же волны (с тем же тегом волны) с типом manual
-        wave_events = Event.objects.filter(
-            eventum=obj.eventum,
-            tags=wave_tag,
-            participant_type=Event.ParticipantType.MANUAL
-        ).prefetch_related('participants')
-        
-        # Собираем всех участников, уже записанных на мероприятия волны
-        assigned_participants = set()
-        for wave_event in wave_events:
-            assigned_participants.update(wave_event.participants.values_list('id', flat=True))
+        # Получаем ID всех участников, уже записанных на мероприятия волны с типом MANUAL
+        assigned_participant_ids = set(
+            Event.objects.filter(
+                eventum=obj.eventum,
+                tags=wave_tag,
+                participant_type=Event.ParticipantType.MANUAL
+            ).values_list('participants__id', flat=True)
+        )
         
         # Подсчитываем доступных участников
-        available_count = 0
-        for registration in registrations:
-            if registration.participant.id not in assigned_participants:
-                available_count += 1
+        registration_participant_ids = set(registrations.values_list('participant_id', flat=True))
+        available_count = len(registration_participant_ids - assigned_participant_ids)
         
         return available_count
     
@@ -737,6 +728,10 @@ class EventSerializer(serializers.ModelSerializer):
 
     def get_registrations_count(self, obj):
         """Получить количество записанных участников"""
+        # Используем prefetch_related данные если доступны
+        if hasattr(obj, '_prefetched_objects_cache') and 'registrations' in obj._prefetched_objects_cache:
+            return len(obj._prefetched_objects_cache['registrations'])
+        
         from .models import EventRegistration
         return EventRegistration.objects.filter(event=obj).count()
 
@@ -745,6 +740,14 @@ class EventSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         if not request or not request.user.is_authenticated:
             return False
+        
+        # Используем prefetch_related данные если доступны
+        if hasattr(obj, '_prefetched_objects_cache') and 'registrations' in obj._prefetched_objects_cache:
+            user_registrations = [
+                reg for reg in obj._prefetched_objects_cache['registrations']
+                if reg.participant.user_id == request.user.id
+            ]
+            return len(user_registrations) > 0
         
         from .models import EventRegistration, Participant
         try:

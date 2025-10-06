@@ -332,7 +332,9 @@ class EventWaveViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
             'whitelist_groups',
             'whitelist_group_tags',
             'blacklist_groups',
-            'blacklist_group_tags'
+            'blacklist_group_tags',
+            'tag__events__registrations__participant',  # Добавляем prefetch для регистраций событий волны
+            'tag__events__participants',  # Добавляем prefetch для участников событий волны
         )
 
     @action(detail=True, methods=['post'], permission_classes=[IsEventumParticipant])
@@ -510,6 +512,9 @@ class EventViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
         'tags',
         'group_tags',
         'locations',  # Добавляем prefetch для локаций
+        'registrations',  # Добавляем prefetch для регистраций
+        'registrations__participant',  # Добавляем prefetch для участников в регистрациях
+        'registrations__participant__user',  # Добавляем prefetch для пользователей участников в регистрациях
     )
     serializer_class = EventSerializer
     permission_classes = [IsEventumOrganizerOrPublicReadOnly]  # Организаторы CRUD, все остальные только чтение
@@ -529,6 +534,9 @@ class EventViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
             'tags',
             'group_tags',
             'locations',  # Добавляем prefetch для локаций
+            'registrations',  # Добавляем prefetch для регистраций
+            'registrations__participant',  # Добавляем prefetch для участников в регистрациях
+            'registrations__participant__user',  # Добавляем prefetch для пользователей участников в регистрациях
         )
 
     @action(detail=False, methods=['get'])
