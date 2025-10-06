@@ -388,79 +388,54 @@ class EventWaveViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
 
 @csrf_exempt_class_api
 class EventViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
-    queryset = Event.objects.all().select_related('eventum').prefetch_related(
-        'participants',
-        'participants__user',  # Добавляем prefetch для пользователей участников
-        'groups',
-        'groups__participants',
-        'groups__participants__user',  # Добавляем prefetch для пользователей участников в группах
-        'groups__tags',
-        'tags',
-        'group_tags',
-        'locations',  # Добавляем prefetch для локаций
-        'registrations',  # Добавляем prefetch для регистраций
-        'registrations__participant',  # Добавляем prefetch для участников в регистрациях
-        'registrations__participant__user',  # Добавляем prefetch для пользователей участников в регистрациях
-    )
+    queryset = Event.objects.all()
     serializer_class = EventSerializer
     permission_classes = [IsEventumOrganizerOrPublicReadOnly]  # Организаторы CRUD, все остальные только чтение
     
     def get_queryset(self):
-        """Оптимизированный queryset для списка событий с сохранением всех prefetch_related"""
+        """Оптимизированный queryset для списка событий с prefetch_related"""
         eventum = self.get_eventum()
         return Event.objects.filter(eventum=eventum).select_related(
             'eventum'
         ).prefetch_related(
             'participants',
-            'participants__user',  # Добавляем prefetch для пользователей участников
+            'participants__user',  # Нужно для is_registered
             'groups',
-            'groups__participants',
-            'groups__participants__user',  # Добавляем prefetch для пользователей участников в группах
-            'groups__tags',
-            'tags',
-            'group_tags',
-            'locations',  # Добавляем prefetch для локаций
-            'registrations',  # Добавляем prefetch для регистраций
-            'registrations__participant',  # Добавляем prefetch для участников в регистрациях
-            'registrations__participant__user',  # Добавляем prefetch для пользователей участников в регистрациях
+            'groups__tags',  # Нужно для сериализации групп
+            'tags',  # Нужно для сериализации
+            'group_tags',  # Нужно для сериализации
+            'locations',  # Нужно для сериализации
+            'registrations',  # Нужно для registrations_count и is_registered
+            'registrations__participant',  # Нужно для is_registered
+            'registrations__participant__user',  # Нужно для is_registered
         )
 
-    @action(detail=False, methods=['get'])
-    def upcoming(self, request, eventum_slug=None):
-        now = timezone.now()
-        events = self.filter_queryset(
-            self.get_queryset().filter(start_time__gte=now)
-        ).order_by('start_time')
-        serializer = self.get_serializer(events, many=True)
-        return Response(serializer.data)
 
-    @action(detail=False, methods=['get'])
-    def past(self, request, eventum_slug=None):
-        now = timezone.now()
-        events = self.filter_queryset(
-            self.get_queryset().filter(end_time__lt=now)
-        ).order_by('-start_time')
-        serializer = self.get_serializer(events, many=True)
-        return Response(serializer.data)
+    def _get_participant(self, request, eventum):
+        """Получить участника для текущего пользователя"""
+        if not request.user.is_authenticated:
+            return None, Response({'error': 'Not authenticated'}, status=status.HTTP_401_UNAUTHORIZED)
+        
+        try:
+            participant = Participant.objects.get(user=request.user, eventum=eventum)
+            return participant, None
+        except Participant.DoesNotExist:
+            return None, Response({'error': 'User is not a participant in this eventum'}, status=status.HTTP_404_NOT_FOUND)
 
     @action(detail=True, methods=['post'], permission_classes=[IsEventumParticipant])
     def register(self, request, eventum_slug=None, pk=None):
-        """Подать заявку на мероприятие (заявки принимаются без ограничений по количеству)"""
-        if not request.user.is_authenticated:
-            return Response({'error': 'Not authenticated'}, status=status.HTTP_401_UNAUTHORIZED)
-        
+        """Подать заявку на мероприятие"""
         eventum = self.get_eventum()
         event = self.get_object()
+        
+        # Получаем участника
+        participant, error_response = self._get_participant(request, eventum)
+        if error_response:
+            return error_response
         
         # Проверяем, открыта ли регистрация
         if not eventum.registration_open:
             return Response({'error': 'Registration is currently closed'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Проверяем, что пользователь является участником eventum
-        try:
-            participant = Participant.objects.get(user=request.user, eventum=eventum)
-        except Participant.DoesNotExist:
-            return Response({'error': 'User is not a participant in this eventum'}, status=status.HTTP_404_NOT_FOUND)
         
         # Проверяем, что мероприятие имеет тип "По записи"
         if event.participant_type != Event.ParticipantType.REGISTRATION:
@@ -470,125 +445,29 @@ class EventViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
         if EventRegistration.objects.filter(participant=participant, event=event).exists():
             return Response({'error': 'Already registered for this event'}, status=status.HTTP_400_BAD_REQUEST)
         
-        # Создаем заявку на мероприятие (заявки принимаются без ограничений по количеству)
-        try:
-            registration = EventRegistration.objects.create(participant=participant, event=event)
-            return Response({'status': 'success', 'message': 'Successfully registered for event'}, status=status.HTTP_201_CREATED)
-        except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        # Создаем заявку на мероприятие
+        EventRegistration.objects.create(participant=participant, event=event)
+        return Response({'status': 'success', 'message': 'Successfully registered for event'}, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['delete'], permission_classes=[IsEventumParticipant])
     def unregister(self, request, eventum_slug=None, pk=None):
         """Отписаться от мероприятия"""
-        if not request.user.is_authenticated:
-            return Response({'error': 'Not authenticated'}, status=status.HTTP_401_UNAUTHORIZED)
-        
         eventum = self.get_eventum()
         event = self.get_object()
         
-        # Проверяем, что пользователь является участником eventum
-        try:
-            participant = Participant.objects.get(user=request.user, eventum=eventum)
-        except Participant.DoesNotExist:
-            return Response({'error': 'User is not a participant in this eventum'}, status=status.HTTP_404_NOT_FOUND)
+        # Получаем участника
+        participant, error_response = self._get_participant(request, eventum)
+        if error_response:
+            return error_response
         
-        # Проверяем, записан ли участник
-        try:
-            registration = EventRegistration.objects.get(participant=participant, event=event)
-            registration.delete()
-            return Response({'status': 'success', 'message': 'Successfully unregistered from event'}, status=status.HTTP_200_OK)
-        except EventRegistration.DoesNotExist:
+        # Удаляем заявку
+        deleted_count, _ = EventRegistration.objects.filter(participant=participant, event=event).delete()
+        if deleted_count == 0:
             return Response({'error': 'Not registered for this event'}, status=status.HTTP_404_NOT_FOUND)
+        
+        return Response({'status': 'success', 'message': 'Successfully unregistered from event'}, status=status.HTTP_200_OK)
 
 
-    @action(detail=True, methods=['get'], permission_classes=[IsEventumOrganizerOrReadOnly])
-    def registration_stats(self, request, eventum_slug=None, pk=None):
-        """
-        Возвращает статистику регистраций для мероприятия, включая количество нераспределенных участников.
-        """
-        event = self.get_object()
-        
-        # Получаем все регистрации на это мероприятие
-        registrations = EventRegistration.objects.filter(event=event).select_related('participant')
-        total_registrations = registrations.count()
-        
-        if total_registrations == 0:
-            return Response({
-                'event_id': event.id,
-                'event_name': event.name,
-                'total_registrations': 0,
-                'available_participants': 0,
-                'already_assigned_count': 0,
-                'max_participants': event.max_participants,
-                'can_convert': False,
-                'reason': 'No registrations'
-            })
-        
-        # Получаем тег волны для текущего мероприятия
-        wave_tag = None
-        for tag in event.tags.all():
-            if hasattr(tag, 'event_wave'):
-                wave_tag = tag
-                break
-        
-        if not wave_tag:
-            return Response({
-                'event_id': event.id,
-                'event_name': event.name,
-                'total_registrations': total_registrations,
-                'available_participants': total_registrations,  # Если нет волны, все доступны
-                'already_assigned_count': 0,
-                'max_participants': event.max_participants,
-                'can_convert': event.participant_type == Event.ParticipantType.REGISTRATION and total_registrations > 0,
-                'reason': 'No wave tag found' if total_registrations > 0 else 'No registrations'
-            })
-        
-        # Получаем все мероприятия той же волны (с тем же тегом волны) с типом manual
-        wave_events = Event.objects.filter(
-            eventum=event.eventum,
-            tags=wave_tag,
-            participant_type=Event.ParticipantType.MANUAL
-        ).prefetch_related('participants')
-        
-        # Собираем всех участников, уже записанных на мероприятия волны
-        assigned_participants = set()
-        for wave_event in wave_events:
-            assigned_participants.update(wave_event.participants.values_list('id', flat=True))
-        
-        # Подсчитываем доступных участников
-        available_participants = 0
-        for registration in registrations:
-            if registration.participant.id not in assigned_participants:
-                available_participants += 1
-        
-        already_assigned_count = total_registrations - available_participants
-        
-        # Проверяем, можно ли конвертировать
-        can_convert = (
-            event.participant_type == Event.ParticipantType.REGISTRATION and
-            available_participants > 0 and
-            (event.max_participants is None or available_participants <= event.max_participants)
-        )
-        
-        reason = None
-        if not can_convert:
-            if event.participant_type != Event.ParticipantType.REGISTRATION:
-                reason = 'Event is not in registration mode'
-            elif available_participants == 0:
-                reason = 'All participants already assigned to other events in wave'
-            elif event.max_participants is not None and available_participants > event.max_participants:
-                reason = f'Too many participants ({available_participants}) for capacity ({event.max_participants})'
-        
-        return Response({
-            'event_id': event.id,
-            'event_name': event.name,
-            'total_registrations': total_registrations,
-            'available_participants': available_participants,
-            'already_assigned_count': already_assigned_count,
-            'max_participants': event.max_participants,
-            'can_convert': can_convert,
-            'reason': reason
-        })
 
 
 

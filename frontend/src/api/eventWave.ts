@@ -92,32 +92,5 @@ export async function deleteEventWave(eventumSlug: string, id: number): Promise<
   }
 }
 
-export interface WaveConversionResult {
-  event_id: number;
-  event_name: string;
-  participants_count: number;
-  fill_percentage: number;
-}
-
-export interface WaveConversionResponse {
-  status: string;
-  message: string;
-  wave_name: string;
-  conversion_results: WaveConversionResult[];
-  total_participants_assigned: number;
-}
-
-export async function convertWaveRegistrationsToParticipants(eventumSlug: string, waveId: number): Promise<WaveConversionResponse> {
-  if (shouldUseSubdomainApi()) {
-    const { data } = await apiClient.post(`/event-waves/${waveId}/convert_registrations_to_participants/`);
-    return data;
-  } else if (shouldUseContainerApi()) {
-    const { data } = await apiClient.post(`/eventums/${eventumSlug}/event-waves/${waveId}/convert_registrations_to_participants/`);
-    return data;
-  } else {
-    const { data } = await apiClient.post(`/eventums/${eventumSlug}/event-waves/${waveId}/convert_registrations_to_participants/`);
-    return data;
-  }
-}
 
 

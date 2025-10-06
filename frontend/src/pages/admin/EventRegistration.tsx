@@ -2,8 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { listEventWaves, createEventWave, updateEventWave, deleteEventWave } from '../../api/eventWave';
 import type { EventWave } from '../../api/eventWave';
 import { eventTagApi } from '../../api/eventTag';
-import { getEventsForEventum } from '../../api/event';
-import { IconPencil, IconTrash, IconCheck, IconX, IconPlus, IconInformationCircle, IconUsersCircle } from '../../components/icons';
+import { IconPencil, IconTrash, IconCheck, IconX, IconPlus, IconInformationCircle } from '../../components/icons';
 import { getGroupsForEventum } from '../../api/group';
 import { groupTagApi } from '../../api/groupTag';
 import { useEventumSlug } from '../../hooks/useEventumSlug';
@@ -14,9 +13,12 @@ import type { Eventum } from '../../types';
 
 type Mode = 'view' | 'edit' | 'create';
 
-interface FilterItem {
+interface BasicItem {
   id: number;
   name: string;
+}
+
+interface FilterItem extends BasicItem {
   type: 'group' | 'tag';
 }
 
@@ -152,8 +154,8 @@ interface WaveCardProps {
   onDelete: () => void;
   onSave: (data: { name: string; whitelist_group_ids?: number[]; whitelist_group_tag_ids?: number[]; blacklist_group_ids?: number[]; blacklist_group_tag_ids?: number[] }) => void;
   onCancel: () => void;
-  groups: { id: number; name: string }[];
-  groupTags: { id: number; name: string }[];
+  groups: BasicItem[];
+  groupTags: BasicItem[];
 }
 
 const WaveCard: React.FC<WaveCardProps> = ({ wave, mode, onStartEdit, onDelete, onSave, onCancel, groups, groupTags }) => {
@@ -364,42 +366,10 @@ const WaveCard: React.FC<WaveCardProps> = ({ wave, mode, onStartEdit, onDelete, 
 const CreateWaveForm: React.FC<{ 
   onCreate: (name: string, tagId: number) => void; 
   onCancel: () => void;
-  tags: { id: number; name: string }[];
-  eventumSlug: string;
-}> = ({ onCreate, onCancel, tags, eventumSlug }) => {
+  tags: BasicItem[];
+}> = ({ onCreate, onCancel, tags }) => {
   const [name, setName] = useState('');
   const [tagId, setTagId] = useState<number | ''>('');
-  const [events, setEvents] = useState<any[]>([]);
-  const [loadingEvents, setLoadingEvents] = useState(false);
-
-  const loadEventsForTag = async (selectedTagId: number) => {
-    if (!eventumSlug) return;
-    
-    setLoadingEvents(true);
-    try {
-      // Получаем все события с выбранным тегом
-      const allEvents = await getEventsForEventum(eventumSlug);
-      const eventsWithTag = allEvents.filter((event: any) => 
-        event.tags.some((tag: any) => tag.id === selectedTagId)
-      );
-      setEvents(eventsWithTag);
-    } catch (error) {
-      console.error('Error loading events:', error);
-      setEvents([]);
-    } finally {
-      setLoadingEvents(false);
-    }
-  };
-
-  const handleTagChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const newTagId = e.target.value ? Number(e.target.value) : '';
-    setTagId(newTagId);
-    if (newTagId) {
-      loadEventsForTag(newTagId);
-    } else {
-      setEvents([]);
-    }
-  };
 
   const canSave = name.trim() && tagId;
 
@@ -409,7 +379,6 @@ const CreateWaveForm: React.FC<{
     onCreate(name.trim(), Number(tagId));
     setName('');
     setTagId('');
-    setEvents([]);
   };
 
   return (
@@ -429,7 +398,7 @@ const CreateWaveForm: React.FC<{
         <div>
           <select
             value={tagId}
-            onChange={handleTagChange}
+            onChange={(e) => setTagId(e.target.value ? Number(e.target.value) : '')}
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
             required
           >
@@ -439,43 +408,6 @@ const CreateWaveForm: React.FC<{
             ))}
           </select>
         </div>
-
-        {/* Предварительный просмотр мероприятий */}
-        {tagId && (
-          <div className="border-t pt-4">
-            <h5 className="text-sm font-medium text-gray-700 mb-2">
-              Мероприятия с выбранным тегом ({events.length})
-            </h5>
-            {loadingEvents ? (
-              <div className="text-sm text-gray-500">Загрузка мероприятий...</div>
-            ) : events.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-3 py-4 text-sm text-gray-500">
-                Нет мероприятий с выбранным тегом
-              </div>
-            ) : (
-              <div className="space-y-1">
-                {events.map((event) => {
-                  return (
-                    <div
-                      key={event.id}
-                      className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-800"
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-medium">{event.name}</span>
-                        <div className="flex items-center gap-2">
-                          <span className="px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-700">
-                            {event.participant_type === 'registration' ? 'По записи' : 
-                             event.participant_type === 'all' ? 'Для всех' : 'Вручную'}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
         <div className="flex flex-col gap-2 sm:flex-row">
           <button
             type="submit"
@@ -499,19 +431,15 @@ const CreateWaveForm: React.FC<{
 
 const EventRegistration: React.FC = () => {
   const eventumSlug = useEventumSlug();
-  const [activeTab, setActiveTab] = useState<'waves' | 'distribution'>('waves');
   const [eventum, setEventum] = useState<Eventum | null>(null);
   const [waves, setWaves] = useState<EventWave[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [tags, setTags] = useState<{ id: number; name: string }[]>([]);
-  const [groups, setGroups] = useState<{ id: number; name: string }[]>([]);
-  const [groupTags, setGroupTags] = useState<{ id: number; name: string }[]>([]);
+  const [tags, setTags] = useState<BasicItem[]>([]);
+  const [groups, setGroups] = useState<BasicItem[]>([]);
+  const [groupTags, setGroupTags] = useState<BasicItem[]>([]);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [registrationStats, setRegistrationStats] = useState<{
-    registered_participants_count: number;
-  } | null>(null);
 
   const load = async () => {
     if (!eventumSlug) {
@@ -520,20 +448,18 @@ const EventRegistration: React.FC = () => {
     }
     setIsLoading(true);
     try {
-      const [eventumData, ws, ets, gs, gts, stats] = await Promise.all([
+      const [eventumData, ws, ets, gs, gts] = await Promise.all([
         getEventumBySlug(eventumSlug),
         listEventWaves(eventumSlug),
         eventTagApi.getEventTags(eventumSlug),
         getGroupsForEventum(eventumSlug),
         groupTagApi.getGroupTags(eventumSlug),
-        eventumApi.getRegistrationStats(eventumSlug).then(response => response.data).catch(() => null),
       ]);
       setEventum(eventumData);
       setWaves(ws);
       setTags(ets.map(t => ({ id: t.id, name: t.name })));
       setGroups(gs.map((g: any) => ({ id: g.id, name: g.name })));
       setGroupTags(gts.map((t: any) => ({ id: t.id, name: t.name })));
-      setRegistrationStats(stats);
     } finally {
       setIsLoading(false);
     }
@@ -597,7 +523,7 @@ const EventRegistration: React.FC = () => {
     <div className="space-y-6">
       <header className="space-y-2">
         <div className="flex items-center gap-2">
-          <h2 className="text-2xl font-semibold text-gray-900">Регистрация и распределение</h2>
+          <h2 className="text-2xl font-semibold text-gray-900">Волны регистрации</h2>
           <div className="group relative">
             <IconInformationCircle size={20} className="text-gray-400 cursor-help" />
             <div className="absolute top-full left-0 mt-2 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-normal w-80 z-50">
@@ -606,36 +532,6 @@ const EventRegistration: React.FC = () => {
           </div>
         </div>
       </header>
-
-      {/* Вкладки */}
-      <div className="border-b border-gray-200">
-        <nav className="-mb-px flex space-x-8">
-          <button
-            onClick={() => setActiveTab('waves')}
-            className={`py-2 px-1 border-b-2 font-medium text-sm ${
-              activeTab === 'waves'
-                ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
-          >
-            Волны регистрации
-          </button>
-          <button
-            onClick={() => setActiveTab('distribution')}
-            className={`py-2 px-1 border-b-2 font-medium text-sm ${
-              activeTab === 'distribution'
-                ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
-          >
-            Распределение
-          </button>
-        </nav>
-      </div>
-
-      {/* Содержимое вкладок */}
-      {activeTab === 'waves' && (
-        <div className="space-y-6">
           {/* Переключатель регистрации */}
           {eventum && (
             <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
@@ -695,7 +591,6 @@ const EventRegistration: React.FC = () => {
                   onCreate={handleCreate} 
                   onCancel={handleCancelCreate}
                   tags={tags}
-                  eventumSlug={eventumSlug}
                 />
               )}
 
@@ -723,25 +618,6 @@ const EventRegistration: React.FC = () => {
               )}
             </div>
           )}
-        </div>
-      )}
-
-      {activeTab === 'distribution' && (
-        <div className="space-y-6">
-          {/* Статистика регистраций */}
-          {registrationStats && (
-            <div className="flex items-center gap-2 text-sm text-gray-600">
-              <IconUsersCircle size={16} className="text-blue-600" />
-              <span className="font-semibold text-blue-600">{registrationStats.registered_participants_count}</span>
-              <span>зарегистрированных участников</span>
-            </div>
-          )}
-
-          <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-10 text-center text-sm text-gray-500">
-            Раздел распределения участников по мероприятиям будет добавлен в ближайшее время.
-          </div>
-        </div>
-      )}
     </div>
   );
 };
