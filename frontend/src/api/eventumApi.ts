@@ -10,7 +10,8 @@ import type {
   ParticipantGroup, 
   Event, 
   UserRole, 
-  User 
+  User,
+  EventRegistration
 } from '../types';
 
 // Базовая функция для определения eventumSlug
@@ -117,7 +118,11 @@ export const participantsApi = {
   
   // Покинуть eventum
   leave: (eventumSlug?: string) => 
-    createApiRequest<void>('DELETE', '/participants/leave/', getEventumSlugForRequest(eventumSlug))
+    createApiRequest<void>('DELETE', '/participants/leave/', getEventumSlugForRequest(eventumSlug)),
+  
+  // Получить заявки текущего участника на мероприятия
+  getMyRegistrations: (eventumSlug?: string) => 
+    createApiRequest<EventRegistration[]>('GET', '/participants/my_registrations/', getEventumSlugForRequest(eventumSlug))
 };
 
 // ============= GROUPS API =============

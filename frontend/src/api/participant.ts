@@ -3,7 +3,7 @@
  * Этот файл оставлен для обратной совместимости
  */
 import { participantsApi } from './eventumApi';
-import type { Participant } from '../types';
+import type { Participant, EventRegistration } from '../types';
 
 // Получить список всех участников для конкретного Eventum. 
 export const getParticipantsForEventum = async (eventumSlug: string): Promise<Participant[]> => {
@@ -58,4 +58,10 @@ export const getCurrentParticipant = async (eventumSlug: string): Promise<Partic
         }
         throw error;
     }
+};
+
+// Получить заявки текущего участника на мероприятия
+export const getMyRegistrations = async (eventumSlug: string): Promise<EventRegistration[]> => {
+    const response = await participantsApi.getMyRegistrations(eventumSlug);
+    return response.data;
 };

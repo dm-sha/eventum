@@ -929,3 +929,14 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         data['user'] = UserProfileSerializer(self.user).data
         
         return data
+
+
+class EventRegistrationSerializer(serializers.ModelSerializer):
+    """Сериализатор для заявок участника на мероприятия"""
+    event = EventSerializer(read_only=True)
+    registered_at = serializers.DateTimeField(read_only=True)
+    
+    class Meta:
+        model = EventRegistration
+        fields = ['id', 'event', 'registered_at']
+        read_only_fields = ['id', 'registered_at']

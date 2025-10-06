@@ -3,9 +3,9 @@ import { useEffect, useState } from "react";
 import { getEventumBySlug } from "../api/eventum";
 import { listEventWaves } from "../api/eventWave";
 import { getEventsForEventum, registerForEvent, unregisterFromEvent } from "../api/event";
-import { getCurrentParticipant } from "../api/participant";
+import { getCurrentParticipant, getMyRegistrations } from "../api/participant";
 import { authApi } from "../api/eventumApi";
-import type { Eventum, Event, Participant, UserRole } from "../types";
+import type { Eventum, Event, Participant, UserRole, EventRegistration } from "../types";
 import type { EventWave } from "../api/eventWave";
 import LoadingSpinner from "../components/LoadingSpinner";
 import { useEventumSlug } from "../hooks/useEventumSlug";
@@ -20,6 +20,7 @@ const EventumPage = () => {
   const [events, setEvents] = useState<Event[]>([]);
   const [currentParticipant, setCurrentParticipant] = useState<Participant | null>(null);
   const [userRoles, setUserRoles] = useState<UserRole[]>([]);
+  const [myRegistrations, setMyRegistrations] = useState<EventRegistration[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,8 +52,17 @@ const EventumPage = () => {
         
         // Загружаем данные участника отдельно, чтобы 404 не ломал всю страницу
         let participantData = null;
+        let registrationsData: EventRegistration[] = [];
         try {
           participantData = await getCurrentParticipant(eventumSlug);
+          // Если участник найден, загружаем его заявки
+          if (participantData) {
+            try {
+              registrationsData = await getMyRegistrations(eventumSlug);
+            } catch (registrationsErr: unknown) {
+              console.error('Ошибка загрузки заявок участника:', registrationsErr);
+            }
+          }
         } catch (participantErr: unknown) {
           // Если пользователь не является участником (404), это нормально
           const error = participantErr as { response?: { status?: number } };
@@ -65,6 +75,7 @@ const EventumPage = () => {
         setEventWaves(wavesData);
         setEvents(eventsData);
         setCurrentParticipant(participantData);
+        setMyRegistrations(registrationsData);
         setUserRoles(rolesData.data);
       } catch (err) {
         console.error('Ошибка загрузки данных:', err);
@@ -164,7 +175,7 @@ const EventumPage = () => {
             <GeneralTab eventum={eventum} />
           )}
           {currentTab === 'registration' && eventumSlug && (
-            <RegistrationTab eventWaves={eventWaves} events={events} currentParticipant={currentParticipant} eventumSlug={eventumSlug} eventum={eventum} />
+            <RegistrationTab eventWaves={eventWaves} events={events} currentParticipant={currentParticipant} eventumSlug={eventumSlug} eventum={eventum} myRegistrations={myRegistrations} />
           )}
         </div>
       </div>
@@ -201,7 +212,7 @@ const GeneralTab: React.FC<{ eventum: Eventum }> = ({ eventum }) => {
 };
 
 // Компонент для вкладки "Подача заявок на мероприятия"
-const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; currentParticipant: Participant | null; eventumSlug: string; eventum: Eventum }> = ({ eventWaves, events, currentParticipant, eventumSlug, eventum }) => {
+const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; currentParticipant: Participant | null; eventumSlug: string; eventum: Eventum; myRegistrations: EventRegistration[] }> = ({ eventWaves, events, currentParticipant, eventumSlug, eventum, myRegistrations }) => {
   const [expandedWaves, setExpandedWaves] = useState<Set<number>>(new Set());
   const [refreshKey, setRefreshKey] = useState(0);
   const [localEvents, setLocalEvents] = useState<Event[]>(events);
@@ -319,27 +330,136 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
 
   // Если регистрация закрыта
   if (!eventum.registration_open) {
-    return (
-      <div className="text-center py-8">
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-red-100">
-          <svg
-            className="h-8 w-8 text-red-600"
-            fill="none"
-            viewBox="0 0 24 24"
-            strokeWidth="1.5"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
-            />
-          </svg>
+    // Если пользователь не является участником, показываем обычное сообщение
+    if (!currentParticipant) {
+      return (
+        <div className="text-center py-8">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-red-100">
+            <svg
+              className="h-8 w-8 text-red-600"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth="1.5"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
+              />
+            </svg>
+          </div>
+          <h3 className="mt-4 text-lg font-semibold text-gray-900">Регистрация закрыта</h3>
+          <p className="mt-2 text-gray-600">
+            Регистрация на мероприятия закрыта. В ближайшее время будет проведено распределение участников по мероприятиям.
+          </p>
         </div>
-        <h3 className="mt-4 text-lg font-semibold text-gray-900">Регистрация закрыта</h3>
-        <p className="mt-2 text-gray-600">
-          Регистрация на мероприятия закрыта. В ближайшее время будет проведено распределение участников по мероприятиям.
-        </p>
+      );
+    }
+
+    // Если пользователь является участником, показываем его заявки
+    return (
+      <div className="space-y-6">
+        <div className="text-center py-4">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
+            <svg
+              className="h-6 w-6 text-red-600"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth="1.5"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
+              />
+            </svg>
+          </div>
+          <h3 className="mt-3 text-lg font-semibold text-gray-900">Регистрация закрыта</h3>
+          <p className="mt-1 text-gray-600">
+            Регистрация на мероприятия закрыта. В ближайшее время будет проведено распределение участников по мероприятиям.
+          </p>
+        </div>
+
+        {myRegistrations.length > 0 ? (
+          <div>
+            <h4 className="text-lg font-semibold text-gray-900 mb-4">Ваши заявки на мероприятия</h4>
+            <div className="space-y-3">
+              {myRegistrations.map((registration) => (
+                <div key={registration.id} className="bg-white rounded-lg border border-gray-200 p-4">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <h5 className="text-lg font-medium text-gray-900">{registration.event.name}</h5>
+                      {registration.event.description && (
+                        <p className="mt-1 text-gray-600 text-sm">{registration.event.description}</p>
+                      )}
+                      <div className="mt-2 flex items-center text-sm text-gray-500">
+                        <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+                        </svg>
+                        <span>
+                          {new Date(registration.event.start_time).toLocaleDateString('ru-RU', {
+                            day: 'numeric',
+                            month: 'long',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </span>
+                      </div>
+                      <div className="mt-1 flex items-center text-sm text-gray-500">
+                        <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span>
+                          Заявка подана: {new Date(registration.registered_at).toLocaleDateString('ru-RU', {
+                            day: 'numeric',
+                            month: 'long',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </span>
+                      </div>
+                    </div>
+                    {registration.event.image_url && (
+                      <div className="ml-4 flex-shrink-0">
+                        <img
+                          src={registration.event.image_url}
+                          alt={registration.event.name}
+                          className="w-16 h-16 object-cover rounded-lg"
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="text-center py-8">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">
+              <svg
+                className="h-6 w-6 text-gray-400"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth="1.5"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2 2 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z"
+                />
+              </svg>
+            </div>
+            <h4 className="mt-3 text-lg font-semibold text-gray-900">Заявок не подано</h4>
+            <p className="mt-1 text-gray-600">
+              Вы не подавали заявки на мероприятия в этом событии.
+            </p>
+          </div>
+        )}
       </div>
     );
   }

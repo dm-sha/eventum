@@ -135,3 +135,9 @@ export interface ApiError {
   non_field_errors?: string[];
   [field: string]: string | string[] | undefined;
 }
+
+export interface EventRegistration {
+  id: number;
+  event: Event;
+  registered_at: string; // ISO 8601 string date
+}

@@ -19,7 +19,7 @@ from .serializers import (
     EventumSerializer, ParticipantSerializer, ParticipantGroupSerializer,
     GroupTagSerializer, EventSerializer, EventTagSerializer,
     UserProfileSerializer, UserRoleSerializer, VKAuthSerializer, CustomTokenObtainPairSerializer,
-    LocationSerializer, EventWaveSerializer
+    LocationSerializer, EventWaveSerializer, EventRegistrationSerializer
 )
 from .permissions import IsEventumOrganizer, IsEventumParticipant, IsEventumOrganizerOrReadOnly, IsEventumOrganizerOrReadOnlyForList, IsEventumOrganizerOrPublicReadOnly
 from .utils import log_execution_time, csrf_exempt_class_api
@@ -113,6 +113,28 @@ class ParticipantViewSet(CachedListMixin, EventumScopedViewSet):
             return Response({'status': 'success'}, status=status.HTTP_200_OK)
         except Participant.DoesNotExist:
             return Response({'error': 'User is not a participant in this eventum'}, status=status.HTTP_404_NOT_FOUND)
+    
+    @action(detail=False, methods=['get'])
+    @require_authentication
+    def my_registrations(self, request, eventum_slug=None):
+        """Получить заявки текущего участника на мероприятия"""
+        eventum = self.get_eventum()
+        
+        try:
+            participant = Participant.objects.get(user=request.user, eventum=eventum)
+        except Participant.DoesNotExist:
+            return Response({'error': 'User is not a participant in this eventum'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Получаем все заявки участника на мероприятия
+        registrations = EventRegistration.objects.filter(
+            participant=participant
+        ).select_related('event').prefetch_related(
+            'event__locations',
+            'event__tags'
+        ).order_by('-registered_at')
+        
+        serializer = EventRegistrationSerializer(registrations, many=True, context={'request': request})
+        return Response(serializer.data)
 
 class ParticipantGroupViewSet(CachedListMixin, EventumScopedViewSet):
     queryset = ParticipantGroup.objects.all().prefetch_related(
