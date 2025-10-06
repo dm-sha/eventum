@@ -624,11 +624,7 @@ class EventViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
         
         event = self.get_object()
         
-        # Проверяем, что мероприятие имеет тип "По записи"
-        if event.participant_type != Event.ParticipantType.REGISTRATION:
-            return Response({
-                'error': 'Can only convert registrations for events with registration type'
-            }, status=status.HTTP_400_BAD_REQUEST)
+        # Убираем проверку типа мероприятия - теперь можно конвертировать и для manual типа
         
         # Получаем все регистрации на это мероприятие
         registrations = EventRegistration.objects.filter(event=event).select_related('participant')
@@ -683,8 +679,9 @@ class EventViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
                         'error': 'No available participants found (all are already assigned to other events in the wave)'
                     }, status=status.HTTP_400_BAD_REQUEST)
                 
-                # Изменяем тип участников на manual
-                event.participant_type = Event.ParticipantType.MANUAL
+                # Изменяем тип участников на manual только если он был registration
+                if event.participant_type == Event.ParticipantType.REGISTRATION:
+                    event.participant_type = Event.ParticipantType.MANUAL
                 
                 # Добавляем доступных участников к мероприятию
                 event.participants.set(available_participants)

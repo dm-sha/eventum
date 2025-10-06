@@ -316,10 +316,11 @@ class EventWithRegistrationInfoSerializer(serializers.ModelSerializer):
     assigned_participants_count = serializers.SerializerMethodField()
     available_without_unassigned_events = serializers.SerializerMethodField()
     can_convert = serializers.SerializerMethodField()
+    can_convert_normal = serializers.SerializerMethodField()
 
     class Meta:
         model = Event
-        fields = ['id', 'name', 'participant_type', 'max_participants', 'registrations_count', 'available_participants', 'already_assigned_count', 'assigned_participants_count', 'available_without_unassigned_events', 'can_convert']
+        fields = ['id', 'name', 'participant_type', 'max_participants', 'registrations_count', 'available_participants', 'already_assigned_count', 'assigned_participants_count', 'available_without_unassigned_events', 'can_convert', 'can_convert_normal']
 
     def get_registrations_count(self, obj):
         return EventRegistration.objects.filter(event=obj).count()
@@ -418,8 +419,20 @@ class EventWithRegistrationInfoSerializer(serializers.ModelSerializer):
         """Можно ли конвертировать регистрации для этого мероприятия"""
         available_count = self.get_available_participants(obj)
         
+        # Показываем кнопки если есть заявки, независимо от типа мероприятия
+        return (
+            self.get_registrations_count(obj) > 0 and
+            available_count > 0 and
+            (obj.max_participants is None or available_count <= obj.max_participants)
+        )
+    
+    def get_can_convert_normal(self, obj):
+        """Можно ли делать обычную конвертацию (только для мероприятий типа registration)"""
+        available_count = self.get_available_participants(obj)
+        
         return (
             obj.participant_type == Event.ParticipantType.REGISTRATION and
+            self.get_registrations_count(obj) > 0 and
             available_count > 0 and
             (obj.max_participants is None or available_count <= obj.max_participants)
         )
