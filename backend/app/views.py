@@ -387,29 +387,93 @@ class EventWaveViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
 
 
 @csrf_exempt_class_api
-class EventViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
+class EventViewSet(CachedListMixin, EventumScopedViewSet, viewsets.ModelViewSet):
     queryset = Event.objects.all()
     serializer_class = EventSerializer
     permission_classes = [IsEventumOrganizerOrPublicReadOnly]  # Организаторы CRUD, все остальные только чтение
     
     def get_queryset(self):
         """Оптимизированный queryset для списка событий с prefetch_related"""
+        from django.db.models import Count, Exists, OuterRef
+        
         eventum = self.get_eventum()
-        return Event.objects.filter(eventum=eventum).select_related(
+        
+        # Базовый queryset с аннотациями
+        queryset = Event.objects.filter(eventum=eventum).select_related(
             'eventum'
-        ).prefetch_related(
-            'participants',
-            'participants__user',  # Нужно для is_registered
-            'groups',
-            'groups__tags',  # Нужно для сериализации групп
-            'tags',  # Нужно для сериализации
-            'group_tags',  # Нужно для сериализации
-            'locations',  # Нужно для сериализации
-            'registrations',  # Нужно для registrations_count и is_registered
-            'registrations__participant',  # Нужно для is_registered
-            'registrations__participant__user',  # Нужно для is_registered
+        ).annotate(
+            registrations_count=Count('registrations', distinct=True),
+            participants_count=Count('participants', distinct=True)
         )
+        
+        # Добавляем prefetch только для необходимых данных
+        queryset = queryset.prefetch_related(
+            'tags',  # Всегда нужны для сериализации
+            'group_tags',  # Всегда нужны для сериализации
+            'locations',  # Всегда нужны для сериализации
+            'groups',  # Всегда нужны для сериализации
+            'groups__tags',  # Нужны для сериализации групп
+        )
+        
+        # Условный prefetch для участников и регистраций только если нужно
+        if self.action in ['list', 'retrieve']:
+            queryset = queryset.prefetch_related(
+                'participants',
+                'participants__user',
+                'registrations',
+                'registrations__participant',
+                'registrations__participant__user',
+            )
+        
+        return queryset
 
+    @log_execution_time("Получение списка событий")
+    def list(self, request, *args, **kwargs):
+        """Переопределяем list для добавления кэширования"""
+        # Для пагинированных запросов не используем кэширование
+        if request.GET.get('page'):
+            return super().list(request, *args, **kwargs)
+        
+        eventum_slug = kwargs.get('eventum_slug')
+        cache_key = f"events_list_{eventum_slug}"
+        
+        # Пытаемся получить данные из кэша
+        cached_data = cache.get(cache_key)
+        if cached_data is not None:
+            logger.info(f"Данные событий получены из кэша для {eventum_slug}")
+            return Response(cached_data)
+        
+        # Если данных нет в кэше, выполняем запрос
+        logger.info(f"Загрузка событий из БД для {eventum_slug}")
+        queryset = self.filter_queryset(self.get_queryset())
+        serializer = self.get_serializer(queryset, many=True)
+        
+        # Кэшируем результат на 2 минуты (события могут часто изменяться)
+        cache.set(cache_key, serializer.data, 120)
+        logger.info(f"Кэшировано {len(serializer.data)} событий для {eventum_slug}")
+        
+        return Response(serializer.data)
+
+    def perform_create(self, serializer):
+        """Переопределяем для инвалидации кэша при создании"""
+        super().perform_create(serializer)
+        eventum_slug = self.kwargs.get('eventum_slug')
+        cache_key = f"events_list_{eventum_slug}"
+        cache.delete(cache_key)
+    
+    def perform_update(self, serializer):
+        """Переопределяем для инвалидации кэша при обновлении"""
+        super().perform_update(serializer)
+        eventum_slug = self.kwargs.get('eventum_slug')
+        cache_key = f"events_list_{eventum_slug}"
+        cache.delete(cache_key)
+    
+    def perform_destroy(self, instance):
+        """Переопределяем для инвалидации кэша при удалении"""
+        super().perform_destroy(instance)
+        eventum_slug = self.kwargs.get('eventum_slug')
+        cache_key = f"events_list_{eventum_slug}"
+        cache.delete(cache_key)
 
     def _get_participant(self, request, eventum):
         """Получить участника для текущего пользователя"""
@@ -425,6 +489,8 @@ class EventViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], permission_classes=[IsEventumParticipant])
     def register(self, request, eventum_slug=None, pk=None):
         """Подать заявку на мероприятие"""
+        from django.db import transaction
+        
         eventum = self.get_eventum()
         event = self.get_object()
         
@@ -441,17 +507,31 @@ class EventViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
         if event.participant_type != Event.ParticipantType.REGISTRATION:
             return Response({'error': 'Registration is only available for events with registration type'}, status=status.HTTP_400_BAD_REQUEST)
         
-        # Проверяем, не записан ли уже участник
-        if EventRegistration.objects.filter(participant=participant, event=event).exists():
-            return Response({'error': 'Already registered for this event'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Создаем заявку на мероприятие
-        EventRegistration.objects.create(participant=participant, event=event)
-        return Response({'status': 'success', 'message': 'Successfully registered for event'}, status=status.HTTP_201_CREATED)
+        # Атомарная операция: создаем регистрацию или получаем ошибку дублирования
+        try:
+            with transaction.atomic():
+                # Используем get_or_create для атомарности и избежания race conditions
+                registration, created = EventRegistration.objects.get_or_create(
+                    participant=participant, 
+                    event=event,
+                    defaults={'registered_at': timezone.now()}
+                )
+                
+                if not created:
+                    return Response({'error': 'Already registered for this event'}, status=status.HTTP_400_BAD_REQUEST)
+                
+                return Response({'status': 'success', 'message': 'Successfully registered for event'}, status=status.HTTP_201_CREATED)
+                
+        except Exception as e:
+            # Логируем ошибку для отладки
+            logger.error(f"Error during event registration: {str(e)}")
+            return Response({'error': 'Failed to register for event'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=True, methods=['delete'], permission_classes=[IsEventumParticipant])
     def unregister(self, request, eventum_slug=None, pk=None):
         """Отписаться от мероприятия"""
+        from django.db import transaction
+        
         eventum = self.get_eventum()
         event = self.get_object()
         
@@ -460,12 +540,23 @@ class EventViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
         if error_response:
             return error_response
         
-        # Удаляем заявку
-        deleted_count, _ = EventRegistration.objects.filter(participant=participant, event=event).delete()
-        if deleted_count == 0:
-            return Response({'error': 'Not registered for this event'}, status=status.HTTP_404_NOT_FOUND)
-        
-        return Response({'status': 'success', 'message': 'Successfully unregistered from event'}, status=status.HTTP_200_OK)
+        # Атомарная операция удаления
+        try:
+            with transaction.atomic():
+                deleted_count, _ = EventRegistration.objects.filter(
+                    participant=participant, 
+                    event=event
+                ).delete()
+                
+                if deleted_count == 0:
+                    return Response({'error': 'Not registered for this event'}, status=status.HTTP_404_NOT_FOUND)
+                
+                return Response({'status': 'success', 'message': 'Successfully unregistered from event'}, status=status.HTTP_200_OK)
+                
+        except Exception as e:
+            # Логируем ошибку для отладки
+            logger.error(f"Error during event unregistration: {str(e)}")
+            return Response({'error': 'Failed to unregister from event'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 

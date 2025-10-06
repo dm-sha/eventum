@@ -1027,10 +1027,15 @@ class EventSerializer(serializers.ModelSerializer):
 
     def get_registrations_count(self, obj):
         """Получить количество записанных участников"""
-        # Используем prefetch_related данные если доступны
+        # Используем аннотацию если доступна
+        if hasattr(obj, 'registrations_count'):
+            return obj.registrations_count
+        
+        # Fallback: используем prefetch_related данные если доступны
         if hasattr(obj, '_prefetched_objects_cache') and 'registrations' in obj._prefetched_objects_cache:
             return len(obj._prefetched_objects_cache['registrations'])
         
+        # Последний fallback: отдельный запрос
         from .models import EventRegistration
         return EventRegistration.objects.filter(event=obj).count()
 
@@ -1048,6 +1053,7 @@ class EventSerializer(serializers.ModelSerializer):
             ]
             return len(user_registrations) > 0
         
+        # Fallback: отдельный запрос (только если prefetch не сработал)
         from .models import EventRegistration, Participant
         try:
             participant = Participant.objects.get(user=request.user, eventum=obj.eventum)
