@@ -459,6 +459,52 @@ class EventViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
         except EventRegistration.DoesNotExist:
             return Response({'error': 'Not registered for this event'}, status=status.HTTP_404_NOT_FOUND)
 
+    @action(detail=True, methods=['post'], permission_classes=[IsEventumOrganizer])
+    def convert_registrations_to_participants(self, request, eventum_slug=None, pk=None):
+        """Конвертировать все регистрации в участников мероприятия"""
+        event = self.get_object()
+        
+        # Проверяем, что мероприятие имеет тип "По записи"
+        if event.participant_type != Event.ParticipantType.REGISTRATION:
+            return Response({'error': 'Can only convert registrations for events with registration type'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Получаем все регистрации на это мероприятие
+        registrations = EventRegistration.objects.filter(event=event).select_related('participant')
+        
+        if not registrations.exists():
+            return Response({'error': 'No registrations found for this event'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Проверяем лимиты участников
+        if event.max_participants is not None:
+            if registrations.count() > event.max_participants:
+                return Response({
+                    'error': f'Too many registrations ({registrations.count()}) for event capacity ({event.max_participants})'
+                }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            # Получаем всех участников из регистраций
+            participants = [reg.participant for reg in registrations]
+            
+            # Изменяем тип участников на manual
+            event.participant_type = Event.ParticipantType.MANUAL
+            
+            # Добавляем всех участников к мероприятию
+            event.participants.set(participants)
+            
+            # Сохраняем изменения
+            event.save()
+            
+            # Регистрации оставляем для истории
+            
+            return Response({
+                'status': 'success', 
+                'message': f'Successfully converted {len(participants)} registrations to participants',
+                'participants_count': len(participants)
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 class LocationViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
     queryset = Location.objects.all().select_related('eventum', 'parent').prefetch_related('children')

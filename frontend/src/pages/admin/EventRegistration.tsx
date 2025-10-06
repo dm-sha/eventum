@@ -3,12 +3,12 @@ import { listEventWaves, createEventWave, updateEventWave, deleteEventWave } fro
 import type { EventWave } from '../../api/eventWave';
 import { eventTagApi } from '../../api/eventTag';
 import { getEventsForEventum } from '../../api/event';
-import { IconPencil, IconTrash, IconCheck, IconX, IconPlus, IconInformationCircle, IconUsersCircle } from '../../components/icons';
+import { IconPencil, IconTrash, IconCheck, IconX, IconPlus, IconInformationCircle, IconUsersCircle, IconUserPlus } from '../../components/icons';
 import { getGroupsForEventum } from '../../api/group';
 import { groupTagApi } from '../../api/groupTag';
 import { useEventumSlug } from '../../hooks/useEventumSlug';
 import WavesLoadingSkeleton from '../../components/admin/skeletons/WavesLoadingSkeleton';
-import { eventumApi } from '../../api/eventumApi';
+import { eventumApi, eventsApi } from '../../api/eventumApi';
 import { getEventumBySlug } from '../../api/eventum';
 import type { Eventum } from '../../types';
 
@@ -152,11 +152,12 @@ interface WaveCardProps {
   onDelete: () => void;
   onSave: (data: { name: string; whitelist_group_ids?: number[]; whitelist_group_tag_ids?: number[]; blacklist_group_ids?: number[]; blacklist_group_tag_ids?: number[] }) => void;
   onCancel: () => void;
+  onConvertRegistrations: (eventIds: number[]) => Promise<void>;
   groups: { id: number; name: string }[];
   groupTags: { id: number; name: string }[];
 }
 
-const WaveCard: React.FC<WaveCardProps> = ({ wave, mode, onStartEdit, onDelete, onSave, onCancel, groups, groupTags }) => {
+const WaveCard: React.FC<WaveCardProps> = ({ wave, mode, onStartEdit, onDelete, onSave, onCancel, onConvertRegistrations, groups, groupTags }) => {
   const [name, setName] = useState(wave.name);
   const [whitelistItems, setWhitelistItems] = useState<FilterItem[]>([]);
   const [blacklistItems, setBlacklistItems] = useState<FilterItem[]>([]);
@@ -178,6 +179,35 @@ const WaveCard: React.FC<WaveCardProps> = ({ wave, mode, onStartEdit, onDelete, 
   const capacityInfo = (max?: number | null, reg?: number) => {
     if (max == null) return 'без лимита';
     return `${reg ?? 0} / ${max}`;
+  };
+
+  // Проверяем, можно ли конвертировать регистрации для всех мероприятий волны
+  const canConvertRegistrations = wave.events.every(ev => 
+    ev.participant_type === 'registration' && 
+    ev.registrations_count > 0 && 
+    (ev.max_participants == null || ev.registrations_count <= ev.max_participants)
+  );
+
+  // Получаем ID мероприятий, которые можно конвертировать
+  const convertibleEventIds = wave.events
+    .filter(ev => 
+      ev.participant_type === 'registration' && 
+      ev.registrations_count > 0 && 
+      (ev.max_participants == null || ev.registrations_count <= ev.max_participants)
+    )
+    .map(ev => ev.id);
+
+  const handleConvertRegistrations = async () => {
+    if (convertibleEventIds.length === 0) return;
+    
+    const confirmed = confirm(
+      `Вы уверены, что хотите записать всех участников на ${convertibleEventIds.length} мероприятий? ` +
+      `Это изменит тип участников на "Вручную" и добавит всех записанных участников к мероприятиям.`
+    );
+    
+    if (confirmed) {
+      await onConvertRegistrations(convertibleEventIds);
+    }
   };
 
   const allItems: FilterItem[] = [
@@ -233,6 +263,15 @@ const WaveCard: React.FC<WaveCardProps> = ({ wave, mode, onStartEdit, onDelete, 
               <p className="text-sm text-gray-500">Тег: {wave.tag.name}</p>
             </div>
             <div className="flex items-center gap-2">
+              {canConvertRegistrations && (
+                <button
+                  onClick={handleConvertRegistrations}
+                  className="p-2 rounded-lg text-gray-400 hover:text-green-600 hover:bg-green-50 transition-colors"
+                  title="Записать всех участников"
+                >
+                  <IconUserPlus size={16} />
+                </button>
+              )}
               <button
                 onClick={onStartEdit}
                 className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
@@ -588,6 +627,27 @@ const EventRegistration: React.FC = () => {
     setEditingId(null);
   };
 
+  const handleConvertRegistrations = async (eventIds: number[]) => {
+    if (!eventumSlug) return;
+    
+    try {
+      // Конвертируем регистрации для каждого мероприятия
+      const promises = eventIds.map(eventId => 
+        eventsApi.convertRegistrationsToParticipants(eventId, eventumSlug)
+      );
+      
+      await Promise.all(promises);
+      
+      // Перезагружаем данные
+      await load();
+      
+      alert(`Успешно записано участников на ${eventIds.length} мероприятий!`);
+    } catch (error) {
+      console.error('Error converting registrations:', error);
+      alert('Ошибка при записи участников. Попробуйте еще раз.');
+    }
+  };
+
   const handleToggleRegistration = async () => {
     if (!eventumSlug || !eventum) return;
     try {
@@ -729,6 +789,7 @@ const EventRegistration: React.FC = () => {
                     onDelete={() => handleDelete(w.id)}
                     onSave={(data) => handleSave(w.id, data)}
                     onCancel={handleCancelEdit}
+                    onConvertRegistrations={handleConvertRegistrations}
                     groups={groups}
                     groupTags={groupTags}
                   />

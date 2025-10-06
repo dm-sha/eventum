@@ -165,7 +165,15 @@ export const eventsApi = {
   
   // Отменить заявку на событие
   unregister: (id: number, eventumSlug?: string) => 
-    createApiRequest<void>('DELETE', `/events/${id}/unregister/`, getEventumSlugForRequest(eventumSlug))
+    createApiRequest<void>('DELETE', `/events/${id}/unregister/`, getEventumSlugForRequest(eventumSlug)),
+  
+  // Конвертировать регистрации в участников
+  convertRegistrationsToParticipants: (id: number, eventumSlug?: string) => 
+    createApiRequest<{
+      status: string;
+      message: string;
+      participants_count: number;
+    }>('POST', `/events/${id}/convert_registrations_to_participants/`, getEventumSlugForRequest(eventumSlug))
 };
 
 // ============= ORGANIZERS API =============
