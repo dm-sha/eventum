@@ -958,10 +958,7 @@ const EventEditModal = ({
       return;
     }
     
-    // Валидация для типа registration
-    if (eventForm.participant_type === 'registration' && (!eventForm.max_participants || eventForm.max_participants <= 0)) {
-      return;
-    }
+    // Удалено: валидация для типа registration
     
     // Проверка валидации participant_type
     const participantTypeError = checkParticipantTypeValidation(eventForm.participant_type);
@@ -1060,8 +1057,7 @@ const EventEditModal = ({
   const isFormValid = eventForm.name.trim() && 
     eventForm.start_time && 
     eventForm.end_time &&
-    new Date(eventForm.end_time) > new Date(eventForm.start_time) &&
-    (eventForm.participant_type !== 'registration' || (eventForm.max_participants && eventForm.max_participants > 0));
+    new Date(eventForm.end_time) > new Date(eventForm.start_time);
 
 
 

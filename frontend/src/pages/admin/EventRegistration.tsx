@@ -443,8 +443,7 @@ const CreateWaveForm: React.FC<{
     }
   };
 
-  const hasInvalidEvents = events.some(event => event.participant_type !== 'registration');
-  const canSave = name.trim() && tagId && !hasInvalidEvents;
+  const canSave = name.trim() && tagId;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -498,41 +497,23 @@ const CreateWaveForm: React.FC<{
             ) : (
               <div className="space-y-1">
                 {events.map((event) => {
-                  const isInvalid = event.participant_type !== 'registration';
                   return (
                     <div
                       key={event.id}
-                      className={`rounded-lg border px-3 py-2 text-sm ${
-                        isInvalid 
-                          ? 'border-red-200 bg-red-50 text-red-800' 
-                          : 'border-green-200 bg-green-50 text-green-800'
-                      }`}
+                      className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-800"
                     >
                       <div className="flex items-center justify-between">
                         <span className="font-medium">{event.name}</span>
                         <div className="flex items-center gap-2">
-                          <span className={`px-2 py-1 rounded text-xs font-medium ${
-                            isInvalid 
-                              ? 'bg-red-100 text-red-700' 
-                              : 'bg-green-100 text-green-700'
-                          }`}>
+                          <span className="px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-700">
                             {event.participant_type === 'registration' ? 'По записи' : 
                              event.participant_type === 'all' ? 'Для всех' : 'Вручную'}
                           </span>
-                          {isInvalid && (
-                            <span className="text-red-600 text-xs">⚠️</span>
-                          )}
                         </div>
                       </div>
                     </div>
                   );
                 })}
-              </div>
-            )}
-
-            {hasInvalidEvents && (
-              <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                ⚠️ Некоторые мероприятия не имеют тип "По записи". Сначала измените тип участников у этих мероприятий.
               </div>
             )}
           </div>
@@ -543,7 +524,7 @@ const CreateWaveForm: React.FC<{
             disabled={!canSave}
             className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {hasInvalidEvents ? 'Исправьте мероприятия' : 'Создать'}
+            Создать
           </button>
           <button
             type="button"
