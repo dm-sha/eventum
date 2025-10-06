@@ -40,6 +40,16 @@ class EventumViewSet(EventumMixin, viewsets.ModelViewSet):
         Используем стандартную логику с URL параметрами
         """
         return super().get_object()
+    
+    @action(detail=True, methods=['post'], permission_classes=[IsEventumOrganizer])
+    def toggle_registration(self, request, slug=None):
+        """Переключить состояние регистрации"""
+        eventum = self.get_object()
+        eventum.registration_open = not eventum.registration_open
+        eventum.save()
+        
+        serializer = self.get_serializer(eventum)
+        return Response(serializer.data)
 
 
 class ParticipantViewSet(CachedListMixin, EventumScopedViewSet):
@@ -400,6 +410,10 @@ class EventViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
         
         eventum = self.get_eventum()
         event = self.get_object()
+        
+        # Проверяем, открыта ли регистрация
+        if not eventum.registration_open:
+            return Response({'error': 'Registration is currently closed'}, status=status.HTTP_400_BAD_REQUEST)
         
         # Проверяем, что пользователь является участником eventum
         try:

@@ -119,7 +119,7 @@ class BulkPrimaryKeyRelatedField(serializers.PrimaryKeyRelatedField):
 class EventumSerializer(serializers.ModelSerializer):
     class Meta:
         model = Eventum
-        fields = ['id', 'name', 'slug', 'description', 'image_url']
+        fields = ['id', 'name', 'slug', 'description', 'image_url', 'registration_open']
         # Убираем slug из read_only_fields, чтобы можно было передавать его при создании
     
     def create(self, validated_data):

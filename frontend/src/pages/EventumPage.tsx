@@ -164,7 +164,7 @@ const EventumPage = () => {
             <GeneralTab eventum={eventum} />
           )}
           {currentTab === 'registration' && eventumSlug && (
-            <RegistrationTab eventWaves={eventWaves} events={events} currentParticipant={currentParticipant} eventumSlug={eventumSlug} />
+            <RegistrationTab eventWaves={eventWaves} events={events} currentParticipant={currentParticipant} eventumSlug={eventumSlug} eventum={eventum} />
           )}
         </div>
       </div>
@@ -201,7 +201,7 @@ const GeneralTab: React.FC<{ eventum: Eventum }> = ({ eventum }) => {
 };
 
 // Компонент для вкладки "Подача заявок на мероприятия"
-const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; currentParticipant: Participant | null; eventumSlug: string }> = ({ eventWaves, events, currentParticipant, eventumSlug }) => {
+const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; currentParticipant: Participant | null; eventumSlug: string; eventum: Eventum }> = ({ eventWaves, events, currentParticipant, eventumSlug, eventum }) => {
   const [expandedWaves, setExpandedWaves] = useState<Set<number>>(new Set());
   const [refreshKey, setRefreshKey] = useState(0);
   const [localEvents, setLocalEvents] = useState<Event[]>(events);
@@ -316,6 +316,33 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
 
     return { accessible: true, reason: '' };
   };
+
+  // Если регистрация закрыта
+  if (!eventum.registration_open) {
+    return (
+      <div className="text-center py-8">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-red-100">
+          <svg
+            className="h-8 w-8 text-red-600"
+            fill="none"
+            viewBox="0 0 24 24"
+            strokeWidth="1.5"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
+            />
+          </svg>
+        </div>
+        <h3 className="mt-4 text-lg font-semibold text-gray-900">Регистрация закрыта</h3>
+        <p className="mt-2 text-gray-600">
+          Регистрация на мероприятия закрыта. В ближайшее время будет проведено распределение участников по мероприятиям.
+        </p>
+      </div>
+    );
+  }
 
   // Если пользователь не является участником
   if (!currentParticipant) {

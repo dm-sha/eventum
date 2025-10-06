@@ -9,6 +9,8 @@ import { groupTagApi } from '../../api/groupTag';
 import { useEventumSlug } from '../../hooks/useEventumSlug';
 import WavesLoadingSkeleton from '../../components/admin/skeletons/WavesLoadingSkeleton';
 import { eventumApi } from '../../api/eventumApi';
+import { getEventumBySlug } from '../../api/eventum';
+import type { Eventum } from '../../types';
 
 type Mode = 'view' | 'edit' | 'create';
 
@@ -511,6 +513,8 @@ const CreateWaveForm: React.FC<{
 
 const EventRegistration: React.FC = () => {
   const eventumSlug = useEventumSlug();
+  const [activeTab, setActiveTab] = useState<'waves' | 'distribution'>('waves');
+  const [eventum, setEventum] = useState<Eventum | null>(null);
   const [waves, setWaves] = useState<EventWave[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [tags, setTags] = useState<{ id: number; name: string }[]>([]);
@@ -530,13 +534,15 @@ const EventRegistration: React.FC = () => {
     }
     setIsLoading(true);
     try {
-      const [ws, ets, gs, gts, stats] = await Promise.all([
+      const [eventumData, ws, ets, gs, gts, stats] = await Promise.all([
+        getEventumBySlug(eventumSlug),
         listEventWaves(eventumSlug),
         eventTagApi.getEventTags(eventumSlug),
         getGroupsForEventum(eventumSlug),
         groupTagApi.getGroupTags(eventumSlug),
         eventumApi.getRegistrationStats(eventumSlug).then(response => response.data).catch(() => null),
       ]);
+      setEventum(eventumData);
       setWaves(ws);
       setTags(ets.map(t => ({ id: t.id, name: t.name })));
       setGroups(gs.map((g: any) => ({ id: g.id, name: g.name })));
@@ -582,6 +588,16 @@ const EventRegistration: React.FC = () => {
     setEditingId(null);
   };
 
+  const handleToggleRegistration = async () => {
+    if (!eventumSlug || !eventum) return;
+    try {
+      const updatedEventum = await eventumApi.toggleRegistration(eventumSlug);
+      setEventum(updatedEventum.data);
+    } catch (error) {
+      console.error('Error toggling registration:', error);
+    }
+  };
+
   if (!eventumSlug) {
     return (
       <div className="text-center py-8">
@@ -594,88 +610,149 @@ const EventRegistration: React.FC = () => {
     <div className="space-y-6">
       <header className="space-y-2">
         <div className="flex items-center gap-2">
-          <h2 className="text-2xl font-semibold text-gray-900">Волны регистрации</h2>
+          <h2 className="text-2xl font-semibold text-gray-900">Регистрация и распределение</h2>
           <div className="group relative">
             <IconInformationCircle size={20} className="text-gray-400 cursor-help" />
             <div className="absolute top-full left-0 mt-2 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-normal w-80 z-50">
-              Волны регистрации позволяют организовать поэтапную регистрацию на мероприятия. Настройте доступ для разных групп участников.
+              Управление волнами регистрации и распределением участников по мероприятиям.
             </div>
           </div>
         </div>
       </header>
 
-      {/* Статистика регистраций */}
-      {registrationStats && (
-        <div className="flex items-center gap-2 text-sm text-gray-600">
-          <IconUsersCircle size={16} className="text-blue-600" />
-          <span className="font-semibold text-blue-600">{registrationStats.registered_participants_count}</span>
-          <span>зарегистрированных участников</span>
+      {/* Вкладки */}
+      <div className="border-b border-gray-200">
+        <nav className="-mb-px flex space-x-8">
+          <button
+            onClick={() => setActiveTab('waves')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'waves'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            Волны регистрации
+          </button>
+          <button
+            onClick={() => setActiveTab('distribution')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'distribution'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            Распределение
+          </button>
+        </nav>
+      </div>
+
+      {/* Содержимое вкладок */}
+      {activeTab === 'waves' && (
+        <div className="space-y-6">
+          {/* Переключатель регистрации */}
+          {eventum && (
+            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+              <div className="flex items-center gap-3">
+                <div className={`w-3 h-3 rounded-full ${eventum.registration_open ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                <span className="text-sm font-medium text-gray-700">
+                  Регистрация {eventum.registration_open ? 'открыта' : 'закрыта'}
+                </span>
+              </div>
+              <button
+                onClick={handleToggleRegistration}
+                className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                  eventum.registration_open
+                    ? 'bg-red-600 text-white hover:bg-red-700'
+                    : 'bg-green-600 text-white hover:bg-green-700'
+                }`}
+              >
+                {eventum.registration_open ? 'Закрыть регистрацию' : 'Открыть регистрацию'}
+              </button>
+            </div>
+          )}
+
+          {/* Поиск */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="relative flex-1">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Поиск волн..."
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+              />
+            </div>
+            <span className="text-xs text-gray-500 whitespace-nowrap">
+              Показано: {filteredWaves.length}
+            </span>
+          </div>
+
+          {/* Кнопка добавления волны */}
+          <div className="flex justify-start">
+            <button
+              onClick={() => setShowCreateForm(true)}
+              className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            >
+              <IconPlus size={16} />
+              Добавить волну
+            </button>
+          </div>
+
+          {/* Список волн */}
+          {isLoading ? (
+            <WavesLoadingSkeleton />
+          ) : (
+            <div className="space-y-4">
+              {showCreateForm && (
+                <CreateWaveForm 
+                  onCreate={handleCreate} 
+                  onCancel={handleCancelCreate}
+                  tags={tags}
+                  eventumSlug={eventumSlug}
+                />
+              )}
+
+              {filteredWaves.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-10 text-center text-sm text-gray-500">
+                  {searchQuery 
+                    ? "Подходящих волн не найдено" 
+                    : "Волны регистрации не найдены. Создайте первую волну."
+                  }
+                </div>
+              ) : (
+                filteredWaves.map((w) => (
+                  <WaveCard
+                    key={w.id}
+                    wave={w}
+                    mode={editingId === w.id ? 'edit' : 'view'}
+                    onStartEdit={() => setEditingId(w.id)}
+                    onDelete={() => handleDelete(w.id)}
+                    onSave={(data) => handleSave(w.id, data)}
+                    onCancel={handleCancelEdit}
+                    groups={groups}
+                    groupTags={groupTags}
+                  />
+                ))
+              )}
+            </div>
+          )}
         </div>
       )}
 
-      {/* Поиск */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <div className="relative flex-1">
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Поиск волн..."
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-          />
-        </div>
-        <span className="text-xs text-gray-500 whitespace-nowrap">
-          Показано: {filteredWaves.length}
-        </span>
-      </div>
-
-      {/* Кнопка добавления волны */}
-      <div className="flex justify-start">
-        <button
-          onClick={() => setShowCreateForm(true)}
-          className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-        >
-          <IconPlus size={16} />
-          Добавить волну
-        </button>
-      </div>
-
-      {/* Список волн */}
-      {isLoading ? (
-        <WavesLoadingSkeleton />
-      ) : (
-        <div className="space-y-4">
-          {showCreateForm && (
-            <CreateWaveForm 
-              onCreate={handleCreate} 
-              onCancel={handleCancelCreate}
-              tags={tags}
-              eventumSlug={eventumSlug}
-            />
-          )}
-
-          {filteredWaves.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-10 text-center text-sm text-gray-500">
-              {searchQuery 
-                ? "Подходящих волн не найдено" 
-                : "Волны регистрации не найдены. Создайте первую волну."
-              }
+      {activeTab === 'distribution' && (
+        <div className="space-y-6">
+          {/* Статистика регистраций */}
+          {registrationStats && (
+            <div className="flex items-center gap-2 text-sm text-gray-600">
+              <IconUsersCircle size={16} className="text-blue-600" />
+              <span className="font-semibold text-blue-600">{registrationStats.registered_participants_count}</span>
+              <span>зарегистрированных участников</span>
             </div>
-          ) : (
-            filteredWaves.map((w) => (
-              <WaveCard
-                key={w.id}
-                wave={w}
-                mode={editingId === w.id ? 'edit' : 'view'}
-                onStartEdit={() => setEditingId(w.id)}
-                onDelete={() => handleDelete(w.id)}
-                onSave={(data) => handleSave(w.id, data)}
-                onCancel={handleCancelEdit}
-                groups={groups}
-                groupTags={groupTags}
-              />
-            ))
           )}
+
+          <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-10 text-center text-sm text-gray-500">
+            Раздел распределения участников по мероприятиям будет добавлен в ближайшее время.
+          </div>
         </div>
       )}
     </div>

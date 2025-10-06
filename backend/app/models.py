@@ -15,6 +15,10 @@ class Eventum(models.Model):
         blank=True,
         help_text="URL изображения для eventum"
     )
+    registration_open = models.BooleanField(
+        default=True,
+        help_text="Открыта ли регистрация на мероприятия"
+    )
 
     def save(self, *args, **kwargs):
         # Если slug не предоставлен, генерируем его из названия

@@ -76,6 +76,15 @@ export const eventumApi = {
     return createApiRequest<{
       registered_participants_count: number;
     }>('GET', `/eventums/${slug}/registration-stats/`);
+  },
+  
+  // Переключить состояние регистрации
+  toggleRegistration: (slug: string) => {
+    const subdomainSlug = getSubdomainSlug();
+    if (subdomainSlug) {
+      return createApiRequest<Eventum>('POST', '/toggle_registration/', subdomainSlug);
+    }
+    return createApiRequest<Eventum>('POST', `/eventums/${slug}/toggle_registration/`);
   }
 };
 
