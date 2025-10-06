@@ -180,7 +180,17 @@ export const eventsApi = {
       participants_count: number;
       total_registrations: number;
       already_assigned_count: number;
-    }>('POST', `/events/${id}/convert_registrations_to_participants/`, getEventumSlugForRequest(eventumSlug))
+    }>('POST', `/events/${id}/convert_registrations_to_participants/`, getEventumSlugForRequest(eventumSlug)),
+  
+  // Конвертировать регистрации в участников (строгий режим)
+  convertRegistrationsToParticipantsStrict: (id: number, eventumSlug?: string) => 
+    createApiRequest<{
+      status: string;
+      message: string;
+      participants_count: number;
+      total_registrations: number;
+      already_assigned_count: number;
+    }>('POST', `/events/${id}/convert_registrations_to_participants_strict/`, getEventumSlugForRequest(eventumSlug))
 };
 
 // ============= ORGANIZERS API =============

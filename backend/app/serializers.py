@@ -314,11 +314,12 @@ class EventWithRegistrationInfoSerializer(serializers.ModelSerializer):
     available_participants = serializers.SerializerMethodField()
     already_assigned_count = serializers.SerializerMethodField()
     assigned_participants_count = serializers.SerializerMethodField()
+    available_without_unassigned_events = serializers.SerializerMethodField()
     can_convert = serializers.SerializerMethodField()
 
     class Meta:
         model = Event
-        fields = ['id', 'name', 'participant_type', 'max_participants', 'registrations_count', 'available_participants', 'already_assigned_count', 'assigned_participants_count', 'can_convert']
+        fields = ['id', 'name', 'participant_type', 'max_participants', 'registrations_count', 'available_participants', 'already_assigned_count', 'assigned_participants_count', 'available_without_unassigned_events', 'can_convert']
 
     def get_registrations_count(self, obj):
         return EventRegistration.objects.filter(event=obj).count()
@@ -362,6 +363,55 @@ class EventWithRegistrationInfoSerializer(serializers.ModelSerializer):
     def get_assigned_participants_count(self, obj):
         """Количество участников, реально привязанных к данному мероприятию"""
         return obj.participants.count()
+    
+    def get_available_without_unassigned_events(self, obj):
+        """Количество участников, которые подали заявку, не попали на другие мероприятия волны 
+        И не имеют заявок на мероприятия, где еще не было распределения (0 привязанных участников)"""
+        # Получаем все регистрации на это мероприятие
+        registrations = EventRegistration.objects.filter(event=obj).select_related('participant')
+        
+        if not registrations.exists():
+            return 0
+        
+        # Получаем тег волны для текущего мероприятия одним запросом
+        wave_tag = obj.tags.filter(event_wave__isnull=False).first()
+        
+        if not wave_tag:
+            # Если нет волны, все участники доступны
+            return registrations.count()
+        
+        # Получаем ID всех участников, уже записанных на мероприятия волны с типом MANUAL
+        assigned_participant_ids = set(
+            Event.objects.filter(
+                eventum=obj.eventum,
+                tags=wave_tag,
+                participant_type=Event.ParticipantType.MANUAL
+            ).values_list('participants__id', flat=True)
+        )
+        
+        # Получаем ID всех участников, которые имеют заявки на мероприятия волны с 0 привязанных участников
+        unassigned_events = Event.objects.filter(
+            eventum=obj.eventum,
+            tags=wave_tag,
+            participant_type=Event.ParticipantType.REGISTRATION,
+            participants__isnull=True  # Мероприятия без привязанных участников
+        ).distinct()
+        
+        participants_with_unassigned_registrations = set()
+        for event in unassigned_events:
+            participants_with_unassigned_registrations.update(
+                EventRegistration.objects.filter(event=event).values_list('participant_id', flat=True)
+            )
+        
+        # Подсчитываем доступных участников
+        registration_participant_ids = set(registrations.values_list('participant_id', flat=True))
+        
+        # Исключаем участников, которые уже распределены на другие мероприятия волны
+        # И участников, которые имеют заявки на нераспределенные мероприятия
+        excluded_participants = assigned_participant_ids | participants_with_unassigned_registrations
+        available_count = len(registration_participant_ids - excluded_participants)
+        
+        return available_count
     
     def get_can_convert(self, obj):
         """Можно ли конвертировать регистрации для этого мероприятия"""

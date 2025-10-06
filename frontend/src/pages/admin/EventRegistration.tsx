@@ -153,11 +153,12 @@ interface WaveCardProps {
   onSave: (data: { name: string; whitelist_group_ids?: number[]; whitelist_group_tag_ids?: number[]; blacklist_group_ids?: number[]; blacklist_group_tag_ids?: number[] }) => void;
   onCancel: () => void;
   onConvertEventRegistrations: (eventId: number) => Promise<void>;
+  onConvertEventRegistrationsStrict: (eventId: number) => Promise<void>;
   groups: { id: number; name: string }[];
   groupTags: { id: number; name: string }[];
 }
 
-const WaveCard: React.FC<WaveCardProps> = ({ wave, mode, onStartEdit, onDelete, onSave, onCancel, onConvertEventRegistrations, groups, groupTags }) => {
+const WaveCard: React.FC<WaveCardProps> = ({ wave, mode, onStartEdit, onDelete, onSave, onCancel, onConvertEventRegistrations, onConvertEventRegistrationsStrict, groups, groupTags }) => {
   const [name, setName] = useState(wave.name);
   const [whitelistItems, setWhitelistItems] = useState<FilterItem[]>([]);
   const [blacklistItems, setBlacklistItems] = useState<FilterItem[]>([]);
@@ -189,6 +190,18 @@ const WaveCard: React.FC<WaveCardProps> = ({ wave, mode, onStartEdit, onDelete, 
     
     if (confirmed) {
       await onConvertEventRegistrations(eventId);
+    }
+  };
+
+  const handleConvertEventRegistrationsStrict = async (eventId: number) => {
+    const confirmed = confirm(
+      `Вы уверены, что хотите записать участников на это мероприятие в строгом режиме? ` +
+      `Это запишет только тех участников, которые не имеют заявок на мероприятия, где еще не было распределения. ` +
+      `Это изменит тип участников на "Вручную".`
+    );
+    
+    if (confirmed) {
+      await onConvertEventRegistrationsStrict(eventId);
     }
   };
 
@@ -339,6 +352,24 @@ const WaveCard: React.FC<WaveCardProps> = ({ wave, mode, onStartEdit, onDelete, 
                         title={`Записать ${ev.available_participants} доступных участников`}
                       >
                         Записать ({ev.available_participants})
+                      </button>
+                    )}
+                    {ev.can_convert && ev.available_without_unassigned_events > 0 && ev.available_without_unassigned_events !== ev.available_participants && (
+                      <button
+                        onClick={() => handleConvertEventRegistrationsStrict(ev.id)}
+                        className="p-1 rounded text-xs bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+                        title={`Записать ${ev.available_without_unassigned_events} участников без заявок на нераспределенные мероприятия`}
+                      >
+                        Строго ({ev.available_without_unassigned_events})
+                      </button>
+                    )}
+                    {ev.can_convert && ev.available_without_unassigned_events === 0 && (
+                      <button
+                        disabled
+                        className="p-1 rounded text-xs bg-gray-400 text-gray-200 cursor-not-allowed"
+                        title="Нет участников для строгого режима (все имеют заявки на нераспределенные мероприятия)"
+                      >
+                        Строго (0)
                       </button>
                     )}
                     {ev.participant_type === 'manual' && ev.available_participants === 0 && ev.registrations_count > 0 && (
@@ -650,6 +681,48 @@ const EventRegistration: React.FC = () => {
     }
   };
 
+  const handleConvertEventRegistrationsStrict = async (eventId: number) => {
+    const confirmed = confirm(
+      `Вы уверены, что хотите записать участников на это мероприятие в строгом режиме? ` +
+      `Это запишет только тех участников, которые не имеют заявок на мероприятия, где еще не было распределения. ` +
+      `Это изменит тип участников на "Вручную".`
+    );
+    
+    if (!confirmed) return;
+    
+    if (!eventumSlug) return;
+    
+    try {
+      const result = await eventsApi.convertRegistrationsToParticipantsStrict(eventId, eventumSlug);
+      
+      // Перезагружаем данные
+      await load();
+      
+      const responseData = result.data as {
+        status: string;
+        message: string;
+        participants_count: number;
+        total_registrations: number;
+        already_assigned_count: number;
+      };
+      
+      alert(
+        `Успешно записано ${responseData.participants_count} участников на мероприятие в строгом режиме! ` +
+        `Всего заявок было: ${responseData.total_registrations}, ` +
+        `уже распределено на другие мероприятия: ${responseData.already_assigned_count}`
+      );
+    } catch (error: any) {
+      console.error('Error converting event registrations in strict mode:', error);
+      
+      // Показываем более детальную ошибку
+      if (error.response?.data?.error) {
+        alert(`Ошибка при записи участников в строгом режиме: ${error.response.data.error}`);
+      } else {
+        alert('Ошибка при записи участников в строгом режиме. Попробуйте еще раз.');
+      }
+    }
+  };
+
   const handleToggleRegistration = async () => {
     if (!eventumSlug || !eventum) return;
     try {
@@ -792,6 +865,7 @@ const EventRegistration: React.FC = () => {
                     onSave={(data) => handleSave(w.id, data)}
                     onCancel={handleCancelEdit}
                     onConvertEventRegistrations={handleConvertEventRegistrations}
+                    onConvertEventRegistrationsStrict={handleConvertEventRegistrationsStrict}
                     groups={groups}
                     groupTags={groupTags}
                   />
