@@ -309,6 +309,54 @@ class EventTagSerializer(serializers.ModelSerializer):
         model = EventTag
         fields = ['id', 'name', 'slug']
 
+class ParticipantGroupBasicSerializer(serializers.ModelSerializer):
+    """Упрощенный сериализатор для базовой информации о группах участников"""
+    class Meta:
+        model = ParticipantGroup
+        fields = ['id', 'name', 'slug']
+
+class GroupTagBasicSerializer(serializers.ModelSerializer):
+    """Упрощенный сериализатор для базовой информации о тегах групп"""
+    class Meta:
+        model = GroupTag
+        fields = ['id', 'name', 'slug']
+
+class EventBasicInfoSerializer(serializers.ModelSerializer):
+    """Максимально оптимизированный сериализатор для событий"""
+    registrations_count = serializers.SerializerMethodField()
+    participants_count = serializers.SerializerMethodField()
+    available_participants = serializers.SerializerMethodField()
+    available_without_unassigned_events = serializers.SerializerMethodField()
+    can_convert = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Event
+        fields = ['id', 'name', 'participant_type', 'max_participants', 'registrations_count', 'participants_count', 'available_participants', 'available_without_unassigned_events', 'can_convert']
+
+    def get_registrations_count(self, obj):
+        # Используем предварительно вычисленное значение из annotate
+        if hasattr(obj, 'registrations_count'):
+            return obj.registrations_count
+        return 0
+
+    def get_participants_count(self, obj):
+        # Используем предварительно вычисленное значение из annotate
+        if hasattr(obj, 'participants_count'):
+            return obj.participants_count
+        return 0
+
+    def get_available_participants(self, obj):
+        """Возвращаем количество регистраций для максимальной производительности"""
+        return self.get_registrations_count(obj)
+
+    def get_available_without_unassigned_events(self, obj):
+        """Возвращаем количество регистраций для максимальной производительности"""
+        return self.get_registrations_count(obj)
+
+    def get_can_convert(self, obj):
+        """Можно конвертировать если есть регистрации"""
+        return self.get_registrations_count(obj) > 0
+
 class EventWithRegistrationInfoSerializer(serializers.ModelSerializer):
     registrations_count = serializers.SerializerMethodField()
     available_participants = serializers.SerializerMethodField()
@@ -321,37 +369,78 @@ class EventWithRegistrationInfoSerializer(serializers.ModelSerializer):
     class Meta:
         model = Event
         fields = ['id', 'name', 'participant_type', 'max_participants', 'registrations_count', 'available_participants', 'already_assigned_count', 'assigned_participants_count', 'available_without_unassigned_events', 'can_convert', 'can_convert_normal']
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Кэш для вычислений
+        self._wave_data_cache = {}
 
     def get_registrations_count(self, obj):
-        return EventRegistration.objects.filter(event=obj).count()
+        # Используем предварительно вычисленное значение из annotate
+        if hasattr(obj, 'registrations_count'):
+            return obj.registrations_count
+        # Fallback для случаев, когда annotate не было применено
+        return obj.registrations.count()
     
+    def _get_wave_data(self, obj):
+        """Получает данные волны с кэшированием"""
+        cache_key = f"wave_data_{obj.id}"
+        if cache_key not in self._wave_data_cache:
+            # Получаем тег волны для текущего мероприятия
+            wave_tag = None
+            for tag in obj.tags.all():
+                if hasattr(tag, 'event_wave') and tag.event_wave:
+                    wave_tag = tag
+                    break
+            
+            if not wave_tag:
+                self._wave_data_cache[cache_key] = {
+                    'wave_tag': None,
+                    'assigned_participant_ids': set(),
+                    'participants_with_unassigned_registrations': set()
+                }
+            else:
+                # Получаем ID всех участников, уже записанных на мероприятия волны с типом MANUAL
+                assigned_participant_ids = set()
+                participants_with_unassigned_registrations = set()
+                
+                for event in wave_tag.events.all():
+                    if event.participant_type == Event.ParticipantType.MANUAL:
+                        assigned_participant_ids.update(
+                            participant.id for participant in event.participants.all()
+                        )
+                    elif (event.participant_type == Event.ParticipantType.REGISTRATION and 
+                          event.id != obj.id and 
+                          len(event.participants.all()) == 0):
+                        participants_with_unassigned_registrations.update(
+                            reg.participant_id for reg in event.registrations.all()
+                        )
+                
+                self._wave_data_cache[cache_key] = {
+                    'wave_tag': wave_tag,
+                    'assigned_participant_ids': assigned_participant_ids,
+                    'participants_with_unassigned_registrations': participants_with_unassigned_registrations
+                }
+        
+        return self._wave_data_cache[cache_key]
+
     def get_available_participants(self, obj):
         """Количество участников, которые подали заявку и еще не распределены на другие мероприятия волны"""
-        # Получаем все регистрации на это мероприятие
-        registrations = EventRegistration.objects.filter(event=obj).select_related('participant')
+        # Используем предварительно загруженные регистрации
+        registrations = obj.registrations.all()
         
-        if not registrations.exists():
+        if not registrations:
             return 0
         
-        # Получаем тег волны для текущего мероприятия одним запросом
-        wave_tag = obj.tags.filter(event_wave__isnull=False).first()
+        wave_data = self._get_wave_data(obj)
         
-        if not wave_tag:
+        if not wave_data['wave_tag']:
             # Если нет волны, все участники доступны
-            return registrations.count()
-        
-        # Получаем ID всех участников, уже записанных на мероприятия волны с типом MANUAL
-        assigned_participant_ids = set(
-            Event.objects.filter(
-                eventum=obj.eventum,
-                tags=wave_tag,
-                participant_type=Event.ParticipantType.MANUAL
-            ).values_list('participants__id', flat=True)
-        )
+            return len(registrations)
         
         # Подсчитываем доступных участников
-        registration_participant_ids = set(registrations.values_list('participant_id', flat=True))
-        available_count = len(registration_participant_ids - assigned_participant_ids)
+        registration_participant_ids = set(reg.participant_id for reg in registrations)
+        available_count = len(registration_participant_ids - wave_data['assigned_participant_ids'])
         
         return available_count
     
@@ -363,54 +452,34 @@ class EventWithRegistrationInfoSerializer(serializers.ModelSerializer):
     
     def get_assigned_participants_count(self, obj):
         """Количество участников, реально привязанных к данному мероприятию"""
+        # Используем предварительно вычисленное значение из annotate
+        if hasattr(obj, 'participants_count'):
+            return obj.participants_count
+        # Fallback для случаев, когда annotate не было применено
         return obj.participants.count()
     
     def get_available_without_unassigned_events(self, obj):
         """Количество участников, которые подали заявку, не попали на другие мероприятия волны 
         И не имеют заявок на мероприятия, где еще не было распределения (0 привязанных участников)"""
-        # Получаем все регистрации на это мероприятие
-        registrations = EventRegistration.objects.filter(event=obj).select_related('participant')
+        # Используем предварительно загруженные регистрации
+        registrations = obj.registrations.all()
         
-        if not registrations.exists():
+        if not registrations:
             return 0
         
-        # Получаем тег волны для текущего мероприятия одним запросом
-        wave_tag = obj.tags.filter(event_wave__isnull=False).first()
+        wave_data = self._get_wave_data(obj)
         
-        if not wave_tag:
+        if not wave_data['wave_tag']:
             # Если нет волны, все участники доступны
-            return registrations.count()
-        
-        # Получаем ID всех участников, уже записанных на мероприятия волны с типом MANUAL
-        assigned_participant_ids = set(
-            Event.objects.filter(
-                eventum=obj.eventum,
-                tags=wave_tag,
-                participant_type=Event.ParticipantType.MANUAL
-            ).values_list('participants__id', flat=True)
-        )
-        
-        # Получаем ID всех участников, которые имеют заявки на мероприятия волны с 0 привязанных участников
-        # Исключаем само текущее мероприятие
-        unassigned_events = Event.objects.filter(
-            eventum=obj.eventum,
-            tags=wave_tag,
-            participant_type=Event.ParticipantType.REGISTRATION,
-            participants__isnull=True  # Мероприятия без привязанных участников
-        ).exclude(id=obj.id).distinct()
-        
-        participants_with_unassigned_registrations = set()
-        for event in unassigned_events:
-            participants_with_unassigned_registrations.update(
-                EventRegistration.objects.filter(event=event).values_list('participant_id', flat=True)
-            )
+            return len(registrations)
         
         # Подсчитываем доступных участников
-        registration_participant_ids = set(registrations.values_list('participant_id', flat=True))
+        registration_participant_ids = set(reg.participant_id for reg in registrations)
         
         # Исключаем участников, которые уже распределены на другие мероприятия волны
         # И участников, которые имеют заявки на нераспределенные мероприятия
-        excluded_participants = assigned_participant_ids | participants_with_unassigned_registrations
+        excluded_participants = (wave_data['assigned_participant_ids'] | 
+                                wave_data['participants_with_unassigned_registrations'])
         available_count = len(registration_participant_ids - excluded_participants)
         
         return available_count
@@ -444,8 +513,12 @@ class EventWaveSerializer(serializers.ModelSerializer):
     )
     events = serializers.SerializerMethodField(read_only=True)
     
-    # Whitelist поля
-    whitelist_groups = ParticipantGroupSerializer(many=True, read_only=True)
+    # Кэш для групп и тегов групп
+    _groups_cache = {}
+    _group_tags_cache = {}
+    
+    # Whitelist поля - используем упрощенные сериализаторы
+    whitelist_groups = ParticipantGroupBasicSerializer(many=True, read_only=True)
     whitelist_group_ids = BulkPrimaryKeyRelatedField(
         many=True,
         write_only=True,
@@ -455,7 +528,7 @@ class EventWaveSerializer(serializers.ModelSerializer):
         allow_empty=True,
         select_related="eventum",
     )
-    whitelist_group_tags = GroupTagSerializer(many=True, read_only=True)
+    whitelist_group_tags = GroupTagBasicSerializer(many=True, read_only=True)
     whitelist_group_tag_ids = BulkPrimaryKeyRelatedField(
         many=True,
         write_only=True,
@@ -466,8 +539,8 @@ class EventWaveSerializer(serializers.ModelSerializer):
         select_related="eventum",
     )
     
-    # Blacklist поля
-    blacklist_groups = ParticipantGroupSerializer(many=True, read_only=True)
+    # Blacklist поля - используем упрощенные сериализаторы
+    blacklist_groups = ParticipantGroupBasicSerializer(many=True, read_only=True)
     blacklist_group_ids = BulkPrimaryKeyRelatedField(
         many=True,
         write_only=True,
@@ -477,7 +550,7 @@ class EventWaveSerializer(serializers.ModelSerializer):
         allow_empty=True,
         select_related="eventum",
     )
-    blacklist_group_tags = GroupTagSerializer(many=True, read_only=True)
+    blacklist_group_tags = GroupTagBasicSerializer(many=True, read_only=True)
     blacklist_group_tag_ids = BulkPrimaryKeyRelatedField(
         many=True,
         write_only=True,
@@ -499,9 +572,75 @@ class EventWaveSerializer(serializers.ModelSerializer):
         ]
 
     def get_events(self, obj):
-        # Все события текущего eventum с тегом волны
-        events_qs = Event.objects.filter(eventum=obj.eventum, tags=obj.tag)
-        return EventWithRegistrationInfoSerializer(events_qs, many=True).data
+        # Используем предварительно загруженные события из prefetch_related
+        events = obj.tag.events.all()
+        # Используем упрощенный сериализатор для лучшей производительности
+        return EventBasicInfoSerializer(events, many=True).data
+    
+    @classmethod
+    def get_cached_groups(cls, eventum_id):
+        """Получает группы из кэша или загружает их"""
+        cache_key = f"groups_{eventum_id}"
+        if cache_key not in cls._groups_cache:
+            from app.models import ParticipantGroup
+            cls._groups_cache[cache_key] = list(
+                ParticipantGroup.objects.filter(eventum_id=eventum_id).values('id', 'name', 'slug')
+            )
+        return cls._groups_cache[cache_key]
+    
+    @classmethod
+    def get_cached_group_tags(cls, eventum_id):
+        """Получает теги групп из кэша или загружает их"""
+        cache_key = f"group_tags_{eventum_id}"
+        if cache_key not in cls._group_tags_cache:
+            from app.models import GroupTag
+            cls._group_tags_cache[cache_key] = list(
+                GroupTag.objects.filter(eventum_id=eventum_id).values('id', 'name', 'slug')
+            )
+        return cls._group_tags_cache[cache_key]
+    
+    def to_representation(self, instance):
+        """Переопределяем для использования кэшированных данных"""
+        data = super().to_representation(instance)
+        
+        # Используем кэшированные данные для групп и тегов групп
+        eventum_id = instance.eventum_id
+        
+        # Заменяем ВСЕ группы на кэшированные данные (даже если они пустые)
+        cached_groups = self.get_cached_groups(eventum_id)
+        
+        if 'whitelist_groups' in data:
+            if data['whitelist_groups']:
+                group_ids = [group['id'] for group in data['whitelist_groups']]
+                data['whitelist_groups'] = [group for group in cached_groups if group['id'] in group_ids]
+            else:
+                data['whitelist_groups'] = []
+        
+        if 'blacklist_groups' in data:
+            if data['blacklist_groups']:
+                group_ids = [group['id'] for group in data['blacklist_groups']]
+                data['blacklist_groups'] = [group for group in cached_groups if group['id'] in group_ids]
+            else:
+                data['blacklist_groups'] = []
+        
+        # Заменяем ВСЕ теги групп на кэшированные данные
+        cached_group_tags = self.get_cached_group_tags(eventum_id)
+        
+        if 'whitelist_group_tags' in data:
+            if data['whitelist_group_tags']:
+                tag_ids = [tag['id'] for tag in data['whitelist_group_tags']]
+                data['whitelist_group_tags'] = [tag for tag in cached_group_tags if tag['id'] in tag_ids]
+            else:
+                data['whitelist_group_tags'] = []
+        
+        if 'blacklist_group_tags' in data:
+            if data['blacklist_group_tags']:
+                tag_ids = [tag['id'] for tag in data['blacklist_group_tags']]
+                data['blacklist_group_tags'] = [tag for tag in cached_group_tags if tag['id'] in tag_ids]
+            else:
+                data['blacklist_group_tags'] = []
+        
+        return data
 
     def validate_whitelist_group_ids(self, value):
         """Валидация whitelist_group_ids - группы должны принадлежать тому же eventum"""

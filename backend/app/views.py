@@ -11,7 +11,7 @@ from django.http import Http404
 from django.utils import timezone
 from django.conf import settings
 from django.core.cache import cache
-from django.db.models import Prefetch
+from django.db.models import Prefetch, Count
 import requests
 import json
 from .models import Eventum, Participant, ParticipantGroup, GroupTag, Event, EventTag, UserProfile, UserRole, Location, EventWave, EventRegistration
@@ -333,8 +333,18 @@ class EventWaveViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
             'whitelist_group_tags',
             'blacklist_groups',
             'blacklist_group_tags',
-            'tag__events__registrations__participant',  # Добавляем prefetch для регистраций событий волны
-            'tag__events__participants',  # Добавляем prefetch для участников событий волны
+            # Оптимизированные prefetch для событий волны с аннотациями
+            Prefetch(
+                'tag__events',
+                queryset=Event.objects.select_related('eventum').prefetch_related(
+                    'tags',
+                    'registrations__participant',
+                    'participants'
+                ).annotate(
+                    registrations_count=Count('registrations', distinct=True),
+                    participants_count=Count('participants', distinct=True)
+                )
+            ),
         )
 
     @action(detail=True, methods=['post'], permission_classes=[IsEventumParticipant])
