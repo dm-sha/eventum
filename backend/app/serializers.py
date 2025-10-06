@@ -321,25 +321,16 @@ class GroupTagBasicSerializer(serializers.ModelSerializer):
         model = GroupTag
         fields = ['id', 'name', 'slug']
 
-class EventBasicInfoSerializer(serializers.ModelSerializer):
-    """Максимально оптимизированный сериализатор для событий"""
+class BaseEventSerializer(serializers.ModelSerializer):
+    """Базовый сериализатор для событий с общей логикой"""
     registrations_count = serializers.SerializerMethodField()
     participants_count = serializers.SerializerMethodField()
-    assigned_participants_count = serializers.SerializerMethodField()
-    # Временно отключаем медленные поля для улучшения производительности
-    # available_participants = serializers.SerializerMethodField()
-    # available_without_unassigned_events = serializers.SerializerMethodField()
-    # can_convert = serializers.SerializerMethodField()
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # Кэш для вычислений волны
         self._wave_cache = {}
     
-    class Meta:
-        model = Event
-        fields = ['id', 'name', 'participant_type', 'max_participants', 'registrations_count', 'participants_count', 'assigned_participants_count']
-
     def get_registrations_count(self, obj):
         # Используем предварительно вычисленное значение из annotate
         if hasattr(obj, 'registrations_count'):
@@ -352,25 +343,7 @@ class EventBasicInfoSerializer(serializers.ModelSerializer):
         if hasattr(obj, 'participants_count'):
             return obj.participants_count
         return 0
-
-    def get_assigned_participants_count(self, obj):
-        """Количество участников, реально привязанных к данному мероприятию"""
-        # Используем предварительно вычисленное значение из annotate
-        if hasattr(obj, 'participants_count'):
-            return obj.participants_count
-        # Fallback для случаев, когда annotate не было применено
-        return obj.participants.count()
-
-class EventFullInfoSerializer(EventBasicInfoSerializer):
-    """Полный сериализатор для событий с вычислением доступных участников"""
-    available_participants = serializers.SerializerMethodField()
-    available_without_unassigned_events = serializers.SerializerMethodField()
-    can_convert = serializers.SerializerMethodField()
     
-    class Meta:
-        model = Event
-        fields = ['id', 'name', 'participant_type', 'max_participants', 'registrations_count', 'participants_count', 'assigned_participants_count', 'available_participants', 'available_without_unassigned_events', 'can_convert']
-
     def _get_wave_data(self, obj):
         """Получает данные волны с кэшированием для оптимизации"""
         cache_key = f"wave_{obj.id}"
@@ -407,26 +380,26 @@ class EventFullInfoSerializer(EventBasicInfoSerializer):
         
         return self._wave_cache[cache_key]
 
-    def get_registrations_count(self, obj):
-        # Используем предварительно вычисленное значение из annotate
-        if hasattr(obj, 'registrations_count'):
-            return obj.registrations_count
-        # Fallback для случаев, когда annotate не было применено
-        return obj.registrations.count()
+class EventBasicInfoSerializer(BaseEventSerializer):
+    """Максимально оптимизированный сериализатор для событий"""
+    # Временно отключаем медленные поля для улучшения производительности
+    # available_participants = serializers.SerializerMethodField()
+    # available_without_unassigned_events = serializers.SerializerMethodField()
+    # can_convert = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Event
+        fields = ['id', 'name', 'participant_type', 'max_participants', 'registrations_count', 'participants_count']
 
-    def get_participants_count(self, obj):
-        # Используем предварительно вычисленное значение из annotate
-        if hasattr(obj, 'participants_count'):
-            return obj.participants_count
-        return 0
-
-    def get_assigned_participants_count(self, obj):
-        """Количество участников, реально привязанных к данному мероприятию"""
-        # Используем предварительно вычисленное значение из annotate
-        if hasattr(obj, 'participants_count'):
-            return obj.participants_count
-        # Fallback для случаев, когда annotate не было применено
-        return obj.participants.count()
+class EventFullInfoSerializer(EventBasicInfoSerializer):
+    """Полный сериализатор для событий с вычислением доступных участников"""
+    available_participants = serializers.SerializerMethodField()
+    available_without_unassigned_events = serializers.SerializerMethodField()
+    can_convert = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Event
+        fields = ['id', 'name', 'participant_type', 'max_participants', 'registrations_count', 'participants_count', 'available_participants', 'available_without_unassigned_events', 'can_convert']
 
     def get_available_participants(self, obj):
         """Количество участников, которые подали заявку и еще не распределены на другие мероприятия волны"""
@@ -492,72 +465,16 @@ class EventFullInfoSerializer(EventBasicInfoSerializer):
             (obj.max_participants is None or available_count <= obj.max_participants)
         )
 
-class EventWithRegistrationInfoSerializer(serializers.ModelSerializer):
-    registrations_count = serializers.SerializerMethodField()
+class EventWithRegistrationInfoSerializer(BaseEventSerializer):
     available_participants = serializers.SerializerMethodField()
     already_assigned_count = serializers.SerializerMethodField()
-    assigned_participants_count = serializers.SerializerMethodField()
     available_without_unassigned_events = serializers.SerializerMethodField()
     can_convert = serializers.SerializerMethodField()
     can_convert_normal = serializers.SerializerMethodField()
 
     class Meta:
         model = Event
-        fields = ['id', 'name', 'participant_type', 'max_participants', 'registrations_count', 'available_participants', 'already_assigned_count', 'assigned_participants_count', 'available_without_unassigned_events', 'can_convert', 'can_convert_normal']
-    
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        # Кэш для вычислений
-        self._wave_data_cache = {}
-
-    def get_registrations_count(self, obj):
-        # Используем предварительно вычисленное значение из annotate
-        if hasattr(obj, 'registrations_count'):
-            return obj.registrations_count
-        # Fallback для случаев, когда annotate не было применено
-        return obj.registrations.count()
-    
-    def _get_wave_data(self, obj):
-        """Получает данные волны с кэшированием"""
-        cache_key = f"wave_data_{obj.id}"
-        if cache_key not in self._wave_data_cache:
-            # Получаем тег волны для текущего мероприятия
-            wave_tag = None
-            for tag in obj.tags.all():
-                if hasattr(tag, 'event_wave') and tag.event_wave:
-                    wave_tag = tag
-                    break
-            
-            if not wave_tag:
-                self._wave_data_cache[cache_key] = {
-                    'wave_tag': None,
-                    'assigned_participant_ids': set(),
-                    'participants_with_unassigned_registrations': set()
-                }
-            else:
-                # Получаем ID всех участников, уже записанных на мероприятия волны с типом MANUAL
-                assigned_participant_ids = set()
-                participants_with_unassigned_registrations = set()
-                
-                for event in wave_tag.events.all():
-                    if event.participant_type == Event.ParticipantType.MANUAL:
-                        assigned_participant_ids.update(
-                            participant.id for participant in event.participants.all()
-                        )
-                    elif (event.participant_type == Event.ParticipantType.REGISTRATION and 
-                          event.id != obj.id and 
-                          len(event.participants.all()) == 0):
-                        participants_with_unassigned_registrations.update(
-                            reg.participant_id for reg in event.registrations.all()
-                        )
-                
-                self._wave_data_cache[cache_key] = {
-                    'wave_tag': wave_tag,
-                    'assigned_participant_ids': assigned_participant_ids,
-                    'participants_with_unassigned_registrations': participants_with_unassigned_registrations
-                }
-        
-        return self._wave_data_cache[cache_key]
+        fields = ['id', 'name', 'participant_type', 'max_participants', 'registrations_count', 'participants_count', 'available_participants', 'already_assigned_count', 'available_without_unassigned_events', 'can_convert', 'can_convert_normal']
 
     def get_available_participants(self, obj):
         """Количество участников, которые подали заявку и еще не распределены на другие мероприятия волны"""
@@ -584,14 +501,6 @@ class EventWithRegistrationInfoSerializer(serializers.ModelSerializer):
         registrations_count = self.get_registrations_count(obj)
         available_count = self.get_available_participants(obj)
         return registrations_count - available_count
-    
-    def get_assigned_participants_count(self, obj):
-        """Количество участников, реально привязанных к данному мероприятию"""
-        # Используем предварительно вычисленное значение из annotate
-        if hasattr(obj, 'participants_count'):
-            return obj.participants_count
-        # Fallback для случаев, когда annotate не было применено
-        return obj.participants.count()
     
     def get_available_without_unassigned_events(self, obj):
         """Количество участников, которые подали заявку, не попали на другие мероприятия волны 

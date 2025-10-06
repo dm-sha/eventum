@@ -177,9 +177,9 @@ const WaveCard: React.FC<WaveCardProps> = ({ wave, mode, onStartEdit, onDelete, 
     setBlacklistItems(blacklist);
   }, [wave]);
 
-  const capacityInfo = (max?: number | null, reg?: number) => {
+  const capacityInfo = (max?: number | null) => {
     if (max == null) return 'без лимита';
-    return `${reg ?? 0} / ${max}`;
+    return `максимум ${max}`;
   };
 
 
@@ -314,7 +314,7 @@ const WaveCard: React.FC<WaveCardProps> = ({ wave, mode, onStartEdit, onDelete, 
                   <div className="flex-1">
                     <span className="font-medium text-gray-800">{ev.name}</span>
                     <div className="mt-1 text-xs text-gray-500">
-                      <div>Места: {capacityInfo(ev.max_participants, ev.assigned_participants_count)}</div>
+                      <div>Места: {capacityInfo(ev.max_participants)}</div>
                     </div>
                   </div>
                 </div>

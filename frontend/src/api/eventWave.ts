@@ -9,7 +9,6 @@ export interface EventWaveEventInfo {
   registrations_count: number;
   available_participants: number;
   already_assigned_count: number;
-  assigned_participants_count: number;
   available_without_unassigned_events: number;
   can_convert: boolean;
   can_convert_normal: boolean;
