@@ -837,12 +837,13 @@ class EventViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
                     )
                     
                     # Получаем ID всех участников, которые имеют заявки на мероприятия волны с 0 привязанных участников
+                    # Исключаем само текущее мероприятие
                     unassigned_events = Event.objects.filter(
                         eventum=event.eventum,
                         tags=wave_tag,
                         participant_type=Event.ParticipantType.REGISTRATION,
                         participants__isnull=True  # Мероприятия без привязанных участников
-                    ).distinct()
+                    ).exclude(id=event.id).distinct()
                     
                     participants_with_unassigned_registrations = set()
                     for unassigned_event in unassigned_events:
