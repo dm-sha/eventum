@@ -171,7 +171,7 @@ DATABASES = {
         'OPTIONS': {
             'sslmode': 'require',
             'connect_timeout': 30,
-            'options': '-c default_transaction_isolation=read committed',
+            'options': '-c default_transaction_isolation="read committed"',
             'keepalives': 1,
             'keepalives_idle': 30,
             'keepalives_interval': 10,
