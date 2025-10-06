@@ -373,6 +373,131 @@ class EventWaveViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+    @action(detail=True, methods=['post'], permission_classes=[IsEventumOrganizer])
+    def convert_registrations_to_participants(self, request, eventum_slug=None, pk=None):
+        """
+        Конвертирует регистрации в участников для всех мероприятий волны.
+        Учитывает ограничение: один участник может быть записан только на одно мероприятие в волне.
+        Приоритизирует мероприятия с меньшим процентом заполнения.
+        """
+        from django.db import transaction
+        
+        wave = self.get_object()
+        
+        # Получаем все мероприятия волны с типом "По записи"
+        events = Event.objects.filter(
+            eventum=wave.eventum,
+            tags=wave.tag,
+            participant_type=Event.ParticipantType.REGISTRATION
+        ).prefetch_related('registrations__participant')
+        
+        if not events.exists():
+            return Response({
+                'error': 'No events with registration type found in this wave'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Проверяем, что все мероприятия можно конвертировать
+        problematic_events = []
+        for event in events:
+            registrations_count = event.registrations.count()
+            if registrations_count == 0:
+                continue
+            if event.max_participants is not None and registrations_count > event.max_participants:
+                problematic_events.append({
+                    'event_name': event.name,
+                    'registrations_count': registrations_count,
+                    'max_participants': event.max_participants
+                })
+        
+        if problematic_events:
+            return Response({
+                'error': 'Some events have more registrations than available spots',
+                'problematic_events': problematic_events
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            with transaction.atomic():
+                # Собираем всех участников, зарегистрированных на мероприятия волны
+                all_registrations = EventRegistration.objects.filter(
+                    event__in=events
+                ).select_related('participant', 'event')
+                
+                # Группируем регистрации по участникам
+                participant_registrations = {}
+                for registration in all_registrations:
+                    participant_id = registration.participant.id
+                    if participant_id not in participant_registrations:
+                        participant_registrations[participant_id] = []
+                    participant_registrations[participant_id].append(registration)
+                
+                # Сортируем мероприятия по проценту заполнения (меньший процент = выше приоритет)
+                events_with_priority = []
+                for event in events:
+                    registrations_count = event.registrations.count()
+                    if registrations_count == 0:
+                        continue
+                    
+                    # Вычисляем процент заполнения
+                    if event.max_participants is None:
+                        fill_percentage = 0  # Если нет лимита, считаем приоритетным
+                    else:
+                        fill_percentage = registrations_count / event.max_participants
+                    
+                    events_with_priority.append({
+                        'event': event,
+                        'fill_percentage': fill_percentage,
+                        'registrations_count': registrations_count,
+                        'max_participants': event.max_participants
+                    })
+                
+                # Сортируем по проценту заполнения (по возрастанию)
+                events_with_priority.sort(key=lambda x: x['fill_percentage'])
+                
+                # Распределяем участников по мероприятиям
+                assigned_participants = set()  # Участники, уже записанные на мероприятие
+                conversion_results = []
+                
+                for event_data in events_with_priority:
+                    event = event_data['event']
+                    event_participants = []
+                    
+                    # Получаем регистрации на это мероприятие
+                    event_registrations = EventRegistration.objects.filter(event=event)
+                    
+                    for registration in event_registrations:
+                        participant = registration.participant
+                        
+                        # Проверяем, не записан ли уже участник на другое мероприятие волны
+                        if participant.id not in assigned_participants:
+                            event_participants.append(participant)
+                            assigned_participants.add(participant.id)
+                    
+                    # Записываем участников на мероприятие
+                    if event_participants:
+                        event.participant_type = Event.ParticipantType.MANUAL
+                        event.participants.set(event_participants)
+                        event.save()
+                        
+                        conversion_results.append({
+                            'event_id': event.id,
+                            'event_name': event.name,
+                            'participants_count': len(event_participants),
+                            'fill_percentage': event_data['fill_percentage']
+                        })
+                
+                return Response({
+                    'status': 'success',
+                    'message': f'Successfully converted registrations for {len(conversion_results)} events in wave',
+                    'wave_name': wave.name,
+                    'conversion_results': conversion_results,
+                    'total_participants_assigned': len(assigned_participants)
+                }, status=status.HTTP_200_OK)
+                
+        except Exception as e:
+            return Response({
+                'error': f'Error converting registrations: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 @csrf_exempt_class_api
 class EventViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
     queryset = Event.objects.all().select_related('eventum').prefetch_related(
@@ -483,49 +608,183 @@ class EventViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], permission_classes=[IsEventumOrganizer])
     def convert_registrations_to_participants(self, request, eventum_slug=None, pk=None):
-        """Конвертировать все регистрации в участников мероприятия"""
+        """
+        Конвертирует регистрации в участников для конкретного мероприятия.
+        Учитывает ограничение: один участник может быть записан только на одно мероприятие в волне.
+        """
+        from django.db import transaction
+        
         event = self.get_object()
         
         # Проверяем, что мероприятие имеет тип "По записи"
         if event.participant_type != Event.ParticipantType.REGISTRATION:
-            return Response({'error': 'Can only convert registrations for events with registration type'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({
+                'error': 'Can only convert registrations for events with registration type'
+            }, status=status.HTTP_400_BAD_REQUEST)
         
         # Получаем все регистрации на это мероприятие
         registrations = EventRegistration.objects.filter(event=event).select_related('participant')
         
         if not registrations.exists():
-            return Response({'error': 'No registrations found for this event'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Проверяем лимиты участников
-        if event.max_participants is not None:
-            if registrations.count() > event.max_participants:
-                return Response({
-                    'error': f'Too many registrations ({registrations.count()}) for event capacity ({event.max_participants})'
-                }, status=status.HTTP_400_BAD_REQUEST)
+            return Response({
+                'error': 'No registrations found for this event'
+            }, status=status.HTTP_400_BAD_REQUEST)
         
         try:
-            # Получаем всех участников из регистраций
-            participants = [reg.participant for reg in registrations]
-            
-            # Изменяем тип участников на manual
-            event.participant_type = Event.ParticipantType.MANUAL
-            
-            # Добавляем всех участников к мероприятию
-            event.participants.set(participants)
-            
-            # Сохраняем изменения
-            event.save()
-            
-            # Регистрации оставляем для истории
-            
-            return Response({
-                'status': 'success', 
-                'message': f'Successfully converted {len(participants)} registrations to participants',
-                'participants_count': len(participants)
-            }, status=status.HTTP_200_OK)
-            
+            with transaction.atomic():
+                # Получаем тег волны для текущего мероприятия
+                # Предполагаем, что мероприятие принадлежит волне, если у него есть тег волны
+                wave_tag = None
+                for tag in event.tags.all():
+                    if hasattr(tag, 'event_wave'):
+                        wave_tag = tag
+                        break
+                
+                if not wave_tag:
+                    return Response({
+                        'error': 'Event does not belong to any wave (no wave tag found)'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                
+                # Получаем все мероприятия той же волны (с тем же тегом волны) с типом manual
+                wave_events = Event.objects.filter(
+                    eventum=event.eventum,
+                    tags=wave_tag,
+                    participant_type=Event.ParticipantType.MANUAL
+                ).prefetch_related('participants')
+                
+                # Собираем всех участников, уже записанных на мероприятия волны
+                assigned_participants = set()
+                for wave_event in wave_events:
+                    assigned_participants.update(wave_event.participants.values_list('id', flat=True))
+                
+                # Фильтруем участников, которые еще не записаны на другие мероприятия волны
+                available_participants = []
+                for registration in registrations:
+                    if registration.participant.id not in assigned_participants:
+                        available_participants.append(registration.participant)
+                
+                # Проверяем лимиты участников
+                if event.max_participants is not None:
+                    if len(available_participants) > event.max_participants:
+                        return Response({
+                            'error': f'Too many available participants ({len(available_participants)}) for event capacity ({event.max_participants})'
+                        }, status=status.HTTP_400_BAD_REQUEST)
+                
+                if not available_participants:
+                    return Response({
+                        'error': 'No available participants found (all are already assigned to other events in the wave)'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                
+                # Изменяем тип участников на manual
+                event.participant_type = Event.ParticipantType.MANUAL
+                
+                # Добавляем доступных участников к мероприятию
+                event.participants.set(available_participants)
+                
+                # Сохраняем изменения
+                event.save()
+                
+                return Response({
+                    'status': 'success', 
+                    'message': f'Successfully converted {len(available_participants)} registrations to participants',
+                    'participants_count': len(available_participants),
+                    'total_registrations': registrations.count(),
+                    'already_assigned_count': registrations.count() - len(available_participants)
+                }, status=status.HTTP_200_OK)
+                
         except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=True, methods=['get'], permission_classes=[IsEventumOrganizerOrReadOnly])
+    def registration_stats(self, request, eventum_slug=None, pk=None):
+        """
+        Возвращает статистику регистраций для мероприятия, включая количество нераспределенных участников.
+        """
+        event = self.get_object()
+        
+        # Получаем все регистрации на это мероприятие
+        registrations = EventRegistration.objects.filter(event=event).select_related('participant')
+        total_registrations = registrations.count()
+        
+        if total_registrations == 0:
+            return Response({
+                'event_id': event.id,
+                'event_name': event.name,
+                'total_registrations': 0,
+                'available_participants': 0,
+                'already_assigned_count': 0,
+                'max_participants': event.max_participants,
+                'can_convert': False,
+                'reason': 'No registrations'
+            })
+        
+        # Получаем тег волны для текущего мероприятия
+        wave_tag = None
+        for tag in event.tags.all():
+            if hasattr(tag, 'event_wave'):
+                wave_tag = tag
+                break
+        
+        if not wave_tag:
+            return Response({
+                'event_id': event.id,
+                'event_name': event.name,
+                'total_registrations': total_registrations,
+                'available_participants': total_registrations,  # Если нет волны, все доступны
+                'already_assigned_count': 0,
+                'max_participants': event.max_participants,
+                'can_convert': event.participant_type == Event.ParticipantType.REGISTRATION and total_registrations > 0,
+                'reason': 'No wave tag found' if total_registrations > 0 else 'No registrations'
+            })
+        
+        # Получаем все мероприятия той же волны (с тем же тегом волны) с типом manual
+        wave_events = Event.objects.filter(
+            eventum=event.eventum,
+            tags=wave_tag,
+            participant_type=Event.ParticipantType.MANUAL
+        ).prefetch_related('participants')
+        
+        # Собираем всех участников, уже записанных на мероприятия волны
+        assigned_participants = set()
+        for wave_event in wave_events:
+            assigned_participants.update(wave_event.participants.values_list('id', flat=True))
+        
+        # Подсчитываем доступных участников
+        available_participants = 0
+        for registration in registrations:
+            if registration.participant.id not in assigned_participants:
+                available_participants += 1
+        
+        already_assigned_count = total_registrations - available_participants
+        
+        # Проверяем, можно ли конвертировать
+        can_convert = (
+            event.participant_type == Event.ParticipantType.REGISTRATION and
+            available_participants > 0 and
+            (event.max_participants is None or available_participants <= event.max_participants)
+        )
+        
+        reason = None
+        if not can_convert:
+            if event.participant_type != Event.ParticipantType.REGISTRATION:
+                reason = 'Event is not in registration mode'
+            elif available_participants == 0:
+                reason = 'All participants already assigned to other events in wave'
+            elif event.max_participants is not None and available_participants > event.max_participants:
+                reason = f'Too many participants ({available_participants}) for capacity ({event.max_participants})'
+        
+        return Response({
+            'event_id': event.id,
+            'event_name': event.name,
+            'total_registrations': total_registrations,
+            'available_participants': available_participants,
+            'already_assigned_count': already_assigned_count,
+            'max_participants': event.max_participants,
+            'can_convert': can_convert,
+            'reason': reason
+        })
 
 
 class LocationViewSet(EventumScopedViewSet, viewsets.ModelViewSet):

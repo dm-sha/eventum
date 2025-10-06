@@ -311,13 +311,71 @@ class EventTagSerializer(serializers.ModelSerializer):
 
 class EventWithRegistrationInfoSerializer(serializers.ModelSerializer):
     registrations_count = serializers.SerializerMethodField()
+    available_participants = serializers.SerializerMethodField()
+    already_assigned_count = serializers.SerializerMethodField()
+    can_convert = serializers.SerializerMethodField()
 
     class Meta:
         model = Event
-        fields = ['id', 'name', 'participant_type', 'max_participants', 'registrations_count']
+        fields = ['id', 'name', 'participant_type', 'max_participants', 'registrations_count', 'available_participants', 'already_assigned_count', 'can_convert']
 
     def get_registrations_count(self, obj):
         return EventRegistration.objects.filter(event=obj).count()
+    
+    def get_available_participants(self, obj):
+        """Количество участников, которые подали заявку и еще не распределены на другие мероприятия волны"""
+        # Получаем все регистрации на это мероприятие
+        registrations = EventRegistration.objects.filter(event=obj).select_related('participant')
+        
+        if not registrations.exists():
+            return 0
+        
+        # Получаем тег волны для текущего мероприятия
+        wave_tag = None
+        for tag in obj.tags.all():
+            if hasattr(tag, 'event_wave'):
+                wave_tag = tag
+                break
+        
+        if not wave_tag:
+            # Если нет волны, все участники доступны
+            return registrations.count()
+        
+        # Получаем все мероприятия той же волны (с тем же тегом волны) с типом manual
+        wave_events = Event.objects.filter(
+            eventum=obj.eventum,
+            tags=wave_tag,
+            participant_type=Event.ParticipantType.MANUAL
+        ).prefetch_related('participants')
+        
+        # Собираем всех участников, уже записанных на мероприятия волны
+        assigned_participants = set()
+        for wave_event in wave_events:
+            assigned_participants.update(wave_event.participants.values_list('id', flat=True))
+        
+        # Подсчитываем доступных участников
+        available_count = 0
+        for registration in registrations:
+            if registration.participant.id not in assigned_participants:
+                available_count += 1
+        
+        return available_count
+    
+    def get_already_assigned_count(self, obj):
+        """Количество участников, которые подали заявку, но уже распределены на другие мероприятия волны"""
+        registrations_count = self.get_registrations_count(obj)
+        available_count = self.get_available_participants(obj)
+        return registrations_count - available_count
+    
+    def get_can_convert(self, obj):
+        """Можно ли конвертировать регистрации для этого мероприятия"""
+        available_count = self.get_available_participants(obj)
+        
+        return (
+            obj.participant_type == Event.ParticipantType.REGISTRATION and
+            available_count > 0 and
+            (obj.max_participants is None or available_count <= obj.max_participants)
+        )
 
 class EventWaveSerializer(serializers.ModelSerializer):
     tag = EventTagSerializer(read_only=True)

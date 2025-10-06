@@ -3,7 +3,7 @@ import { listEventWaves, createEventWave, updateEventWave, deleteEventWave } fro
 import type { EventWave } from '../../api/eventWave';
 import { eventTagApi } from '../../api/eventTag';
 import { getEventsForEventum } from '../../api/event';
-import { IconPencil, IconTrash, IconCheck, IconX, IconPlus, IconInformationCircle, IconUsersCircle, IconUserPlus } from '../../components/icons';
+import { IconPencil, IconTrash, IconCheck, IconX, IconPlus, IconInformationCircle, IconUsersCircle } from '../../components/icons';
 import { getGroupsForEventum } from '../../api/group';
 import { groupTagApi } from '../../api/groupTag';
 import { useEventumSlug } from '../../hooks/useEventumSlug';
@@ -152,12 +152,12 @@ interface WaveCardProps {
   onDelete: () => void;
   onSave: (data: { name: string; whitelist_group_ids?: number[]; whitelist_group_tag_ids?: number[]; blacklist_group_ids?: number[]; blacklist_group_tag_ids?: number[] }) => void;
   onCancel: () => void;
-  onConvertRegistrations: (eventIds: number[]) => Promise<void>;
+  onConvertEventRegistrations: (eventId: number) => Promise<void>;
   groups: { id: number; name: string }[];
   groupTags: { id: number; name: string }[];
 }
 
-const WaveCard: React.FC<WaveCardProps> = ({ wave, mode, onStartEdit, onDelete, onSave, onCancel, onConvertRegistrations, groups, groupTags }) => {
+const WaveCard: React.FC<WaveCardProps> = ({ wave, mode, onStartEdit, onDelete, onSave, onCancel, onConvertEventRegistrations, groups, groupTags }) => {
   const [name, setName] = useState(wave.name);
   const [whitelistItems, setWhitelistItems] = useState<FilterItem[]>([]);
   const [blacklistItems, setBlacklistItems] = useState<FilterItem[]>([]);
@@ -181,32 +181,14 @@ const WaveCard: React.FC<WaveCardProps> = ({ wave, mode, onStartEdit, onDelete, 
     return `${reg ?? 0} / ${max}`;
   };
 
-  // Проверяем, можно ли конвертировать регистрации для всех мероприятий волны
-  const canConvertRegistrations = wave.events.every(ev => 
-    ev.participant_type === 'registration' && 
-    ev.registrations_count > 0 && 
-    (ev.max_participants == null || ev.registrations_count <= ev.max_participants)
-  );
-
-  // Получаем ID мероприятий, которые можно конвертировать
-  const convertibleEventIds = wave.events
-    .filter(ev => 
-      ev.participant_type === 'registration' && 
-      ev.registrations_count > 0 && 
-      (ev.max_participants == null || ev.registrations_count <= ev.max_participants)
-    )
-    .map(ev => ev.id);
-
-  const handleConvertRegistrations = async () => {
-    if (convertibleEventIds.length === 0) return;
-    
+  const handleConvertEventRegistrations = async (eventId: number) => {
     const confirmed = confirm(
-      `Вы уверены, что хотите записать всех участников на ${convertibleEventIds.length} мероприятий? ` +
-      `Это изменит тип участников на "Вручную" и добавит всех записанных участников к мероприятиям.`
+      `Вы уверены, что хотите записать доступных участников на это мероприятие? ` +
+      `Это изменит тип участников на "Вручную" и запишет только тех участников, которые еще не распределены на другие мероприятия волны.`
     );
     
     if (confirmed) {
-      await onConvertRegistrations(convertibleEventIds);
+      await onConvertEventRegistrations(eventId);
     }
   };
 
@@ -263,15 +245,6 @@ const WaveCard: React.FC<WaveCardProps> = ({ wave, mode, onStartEdit, onDelete, 
               <p className="text-sm text-gray-500">Тег: {wave.tag.name}</p>
             </div>
             <div className="flex items-center gap-2">
-              {canConvertRegistrations && (
-                <button
-                  onClick={handleConvertRegistrations}
-                  className="p-2 rounded-lg text-gray-400 hover:text-green-600 hover:bg-green-50 transition-colors"
-                  title="Записать всех участников"
-                >
-                  <IconUserPlus size={16} />
-                </button>
-              )}
               <button
                 onClick={onStartEdit}
                 className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
@@ -347,8 +320,43 @@ const WaveCard: React.FC<WaveCardProps> = ({ wave, mode, onStartEdit, onDelete, 
                   key={ev.id}
                   className="flex flex-col gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600 sm:flex-row sm:items-center sm:justify-between"
                 >
-                  <span className="font-medium text-gray-800">{ev.name}</span>
-                  <span className="text-gray-600">{capacityInfo(ev.max_participants, ev.registrations_count)}</span>
+                  <div className="flex-1">
+                    <span className="font-medium text-gray-800">{ev.name}</span>
+                    <div className="mt-1 text-xs text-gray-500">
+                      <div>Места: {capacityInfo(ev.max_participants, ev.registrations_count)}</div>
+                      <div>Заявки: {ev.registrations_count}</div>
+                      <div>Доступно: {ev.available_participants}</div>
+                      {ev.already_assigned_count > 0 && (
+                        <div className="text-orange-600">Уже распределено: {ev.already_assigned_count}</div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {ev.can_convert && (
+                      <button
+                        onClick={() => handleConvertEventRegistrations(ev.id)}
+                        className="p-1 rounded text-xs bg-green-600 text-white hover:bg-green-700 transition-colors"
+                        title={`Записать ${ev.available_participants} доступных участников`}
+                      >
+                        Записать ({ev.available_participants})
+                      </button>
+                    )}
+                    {ev.participant_type === 'manual' && ev.available_participants === 0 && ev.registrations_count > 0 && (
+                      <span className="text-xs text-gray-400">
+                        Все распределены
+                      </span>
+                    )}
+                    {ev.participant_type === 'registration' && !ev.can_convert && (
+                      <span className="text-xs text-gray-400">
+                        {ev.registrations_count === 0
+                          ? 'Нет заявок'
+                          : ev.max_participants && ev.available_participants > ev.max_participants
+                            ? 'Превышен лимит'
+                            : 'Нельзя конвертировать'
+                        }
+                      </span>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -627,24 +635,37 @@ const EventRegistration: React.FC = () => {
     setEditingId(null);
   };
 
-  const handleConvertRegistrations = async (eventIds: number[]) => {
+  const handleConvertEventRegistrations = async (eventId: number) => {
     if (!eventumSlug) return;
     
     try {
-      // Конвертируем регистрации для каждого мероприятия
-      const promises = eventIds.map(eventId => 
-        eventsApi.convertRegistrationsToParticipants(eventId, eventumSlug)
-      );
-      
-      await Promise.all(promises);
+      const result = await eventsApi.convertRegistrationsToParticipants(eventId, eventumSlug);
       
       // Перезагружаем данные
       await load();
       
-      alert(`Успешно записано участников на ${eventIds.length} мероприятий!`);
-    } catch (error) {
-      console.error('Error converting registrations:', error);
-      alert('Ошибка при записи участников. Попробуйте еще раз.');
+      const responseData = result.data as {
+        status: string;
+        message: string;
+        participants_count: number;
+        total_registrations: number;
+        already_assigned_count: number;
+      };
+      
+      alert(
+        `Успешно записано ${responseData.participants_count} участников на мероприятие! ` +
+        `Всего заявок было: ${responseData.total_registrations}, ` +
+        `уже распределено на другие мероприятия: ${responseData.already_assigned_count}`
+      );
+    } catch (error: any) {
+      console.error('Error converting event registrations:', error);
+      
+      // Показываем более детальную ошибку
+      if (error.response?.data?.error) {
+        alert(`Ошибка при записи участников: ${error.response.data.error}`);
+      } else {
+        alert('Ошибка при записи участников. Попробуйте еще раз.');
+      }
     }
   };
 
@@ -789,7 +810,7 @@ const EventRegistration: React.FC = () => {
                     onDelete={() => handleDelete(w.id)}
                     onSave={(data) => handleSave(w.id, data)}
                     onCancel={handleCancelEdit}
-                    onConvertRegistrations={handleConvertRegistrations}
+                    onConvertEventRegistrations={handleConvertEventRegistrations}
                     groups={groups}
                     groupTags={groupTags}
                   />

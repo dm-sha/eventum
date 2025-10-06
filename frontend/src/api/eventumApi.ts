@@ -178,6 +178,8 @@ export const eventsApi = {
       status: string;
       message: string;
       participants_count: number;
+      total_registrations: number;
+      already_assigned_count: number;
     }>('POST', `/events/${id}/convert_registrations_to_participants/`, getEventumSlugForRequest(eventumSlug))
 };
 
