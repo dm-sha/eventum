@@ -8,7 +8,7 @@ import { getGroupsForEventum } from '../../api/group';
 import { groupTagApi } from '../../api/groupTag';
 import { useEventumSlug } from '../../hooks/useEventumSlug';
 import WavesLoadingSkeleton from '../../components/admin/skeletons/WavesLoadingSkeleton';
-import { eventumApi, eventsApi } from '../../api/eventumApi';
+import { eventumApi } from '../../api/eventumApi';
 import { getEventumBySlug } from '../../api/eventum';
 import type { Eventum } from '../../types';
 
@@ -152,13 +152,11 @@ interface WaveCardProps {
   onDelete: () => void;
   onSave: (data: { name: string; whitelist_group_ids?: number[]; whitelist_group_tag_ids?: number[]; blacklist_group_ids?: number[]; blacklist_group_tag_ids?: number[] }) => void;
   onCancel: () => void;
-  onConvertEventRegistrations: (eventId: number) => Promise<void>;
-  onConvertEventRegistrationsStrict: (eventId: number) => Promise<void>;
   groups: { id: number; name: string }[];
   groupTags: { id: number; name: string }[];
 }
 
-const WaveCard: React.FC<WaveCardProps> = ({ wave, mode, onStartEdit, onDelete, onSave, onCancel, onConvertEventRegistrations, onConvertEventRegistrationsStrict, groups, groupTags }) => {
+const WaveCard: React.FC<WaveCardProps> = ({ wave, mode, onStartEdit, onDelete, onSave, onCancel, groups, groupTags }) => {
   const [name, setName] = useState(wave.name);
   const [whitelistItems, setWhitelistItems] = useState<FilterItem[]>([]);
   const [blacklistItems, setBlacklistItems] = useState<FilterItem[]>([]);
@@ -182,28 +180,6 @@ const WaveCard: React.FC<WaveCardProps> = ({ wave, mode, onStartEdit, onDelete, 
     return `${reg ?? 0} / ${max}`;
   };
 
-  const handleConvertEventRegistrations = async (eventId: number) => {
-    const confirmed = confirm(
-      `Вы уверены, что хотите записать доступных участников на это мероприятие? ` +
-      `Это изменит тип участников на "Вручную" и запишет только тех участников, которые еще не распределены на другие мероприятия волны.`
-    );
-    
-    if (confirmed) {
-      await onConvertEventRegistrations(eventId);
-    }
-  };
-
-  const handleConvertEventRegistrationsStrict = async (eventId: number) => {
-    const confirmed = confirm(
-      `Вы уверены, что хотите записать участников на это мероприятие в строгом режиме? ` +
-      `Это запишет только тех участников, которые не имеют заявок на мероприятия, где еще не было распределения. ` +
-      `Это изменит тип участников на "Вручную".`
-    );
-    
-    if (confirmed) {
-      await onConvertEventRegistrationsStrict(eventId);
-    }
-  };
 
   const allItems: FilterItem[] = [
     ...groups.map(g => ({ id: g.id, name: g.name, type: 'group' as const })),
@@ -337,56 +313,7 @@ const WaveCard: React.FC<WaveCardProps> = ({ wave, mode, onStartEdit, onDelete, 
                     <span className="font-medium text-gray-800">{ev.name}</span>
                     <div className="mt-1 text-xs text-gray-500">
                       <div>Места: {capacityInfo(ev.max_participants, ev.assigned_participants_count)}</div>
-                      <div>Заявки: {ev.registrations_count}</div>
-                      <div>Доступно: {ev.available_participants}</div>
-                      {ev.already_assigned_count > 0 && (
-                        <div className="text-orange-600">Уже распределено: {ev.already_assigned_count}</div>
-                      )}
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {ev.can_convert && (
-                      <button
-                        onClick={() => handleConvertEventRegistrations(ev.id)}
-                        className="p-1 rounded text-xs bg-green-600 text-white hover:bg-green-700 transition-colors"
-                        title={`Записать ${ev.available_participants} доступных участников`}
-                      >
-                        Записать ({ev.available_participants})
-                      </button>
-                    )}
-                    {ev.can_convert && ev.available_without_unassigned_events > 0 && ev.available_without_unassigned_events !== ev.available_participants && (
-                      <button
-                        onClick={() => handleConvertEventRegistrationsStrict(ev.id)}
-                        className="p-1 rounded text-xs bg-blue-600 text-white hover:bg-blue-700 transition-colors"
-                        title={`Записать ${ev.available_without_unassigned_events} участников без заявок на нераспределенные мероприятия`}
-                      >
-                        Строго ({ev.available_without_unassigned_events})
-                      </button>
-                    )}
-                    {ev.can_convert && ev.available_without_unassigned_events === 0 && (
-                      <button
-                        disabled
-                        className="p-1 rounded text-xs bg-gray-400 text-gray-200 cursor-not-allowed"
-                        title="Нет участников для строгого режима (все имеют заявки на нераспределенные мероприятия)"
-                      >
-                        Строго (0)
-                      </button>
-                    )}
-                    {ev.participant_type === 'manual' && ev.available_participants === 0 && ev.registrations_count > 0 && (
-                      <span className="text-xs text-gray-400">
-                        Все распределены
-                      </span>
-                    )}
-                    {ev.participant_type === 'registration' && !ev.can_convert && (
-                      <span className="text-xs text-gray-400">
-                        {ev.registrations_count === 0
-                          ? 'Нет заявок'
-                          : ev.max_participants && ev.available_participants > ev.max_participants
-                            ? 'Превышен лимит'
-                            : 'Нельзя конвертировать'
-                        }
-                      </span>
-                    )}
                   </div>
                 </div>
               ))}
@@ -647,85 +574,6 @@ const EventRegistration: React.FC = () => {
     setEditingId(null);
   };
 
-  const handleConvertEventRegistrations = async (eventId: number) => {
-    if (!eventumSlug) return;
-    
-    try {
-      const result = await eventsApi.convertRegistrationsToParticipants(eventId, eventumSlug);
-      
-      // Перезагружаем данные
-      await load();
-      
-      const responseData = result.data as {
-        status: string;
-        message: string;
-        participants_count: number;
-        added_participants_count: number;
-        total_registrations: number;
-        already_assigned_count: number;
-      };
-      
-      alert(
-        `Успешно добавлено ${responseData.added_participants_count} участников к мероприятию! ` +
-        `Всего участников на мероприятии: ${responseData.participants_count}, ` +
-        `всего заявок было: ${responseData.total_registrations}, ` +
-        `уже распределено на другие мероприятия: ${responseData.already_assigned_count}`
-      );
-    } catch (error: any) {
-      console.error('Error converting event registrations:', error);
-      
-      // Показываем более детальную ошибку
-      if (error.response?.data?.error) {
-        alert(`Ошибка при записи участников: ${error.response.data.error}`);
-      } else {
-        alert('Ошибка при записи участников. Попробуйте еще раз.');
-      }
-    }
-  };
-
-  const handleConvertEventRegistrationsStrict = async (eventId: number) => {
-    const confirmed = confirm(
-      `Вы уверены, что хотите записать участников на это мероприятие в строгом режиме? ` +
-      `Это запишет только тех участников, которые не имеют заявок на мероприятия, где еще не было распределения. ` +
-      `Это изменит тип участников на "Вручную".`
-    );
-    
-    if (!confirmed) return;
-    
-    if (!eventumSlug) return;
-    
-    try {
-      const result = await eventsApi.convertRegistrationsToParticipantsStrict(eventId, eventumSlug);
-      
-      // Перезагружаем данные
-      await load();
-      
-      const responseData = result.data as {
-        status: string;
-        message: string;
-        participants_count: number;
-        added_participants_count: number;
-        total_registrations: number;
-        already_assigned_count: number;
-      };
-      
-      alert(
-        `Успешно добавлено ${responseData.added_participants_count} участников к мероприятию в строгом режиме! ` +
-        `Всего участников на мероприятии: ${responseData.participants_count}, ` +
-        `всего заявок было: ${responseData.total_registrations}, ` +
-        `уже распределено на другие мероприятия: ${responseData.already_assigned_count}`
-      );
-    } catch (error: any) {
-      console.error('Error converting event registrations in strict mode:', error);
-      
-      // Показываем более детальную ошибку
-      if (error.response?.data?.error) {
-        alert(`Ошибка при записи участников в строгом режиме: ${error.response.data.error}`);
-      } else {
-        alert('Ошибка при записи участников в строгом режиме. Попробуйте еще раз.');
-      }
-    }
-  };
 
   const handleToggleRegistration = async () => {
     if (!eventumSlug || !eventum) return;
@@ -868,8 +716,6 @@ const EventRegistration: React.FC = () => {
                     onDelete={() => handleDelete(w.id)}
                     onSave={(data) => handleSave(w.id, data)}
                     onCancel={handleCancelEdit}
-                    onConvertEventRegistrations={handleConvertEventRegistrations}
-                    onConvertEventRegistrationsStrict={handleConvertEventRegistrationsStrict}
                     groups={groups}
                     groupTags={groupTags}
                   />
