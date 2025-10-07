@@ -501,9 +501,6 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
                           <div className="flex-1">
                             <div className="flex items-center gap-2 mb-2">
                               <h5 className="text-lg font-medium text-gray-900">{registration.event.name}</h5>
-                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                                Заявка подана
-                              </span>
                             </div>
                             {registration.event.description && (
                               <p className="mt-1 text-gray-600 text-sm">{registration.event.description}</p>
@@ -920,19 +917,13 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string; onEventUpdate?: (
         <div className="mt-4 pt-4 border-t border-gray-100">
           <div className="flex items-center gap-2 text-sm">
             {event.is_registered ? (
-              <>
-                <svg className="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span className="text-green-600 font-medium">Заявка подана</span>
-              </>
+              <svg className="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
             ) : (
-              <>
-                <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-                <span className="text-gray-500">Заявка не подана</span>
-              </>
+              <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
             )}
           </div>
         </div>
