@@ -1065,8 +1065,9 @@ const EventEditModal = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: 'rgba(0, 0, 0, 0.4)' }}>
-      <div className="w-full max-w-2xl mx-4 bg-white rounded-xl shadow-lg pointer-events-auto">
-        <div className="p-6">
+      <div className="w-full max-w-2xl mx-4 bg-white rounded-xl shadow-lg pointer-events-auto max-h-[90vh] flex flex-col">
+        {/* Заголовок - фиксированный */}
+        <div className="p-6 pb-0 flex-shrink-0">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">
             {title || (event ? 'Редактировать мероприятие' : 'Добавить мероприятие')}
           </h3>
@@ -1098,7 +1099,10 @@ const EventEditModal = ({
               </nav>
             </div>
           </div>
-          
+        </div>
+        
+        {/* Прокручиваемое содержимое */}
+        <div className="flex-1 overflow-y-auto px-6">
           {/* Содержимое вкладок */}
           {activeTab === 'general' ? (
             <GeneralTab 
@@ -1165,8 +1169,11 @@ const EventEditModal = ({
               </div>
             </div>
           )}
-          
-          <div className="flex gap-3 mt-6">
+        </div>
+        
+        {/* Кнопки - фиксированные внизу */}
+        <div className="p-6 pt-4 flex-shrink-0 border-t border-gray-200">
+          <div className="flex gap-3">
             <button
               onClick={handleSave}
               disabled={!isFormValid || isSaving}
