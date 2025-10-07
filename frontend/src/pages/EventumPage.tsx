@@ -11,6 +11,36 @@ import LoadingSpinner from "../components/LoadingSpinner";
 import { useEventumSlug } from "../hooks/useEventumSlug";
 import { getEventumScopedPath } from "../utils/eventumSlug";
 
+// Компонент для раскрывающегося текста
+const ExpandableText: React.FC<{ text: string; maxLength?: number; className?: string }> = ({ 
+  text, 
+  maxLength = 150, 
+  className = "" 
+}) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  
+  if (!text) return null;
+  
+  const shouldTruncate = text.length > maxLength;
+  const displayText = shouldTruncate && !isExpanded 
+    ? text.substring(0, maxLength) + "..." 
+    : text;
+  
+  return (
+    <div className={className}>
+      <p className="whitespace-pre-wrap">{displayText}</p>
+      {shouldTruncate && (
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="text-blue-400 hover:text-blue-600 text-sm font-medium mt-1"
+        >
+          {isExpanded ? "Свернуть" : "Показать полностью"}
+        </button>
+      )}
+    </div>
+  );
+};
+
 const EventumPage = () => {
   const eventumSlug = useEventumSlug();
   const location = useLocation();
@@ -421,7 +451,11 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
                               </span>
                             </div>
                             {registration.event.description && (
-                              <p className="mt-1 text-gray-600 text-sm whitespace-pre-wrap">{registration.event.description}</p>
+                              <ExpandableText 
+                                text={registration.event.description} 
+                                maxLength={120}
+                                className="mt-1 text-gray-600 text-sm"
+                              />
                             )}
                             <div className="mt-2 flex items-center text-sm text-gray-500">
                               <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
@@ -503,7 +537,11 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
                               <h5 className="text-lg font-medium text-gray-900">{registration.event.name}</h5>
                             </div>
                             {registration.event.description && (
-                              <p className="mt-1 text-gray-600 text-sm whitespace-pre-wrap">{registration.event.description}</p>
+                              <ExpandableText 
+                                text={registration.event.description} 
+                                maxLength={120}
+                                className="mt-1 text-gray-600 text-sm"
+                              />
                             )}
                             <div className="mt-2 flex items-center text-sm text-gray-500">
                               <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
@@ -822,7 +860,11 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string; onEventUpdate?: (
         )}
         
         {event.description && (
-          <p className="text-gray-600 text-sm whitespace-pre-wrap">{event.description}</p>
+          <ExpandableText 
+            text={event.description} 
+            maxLength={150}
+            className="text-gray-600 text-sm"
+          />
         )}
       </div>
 
@@ -833,7 +875,11 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string; onEventUpdate?: (
             <h4 className="text-lg font-semibold text-gray-900 mb-2">{event.name}</h4>
             
             {event.description && (
-              <p className="text-gray-600 text-sm whitespace-pre-wrap">{event.description}</p>
+              <ExpandableText 
+                text={event.description} 
+                maxLength={200}
+                className="text-gray-600 text-sm"
+              />
             )}
           </div>
           
