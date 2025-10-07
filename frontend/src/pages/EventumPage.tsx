@@ -8,6 +8,7 @@ import { authApi } from "../api/eventumApi";
 import type { Eventum, Event, Participant, UserRole, EventRegistration } from "../types";
 import type { EventWave } from "../api/eventWave";
 import LoadingSpinner from "../components/LoadingSpinner";
+import EventCalendar from "../components/EventCalendar";
 import { useEventumSlug } from "../hooks/useEventumSlug";
 import { getEventumScopedPath } from "../utils/eventumSlug";
 
@@ -228,6 +229,18 @@ const EventumPage = () => {
             >
               Подача заявок на мероприятия
             </button>
+            {(isUserOrganizer(eventum.id) || participantId) && (
+              <button
+                onClick={() => handleTabChange('schedule')}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  currentTab === 'schedule'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Расписание
+              </button>
+            )}
           </nav>
         </div>
 
@@ -238,6 +251,9 @@ const EventumPage = () => {
           )}
           {currentTab === 'registration' && eventumSlug && (
             <RegistrationTab eventWaves={eventWaves} events={events} currentParticipant={currentParticipant} eventumSlug={eventumSlug} eventum={eventum} myRegistrations={myRegistrations} participantId={participantId} />
+          )}
+          {currentTab === 'schedule' && eventumSlug && (isUserOrganizer(eventum.id) || participantId) && (
+            <ScheduleTab events={events} currentParticipant={currentParticipant} participantId={participantId} />
           )}
         </div>
       </div>
@@ -974,6 +990,47 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string; onEventUpdate?: (
           </div>
         </div>
       )}
+    </div>
+  );
+};
+
+// Компонент для вкладки "Расписание"
+const ScheduleTab: React.FC<{ events: Event[]; currentParticipant: Participant | null; participantId: string | null }> = ({ events, currentParticipant, participantId }) => {
+  // Если пользователь не является участником
+  if (!currentParticipant) {
+    return (
+      <div className="text-center py-8">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-amber-100">
+          <svg
+            className="h-8 w-8 text-amber-600"
+            fill="none"
+            viewBox="0 0 24 24"
+            strokeWidth="1.5"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"
+            />
+          </svg>
+        </div>
+        <h3 className="mt-4 text-lg font-semibold text-gray-900">Вы не являетесь участником</h3>
+        <p className="mt-2 text-gray-600">
+          Чтобы просматривать расписание мероприятий, вам нужно стать участником этого события. 
+          Обратитесь к организаторам для получения доступа.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <EventCalendar 
+        events={events} 
+        participantId={participantId ? parseInt(participantId) : currentParticipant.id} 
+        currentParticipant={currentParticipant}
+      />
     </div>
   );
 };

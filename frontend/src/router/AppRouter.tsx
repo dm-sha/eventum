@@ -80,6 +80,7 @@ export const AppRouter = () => {
             <Route index element={<Navigate to="general" replace />} />
             <Route path="general" element={isAuthenticated ? <EventumPage /> : <VKAuth />} />
             <Route path="registration" element={isAuthenticated ? <EventumPage /> : <VKAuth />} />
+            <Route path="schedule" element={isAuthenticated ? <EventumPage /> : <VKAuth />} />
           </>
         ) : (
           // При использовании основного домена включаем slug в путь
@@ -87,6 +88,7 @@ export const AppRouter = () => {
             <Route index element={<Navigate to="general" replace />} />
             <Route path="general" element={<EventumPage />} />
             <Route path="registration" element={<EventumPage />} />
+            <Route path="schedule" element={<EventumPage />} />
           </Route>
         )}
         <Route path="*" element={<NotFoundPage />} />
