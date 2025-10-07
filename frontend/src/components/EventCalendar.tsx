@@ -201,7 +201,7 @@ const EventCalendar: React.FC<EventCalendarProps> = ({ events, participantId, cu
         {/* Переключатель дней */}
         <div className="mb-4">
           <div className="flex flex-wrap gap-2">
-            {eventDays.map((day, index) => {
+            {eventDays.map((day) => {
               const isActive = currentDate && 
                 day.toDateString() === currentDate.toDateString();
               const dayEvents = participantEvents.filter(event => {
