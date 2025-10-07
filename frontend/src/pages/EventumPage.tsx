@@ -524,16 +524,30 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
                             </div>
                             <div className="mt-1 flex items-center text-sm text-gray-500">
                               <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25s-7.5-4.108-7.5-11.25a7.5 7.5 0 1115 0z" />
                               </svg>
                               <span>
-                                {new Date(registration.registered_at).toLocaleDateString('ru-RU', {
-                                  day: 'numeric',
-                                  month: 'long',
-                                  year: 'numeric',
-                                  hour: '2-digit',
-                                  minute: '2-digit'
-                                })}
+                                {(() => {
+                                  if (!registration.event.locations || registration.event.locations.length === 0) {
+                                    return 'Локация не указана';
+                                  }
+                                  
+                                  // Функция для получения уникальных частей пути локаций
+                                  const getUniqueLocationParts = (locations: any[]) => {
+                                    const allParts = new Set<string>();
+                                    
+                                    locations.forEach(loc => {
+                                      const parts = loc.full_path.split(', ');
+                                      parts.forEach((part: string) => allParts.add(part.trim()));
+                                    });
+                                    
+                                    return Array.from(allParts);
+                                  };
+                                  
+                                  const uniqueParts = getUniqueLocationParts(registration.event.locations);
+                                  return uniqueParts.join(', ');
+                                })()}
                               </span>
                             </div>
                           </div>
