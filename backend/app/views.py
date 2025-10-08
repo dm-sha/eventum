@@ -7,13 +7,16 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.shortcuts import get_object_or_404
-from django.http import Http404
+from django.http import Http404, HttpResponse
 from django.utils import timezone
 from django.conf import settings
 from django.core.cache import cache
 from django.db.models import Prefetch, Count
 import requests
 import json
+from icalendar import Calendar, Event as ICalEvent
+from datetime import datetime
+import uuid
 from .models import Eventum, Participant, ParticipantGroup, GroupTag, Event, EventTag, UserProfile, UserRole, Location, EventWave, EventRegistration
 from .serializers import (
     EventumSerializer, ParticipantSerializer, ParticipantGroupSerializer,
@@ -1302,6 +1305,157 @@ def search_users(request):
     except Exception as e:
         return Response(
             {'error': f'Error searching users: {str(e)}'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['GET'])
+@require_authentication
+def participant_calendar_ics(request, eventum_slug=None):
+    """Генерация iCalendar файла с мероприятиями участника"""
+    try:
+        # Получаем eventum
+        eventum = get_eventum_from_request(request, kwargs={'slug': eventum_slug})
+        
+        # Получаем участника для текущего пользователя
+        try:
+            participant = Participant.objects.get(user=request.user, eventum=eventum)
+        except Participant.DoesNotExist:
+            return Response({'error': 'User is not a participant in this eventum'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Получаем все мероприятия для участника
+        participant_events = Event.objects.filter(eventum=eventum).select_related(
+            'eventum'
+        ).prefetch_related(
+            'tags',
+            'group_tags',
+            'locations',
+            'groups',
+            'groups__tags',
+            'participants',
+            'participants__user',
+            'registrations',
+            'registrations__participant',
+            'registrations__participant__user',
+        )
+        
+        # Фильтруем мероприятия для участника
+        filtered_events = []
+        for event in participant_events:
+            # Мероприятия для всех участников
+            if event.participant_type == Event.ParticipantType.ALL:
+                filtered_events.append(event)
+                continue
+            
+            # Мероприятия по записи - показываем если участник подал заявку
+            if event.participant_type == Event.ParticipantType.REGISTRATION:
+                if event.registrations.filter(participant=participant).exists():
+                    filtered_events.append(event)
+                continue
+            
+            # Мероприятия вручную - проверяем различные способы назначения
+            if event.participant_type == Event.ParticipantType.MANUAL:
+                # 1. Прямое назначение участника
+                if event.participants.filter(id=participant.id).exists():
+                    filtered_events.append(event)
+                    continue
+                
+                # 2. Назначение через группу участника
+                participant_groups = participant.groups.all()
+                participant_group_ids = [g.id for g in participant_groups]
+                if event.groups.filter(id__in=participant_group_ids).exists():
+                    filtered_events.append(event)
+                    continue
+                
+                # 3. Назначение через теги групп участника
+                participant_group_tags = set()
+                for group in participant_groups:
+                    participant_group_tags.update(group.tags.all())
+                
+                participant_group_tag_ids = [t.id for t in participant_group_tags]
+                if event.group_tags.filter(id__in=participant_group_tag_ids).exists():
+                    filtered_events.append(event)
+                    continue
+        
+        # Создаем iCalendar календарь
+        cal = Calendar()
+        cal.add('prodid', '-//Eventum//Eventum Calendar//RU')
+        cal.add('version', '2.0')
+        cal.add('calscale', 'GREGORIAN')
+        cal.add('method', 'PUBLISH')
+        cal.add('X-WR-CALNAME', f'Мероприятия {eventum.name} - {participant.name}')
+        cal.add('X-WR-CALDESC', f'Календарь мероприятий для участника {participant.name}')
+        
+        # Добавляем каждое мероприятие в календарь
+        for event in filtered_events:
+            ical_event = ICalEvent()
+            
+            # Уникальный ID события
+            ical_event.add('uid', f'event-{event.id}-{eventum.slug}@eventum.local')
+            
+            # Название мероприятия
+            ical_event.add('summary', event.name)
+            
+            # Описание мероприятия
+            description_parts = []
+            if event.description:
+                description_parts.append(event.description)
+            
+            # Добавляем информацию о локациях
+            if event.locations.exists():
+                location_names = [loc.name for loc in event.locations.all()]
+                description_parts.append(f"Место: {', '.join(location_names)}")
+            
+            # Добавляем информацию о тегах
+            if event.tags.exists():
+                tag_names = [tag.name for tag in event.tags.all()]
+                description_parts.append(f"Теги: {', '.join(tag_names)}")
+            
+            if description_parts:
+                ical_event.add('description', '\n'.join(description_parts))
+            
+            # Время начала и окончания
+            # Проверяем, является ли время строкой или объектом datetime
+            if isinstance(event.start_time, str):
+                start_time = timezone.make_aware(datetime.fromisoformat(event.start_time.replace('Z', '+00:00')))
+            else:
+                start_time = event.start_time
+                
+            if isinstance(event.end_time, str):
+                end_time = timezone.make_aware(datetime.fromisoformat(event.end_time.replace('Z', '+00:00')))
+            else:
+                end_time = event.end_time
+            
+            ical_event.add('dtstart', start_time)
+            ical_event.add('dtend', end_time)
+            
+            # Время создания и последнего изменения
+            now = timezone.now()
+            ical_event.add('dtstamp', now)
+            ical_event.add('created', now)
+            ical_event.add('last-modified', now)
+            
+            # Статус события
+            ical_event.add('status', 'CONFIRMED')
+            
+            # Добавляем событие в календарь
+            cal.add_component(ical_event)
+        
+        # Генерируем содержимое календаря
+        calendar_content = cal.to_ical().decode('utf-8')
+        
+        # Создаем HTTP ответ с правильными заголовками
+        response = HttpResponse(calendar_content, content_type='text/calendar; charset=utf-8')
+        response['Content-Disposition'] = f'attachment; filename="eventum-{eventum.slug}-{participant.name}.ics"'
+        response['Cache-Control'] = 'no-cache, must-revalidate'
+        response['Pragma'] = 'no-cache'
+        
+        return response
+        
+    except Exception as e:
+        logger.error(f"Error generating iCalendar for participant: {str(e)}", exc_info=True)
+        return Response(
+            {'error': f'Error generating calendar: {str(e)}'}, 
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 

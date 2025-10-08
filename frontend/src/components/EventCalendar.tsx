@@ -1,6 +1,9 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import type { Event, Participant } from '../types';
 import EventModal from './EventModal';
+import { downloadParticipantCalendar } from '../api/event';
+import { IconCalendarDownload } from './icons';
+import { useEventumSlug } from '../hooks/useEventumSlug';
 import './EventCalendar.css';
 
 interface EventCalendarProps {
@@ -13,6 +16,9 @@ const EventCalendar: React.FC<EventCalendarProps> = ({ events, participantId, cu
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentDate, setCurrentDate] = useState<Date | null>(null);
+  const [isDownloading, setIsDownloading] = useState(false);
+  
+  const eventumSlug = useEventumSlug();
 
   // Фильтруем мероприятия для участника
   const participantEvents = useMemo(() => {
@@ -137,6 +143,20 @@ const EventCalendar: React.FC<EventCalendarProps> = ({ events, participantId, cu
     setCurrentDate(date);
   };
 
+  const handleDownloadCalendar = async () => {
+    if (!eventumSlug) return;
+    
+    setIsDownloading(true);
+    try {
+      await downloadParticipantCalendar(eventumSlug);
+    } catch (error) {
+      console.error('Ошибка при скачивании календаря:', error);
+      alert('Ошибка при скачивании календаря. Попробуйте еще раз.');
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   // Если нет мероприятий для участника
   if (participantEvents.length === 0) {
     return (
@@ -171,8 +191,24 @@ const EventCalendar: React.FC<EventCalendarProps> = ({ events, participantId, cu
   return (
     <div className="w-full calendar-wrapper">
       <div>
+        {/* Заголовок с кнопкой скачивания */}
+        <div className="p-4 pb-2">
+          <div className="flex items-center gap-4 mb-4">
+            <h2 className="text-lg font-semibold text-gray-900">Расписание мероприятий</h2>
+            <button
+              onClick={handleDownloadCalendar}
+              disabled={isDownloading || participantEvents.length === 0}
+              className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Скачать календарь в формате iCalendar (.ics)"
+            >
+              <IconCalendarDownload size={16} />
+              {isDownloading ? 'Скачивание...' : 'Скачать календарь'}
+            </button>
+          </div>
+        </div>
+        
         {/* Переключатель дней */}
-        <div className="p-4">
+        <div className="px-4 pb-4">
           <div className="flex flex-wrap gap-2">
             {eventDays.map((day) => {
               const isActive = currentDate && 
