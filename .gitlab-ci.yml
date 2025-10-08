@@ -14,12 +14,23 @@ build-job:
     DOCKER_HOST: tcp://docker:2375
     DOCKER_DRIVER: overlay2
     DOCKER_BUILDKIT: "1"
-  script:
-    - docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD"
+  before_script:
+    # ставим yc и получаем iam token
+    - apk add --no-cache curl
+    - curl -fsSL https://storage.yandexcloud.net/yandexcloud-yc/install.sh | bash
+    - export PATH="$PATH:/root/yandex-cloud/bin"
+    - echo "$SA_PROD_DEPLOYER_PRIVATE_KEY" > key.json
+    - yc config set service-account-key key.json
+    - yc config set cloud-id "${cloud_id}"
+    - yc config set folder-id "${cart_prod}"
+    - export YC_TOKEN="$(yc iam create-token)"
+    # ЛОГИН В YCR ЧЕРЕЗ oauth
+    - docker login --username oauth --password "$YC_TOKEN" "$YCR_REGISTRY"
     - docker buildx create --use
+  script:
     - docker buildx build \
         -f backend/Dockerfile \
-        -t "$CI_REGISTRY/$CI_PROJECT_PATH:$CI_COMMIT_SHORT_SHA" \
+        -t "$YCR_IMAGE:$CI_COMMIT_SHORT_SHA" \
         --push backend
 
 release-job:
