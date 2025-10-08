@@ -53,7 +53,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
-    'django.middleware.security.SecurityMiddleware',
+    # 'django.middleware.security.SecurityMiddleware',  # Временно отключен для диагностики
     'whitenoise.middleware.WhiteNoiseMiddleware',  # Для раздачи статических файлов
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -384,23 +384,3 @@ LOGGING = {
         },
     },
 }
-
-# HTTPS настройки для продакшена
-if not DEBUG:
-    # Указываем Django, что мы работаем за прокси (например, nginx)
-    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-    
-    # НЕ принуждаем HTTPS для всех запросов - это может нарушить API
-    # SECURE_SSL_REDIRECT = True  # Отключено для избежания 301 редиректов
-    
-    # Настройки безопасности для HTTPS
-    SECURE_BROWSER_XSS_FILTER = True
-    SECURE_CONTENT_TYPE_NOSNIFF = True
-    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-    SECURE_HSTS_SECONDS = 31536000  # 1 год
-    SECURE_REDIRECT_EXEMPT = ['/api/']  # Исключаем API из HTTPS редиректов
-    SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
-    
-    # Настройки для сессий и cookies (только если соединение HTTPS)
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
