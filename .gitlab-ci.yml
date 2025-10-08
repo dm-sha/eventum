@@ -23,7 +23,7 @@ build-job:
     - |
       docker buildx build \
         -f backend/Dockerfile \
-        -t "${CI_REGISTRY}/eventum:${CI_COMMIT_SHORT_SHA}" \
+        -t "${CI_REGISTRY}/${CI_PROJECT_PATH}:${CI_COMMIT_SHORT_SHA}" \
         --push backend
 
 release-job:
@@ -39,7 +39,7 @@ release-job:
     - yc config set service-account-key key.json
     - yc serverless container revision deploy
       --container-id ${CI_CONTAINER_ID_prod}
-      --image "${CI_REGISTRY}/eventum:${CI_COMMIT_SHORT_SHA}"
+      --image "${CI_REGISTRY}/${CI_PROJECT_PATH}:${CI_COMMIT_SHORT_SHA}"
       --cores 4
       --memory 1024mb
       --concurrency 1
