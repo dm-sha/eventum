@@ -20,7 +20,8 @@ build-job:
     - echo "$SA_PROD_DEPLOYER_PRIVATE_KEY" | docker login --username json_key --password-stdin cr.yandex
     - docker buildx create --use
   script:
-    - docker buildx build \
+    - |
+      docker buildx build \
         -f backend/Dockerfile \
         -t "cr.yandex/${CI_REGISTRY}/eventum:${CI_COMMIT_SHORT_SHA}" \
         --push backend
