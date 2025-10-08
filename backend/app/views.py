@@ -1317,11 +1317,21 @@ def participant_calendar_ics(request, eventum_slug=None):
         # Получаем eventum
         eventum = get_eventum_from_request(request, kwargs={'slug': eventum_slug})
         
-        # Получаем участника для текущего пользователя
-        try:
-            participant = Participant.objects.get(user=request.user, eventum=eventum)
-        except Participant.DoesNotExist:
-            return Response({'error': 'User is not a participant in this eventum'}, status=status.HTTP_404_NOT_FOUND)
+        # Получаем ID участника из параметров запроса (для отладки)
+        participant_id = request.GET.get('participant_id')
+        
+        if participant_id:
+            # Если указан конкретный участник, получаем его
+            try:
+                participant = Participant.objects.get(id=participant_id, eventum=eventum)
+            except Participant.DoesNotExist:
+                return Response({'error': f'Participant with ID {participant_id} not found in this eventum'}, status=status.HTTP_404_NOT_FOUND)
+        else:
+            # Иначе получаем участника для текущего пользователя
+            try:
+                participant = Participant.objects.get(user=request.user, eventum=eventum)
+            except Participant.DoesNotExist:
+                return Response({'error': 'User is not a participant in this eventum'}, status=status.HTTP_404_NOT_FOUND)
         
         # Получаем все мероприятия для участника
         participant_events = Event.objects.filter(eventum=eventum).select_related(
