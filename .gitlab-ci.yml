@@ -23,7 +23,7 @@ build-job:
     - |
       docker buildx build \
         -f backend/Dockerfile \
-        -t "cr.yandex/${CI_REGISTRY}/eventum:${CI_COMMIT_SHORT_SHA}" \
+        -t "${CI_REGISTRY}/eventum:${CI_COMMIT_SHORT_SHA}" \
         --push backend
 
 release-job:
