@@ -36,12 +36,16 @@ const apiClient = axios.create({
 // Интерцептор для добавления токена аутентификации
 apiClient.interceptors.request.use(
     (config) => {
-        // Пропускаем добавление токенов для эндпоинтов аутентификации
+        // Пропускаем добавление токенов для эндпоинтов аутентификации и календаря
         const isAuthEndpoint = config.url?.includes('/auth/vk/') || 
                               config.url?.includes('/auth/refresh/') ||
                               config.url?.includes('/auth/dev-user/');
         
-        if (isAuthEndpoint) {
+        const isCalendarEndpoint = config.url?.includes('/calendar/') || 
+                                  config.url?.includes('/calendar.ics') ||
+                                  config.url?.includes('/calendar/webcal');
+        
+        if (isAuthEndpoint || isCalendarEndpoint) {
             return config;
         }
         

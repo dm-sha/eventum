@@ -1310,9 +1310,19 @@ def search_users(request):
 
 
 @api_view(['GET'])
+@permission_classes([AllowAny])
 def participant_calendar_ics(request, eventum_slug=None, participant_id=None):
     """Генерация iCalendar файла с мероприятиями участника (публичный endpoint)"""
     try:
+        # Проверяем Accept заголовок
+        accept_header = request.META.get('HTTP_ACCEPT', '')
+        if accept_header and 'text/calendar' not in accept_header and 'application/calendar' not in accept_header and '*/*' not in accept_header:
+            # Если клиент не принимает календарные типы, возвращаем ошибку
+            return Response(
+                {'error': 'Client does not accept calendar format'}, 
+                status=status.HTTP_406_NOT_ACCEPTABLE
+            )
+        
         # Получаем eventum
         eventum = get_eventum_from_request(request, kwargs={'slug': eventum_slug})
         
@@ -1452,9 +1462,16 @@ def participant_calendar_ics(request, eventum_slug=None, participant_id=None):
         
         # Создаем HTTP ответ с правильными заголовками
         response = HttpResponse(calendar_content, content_type='text/calendar; charset=utf-8')
-        response['Content-Disposition'] = f'attachment; filename="eventum-{eventum.slug}-{participant.name}.ics"'
+        
+        # Безопасное имя файла (убираем специальные символы)
+        safe_filename = f"eventum-{eventum.slug}-{participant.id}.ics"
+        response['Content-Disposition'] = f'attachment; filename="{safe_filename}"'
         response['Cache-Control'] = 'no-cache, must-revalidate'
         response['Pragma'] = 'no-cache'
+        response['Expires'] = '0'
+        response['Access-Control-Allow-Origin'] = '*'
+        response['Access-Control-Allow-Methods'] = 'GET'
+        response['Access-Control-Allow-Headers'] = 'Content-Type'
         
         return response
         
@@ -1467,6 +1484,7 @@ def participant_calendar_ics(request, eventum_slug=None, participant_id=None):
 
 
 @api_view(['GET'])
+@permission_classes([AllowAny])
 def participant_calendar_webcal(request, eventum_slug=None):
     """Возвращает webcal ссылку для подписки на календарь участника"""
     try:
