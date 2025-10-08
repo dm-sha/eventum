@@ -1314,6 +1314,11 @@ def search_users(request):
 def participant_calendar_ics(request, eventum_slug=None, participant_id=None):
     """Генерация iCalendar файла с мероприятиями участника (публичный endpoint)"""
     try:
+        # Логируем запрос для отладки
+        logger.info(f"Calendar ICS request: eventum_slug={eventum_slug}, participant_id={participant_id}")
+        logger.info(f"Request headers: {dict(request.headers)}")
+        logger.info(f"Request user: {request.user}")
+        
         # Проверяем Accept заголовок
         accept_header = request.META.get('HTTP_ACCEPT', '')
         if accept_header and 'text/calendar' not in accept_header and 'application/calendar' not in accept_header and '*/*' not in accept_header:

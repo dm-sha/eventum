@@ -45,7 +45,13 @@ apiClient.interceptors.request.use(
                                   config.url?.includes('/calendar.ics') ||
                                   config.url?.includes('/calendar/webcal');
         
+        // Логируем для отладки
+        if (config.url?.includes('calendar')) {
+            console.log('Calendar endpoint detected:', config.url, 'isCalendarEndpoint:', isCalendarEndpoint);
+        }
+        
         if (isAuthEndpoint || isCalendarEndpoint) {
+            console.log('Skipping token addition for:', config.url);
             return config;
         }
         
