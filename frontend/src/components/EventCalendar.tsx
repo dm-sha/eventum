@@ -145,11 +145,11 @@ const EventCalendar: React.FC<EventCalendarProps> = ({ events, participantId, cu
   };
 
   const handleDownloadCalendar = async () => {
-    if (!eventumSlug) return;
+    if (!eventumSlug || !participantId) return;
     
     setIsDownloading(true);
     try {
-      await downloadParticipantCalendar(eventumSlug);
+      await downloadParticipantCalendar(eventumSlug, participantId);
     } catch (error) {
       console.error('Ошибка при скачивании календаря:', error);
       alert('Ошибка при скачивании календаря. Попробуйте еще раз.');

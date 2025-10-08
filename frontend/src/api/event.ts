@@ -75,11 +75,11 @@ export const unregisterFromEvent = async (eventumSlug: string, eventId: number):
 };
 
 // Скачать календарь мероприятий участника в формате iCalendar
-export const downloadParticipantCalendar = async (eventumSlug: string): Promise<void> => {
+export const downloadParticipantCalendar = async (eventumSlug: string, participantId: number): Promise<void> => {
     const { apiClient } = await import('./client');
     
     try {
-        const response = await apiClient.get(`/eventums/${eventumSlug}/calendar.ics`, {
+        const response = await apiClient.get(`/eventums/${eventumSlug}/calendar/${participantId}.ics`, {
             responseType: 'blob',
         });
         
@@ -88,7 +88,7 @@ export const downloadParticipantCalendar = async (eventumSlug: string): Promise<
         const url = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = `eventum-${eventumSlug}-calendar.ics`;
+        link.download = `eventum-${eventumSlug}-${participantId}.ics`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);

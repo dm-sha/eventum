@@ -384,3 +384,23 @@ LOGGING = {
         },
     },
 }
+
+# HTTPS настройки для продакшена
+if not DEBUG:
+    # Указываем Django, что мы работаем за прокси (например, nginx)
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    
+    # Принудительно используем HTTPS для всех соединений
+    SECURE_SSL_REDIRECT = True
+    
+    # Настройки безопасности для HTTPS
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_SECONDS = 31536000  # 1 год
+    SECURE_REDIRECT_EXEMPT = []
+    SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
+    
+    # Настройки для сессий и cookies
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True

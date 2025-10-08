@@ -1509,6 +1509,7 @@ def participant_calendar_webcal(request, eventum_slug=None):
         if not base_url:
             # Если BASE_URL не настроен, строим URL из запроса
             base_url = request.build_absolute_uri('/').rstrip('/')
+            logger.warning(f"BASE_URL not configured, using request URL: {base_url}")
             # Принудительно используем HTTPS для безопасности (кроме localhost для разработки)
             if base_url.startswith('http://'):
                 if 'localhost' in base_url or '127.0.0.1' in base_url:
