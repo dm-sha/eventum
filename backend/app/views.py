@@ -1501,8 +1501,13 @@ def participant_calendar_webcal(request, eventum_slug=None):
             # Если BASE_URL не настроен, строим URL из запроса
             base_url = request.build_absolute_uri('/').rstrip('/')
             # Принудительно используем HTTPS для безопасности (кроме localhost для разработки)
-            if base_url.startswith('http://') and 'localhost' not in base_url:
-                base_url = base_url.replace('http://', 'https://')
+            if base_url.startswith('http://'):
+                if 'localhost' in base_url or '127.0.0.1' in base_url:
+                    # Для localhost оставляем HTTP
+                    pass
+                else:
+                    # Для продакшена принудительно используем HTTPS
+                    base_url = base_url.replace('http://', 'https://')
         
         # Создаем webcal ссылку
         webcal_url = f"{base_url}/api/eventums/{eventum_slug}/calendar.ics"
@@ -1513,6 +1518,9 @@ def participant_calendar_webcal(request, eventum_slug=None):
         
         # Заменяем https на webcal (принудительно используем HTTPS)
         webcal_url = webcal_url.replace('https://', 'webcal://')
+        
+        # Логируем для отладки
+        logger.info(f"Generated webcal URL: {webcal_url} for participant {participant.name}")
         
         return Response({
             'webcal_url': webcal_url,
