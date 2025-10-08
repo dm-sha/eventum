@@ -1,7 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
-import FullCalendar from '@fullcalendar/react';
-import dayGridPlugin from '@fullcalendar/daygrid';
-import interactionPlugin from '@fullcalendar/interaction';
+import React, { useState, useMemo, useEffect } from 'react';
 import type { Event, Participant } from '../types';
 import EventModal from './EventModal';
 import './EventCalendar.css';
@@ -12,24 +9,10 @@ interface EventCalendarProps {
   currentParticipant?: Participant | null;
 }
 
-interface CalendarEvent {
-  id: string;
-  title: string;
-  start: string;
-  end: string;
-  backgroundColor?: string;
-  borderColor?: string;
-  textColor?: string;
-  extendedProps: {
-    event: Event;
-  };
-}
-
 const EventCalendar: React.FC<EventCalendarProps> = ({ events, participantId, currentParticipant }) => {
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentDate, setCurrentDate] = useState<Date | null>(null);
-  const calendarRef = useRef<FullCalendar>(null);
 
   // Фильтруем мероприятия для участника
   const participantEvents = useMemo(() => {
@@ -105,50 +88,71 @@ const EventCalendar: React.FC<EventCalendarProps> = ({ events, participantId, cu
 
   // Автоматически переходим к первому дню с мероприятием
   useEffect(() => {
-    if (firstEventDate && calendarRef.current) {
-      const calendarApi = calendarRef.current.getApi();
-      calendarApi.gotoDate(firstEventDate);
+    if (firstEventDate) {
       setCurrentDate(firstEventDate);
     }
   }, [firstEventDate]);
 
-  // Преобразуем события в формат FullCalendar
-  const calendarEvents: CalendarEvent[] = useMemo(() => {
-    return participantEvents.map(event => {
-      let backgroundColor = '#3b82f6'; // Синий по умолчанию
-      let borderColor = '#2563eb';
-      let textColor = '#ffffff';
-
-      // Разные цвета в зависимости от типа участника
-      if (event.participant_type === 'all') {
-        backgroundColor = '#10b981'; // Зеленый
-        borderColor = '#059669';
-      } else if (event.participant_type === 'registration') {
-        backgroundColor = '#3b82f6'; // Синий
-        borderColor = '#2563eb';
-      } else if (event.participant_type === 'manual') {
-        backgroundColor = '#8b5cf6'; // Фиолетовый
-        borderColor = '#7c3aed';
-      }
-
-      return {
-        id: event.id.toString(),
-        title: event.name,
-        start: event.start_time,
-        end: event.end_time,
-        backgroundColor,
-        borderColor,
-        textColor,
-        className: `fc-event-type-${event.participant_type}`,
-        extendedProps: {
-          event
-        }
-      };
+  // Группируем события по дням и времени
+  const eventsByDay = useMemo(() => {
+    if (!currentDate) return {};
+    
+    const dayEvents = participantEvents.filter(event => {
+      const eventDate = new Date(event.start_time);
+      return eventDate.toDateString() === currentDate.toDateString();
     });
-  }, [participantEvents]);
 
-  const handleEventClick = (clickInfo: any) => {
-    const event = clickInfo.event.extendedProps.event;
+    // Сортируем события по времени начала
+    dayEvents.sort((a, b) => 
+      new Date(a.start_time).getTime() - new Date(b.start_time).getTime()
+    );
+
+    return {
+      [currentDate.toDateString()]: dayEvents
+    };
+  }, [participantEvents, currentDate]);
+
+  // Получаем цвет для типа мероприятия
+  const getEventColor = (participantType: string) => {
+    switch (participantType) {
+      case 'all':
+        return {
+          backgroundColor: '#10b981',
+          borderColor: '#059669',
+          textColor: '#ffffff'
+        };
+      case 'registration':
+        return {
+          backgroundColor: '#3b82f6',
+          borderColor: '#2563eb',
+          textColor: '#ffffff'
+        };
+      case 'manual':
+        return {
+          backgroundColor: '#8b5cf6',
+          borderColor: '#7c3aed',
+          textColor: '#ffffff'
+        };
+      default:
+        return {
+          backgroundColor: '#6b7280',
+          borderColor: '#4b5563',
+          textColor: '#ffffff'
+        };
+    }
+  };
+
+  // Форматируем время
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleTimeString('ru-RU', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    });
+  };
+
+  const handleEventClick = (event: Event) => {
     setSelectedEvent(event);
     setIsModalOpen(true);
   };
@@ -159,11 +163,7 @@ const EventCalendar: React.FC<EventCalendarProps> = ({ events, participantId, cu
   };
 
   const handleDayChange = (date: Date) => {
-    if (calendarRef.current) {
-      const calendarApi = calendarRef.current.getApi();
-      calendarApi.gotoDate(date);
-      setCurrentDate(date);
-    }
+    setCurrentDate(date);
   };
 
   // Если нет мероприятий для участника
@@ -195,11 +195,13 @@ const EventCalendar: React.FC<EventCalendarProps> = ({ events, participantId, cu
     );
   }
 
+  const currentDayEvents = currentDate ? eventsByDay[currentDate.toDateString()] || [] : [];
+
   return (
-    <div className="w-full">
-      <div className="bg-white rounded-lg shadow-sm border p-4">
+    <div className="w-full calendar-wrapper">
+      <div>
         {/* Переключатель дней */}
-        <div className="mb-4">
+        <div className="p-4">
           <div className="flex flex-wrap gap-2">
             {eventDays.map((day) => {
               const isActive = currentDate && 
@@ -213,7 +215,7 @@ const EventCalendar: React.FC<EventCalendarProps> = ({ events, participantId, cu
                 <button
                   key={day.toISOString()}
                   onClick={() => handleDayChange(day)}
-                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                     isActive
                       ? 'bg-blue-600 text-white'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -222,12 +224,10 @@ const EventCalendar: React.FC<EventCalendarProps> = ({ events, participantId, cu
                   <div className="text-center">
                     <div className="font-semibold">
                       {day.toLocaleDateString('ru-RU', { 
+                        weekday: 'short',
                         day: 'numeric', 
                         month: 'short' 
                       })}
-                    </div>
-                    <div className="text-xs opacity-75">
-                      {dayEvents.length} мероприятий
                     </div>
                   </div>
                 </button>
@@ -236,31 +236,71 @@ const EventCalendar: React.FC<EventCalendarProps> = ({ events, participantId, cu
           </div>
         </div>
 
-        <FullCalendar
-          ref={calendarRef}
-          plugins={[dayGridPlugin, interactionPlugin]}
-          initialView="dayGridDay"
-          headerToolbar={false}
-          events={calendarEvents}
-          eventClick={handleEventClick}
-          height="auto"
-          locale="ru"
-          dayHeaderFormat={{ weekday: 'long', day: 'numeric', month: 'long' }}
-          eventTimeFormat={{
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: false
-          }}
-          displayEventTime={true}
-          displayEventEnd={true}
-          eventDisplay="block"
-          dayMaxEvents={10}
-          moreLinkClick="popover"
-          eventDidMount={(info) => {
-            // Добавляем курсор pointer для кликабельных событий
-            info.el.style.cursor = 'pointer';
-          }}
-        />
+        {/* Календарь с временной колонкой */}
+        <div className="calendar-container">
+          <div className="calendar-header">
+            {currentDate && (
+              <div className="day-info">
+                <div className="day-name">
+                  {currentDate.toLocaleDateString('ru-RU', { 
+                    weekday: 'long',
+                    day: 'numeric',
+                    month: 'long'
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="calendar-body">
+            {currentDayEvents.length === 0 ? (
+              <div className="no-events">
+                <div className="no-events-icon">📅</div>
+                <div className="no-events-text">Нет мероприятий на этот день</div>
+              </div>
+            ) : (
+              <div className="events-list">
+                {currentDayEvents.map((event) => {
+                  const colors = getEventColor(event.participant_type);
+                  return (
+                    <div
+                      key={event.id}
+                      className="event-item"
+                      onClick={() => handleEventClick(event)}
+                    >
+                      <div className="event-time">
+                        <div className="time-start">{formatTime(event.start_time)}</div>
+                        <div className="time-end-group">
+                          <div className="time-separator">-</div>
+                          <div className="time-end">{formatTime(event.end_time)}</div>
+                        </div>
+                      </div>
+                      <div className="event-content">
+                        <div 
+                          className="event-title-container"
+                          style={{
+                            backgroundColor: '#3b82f6',
+                            borderColor: '#2563eb',
+                            color: '#ffffff'
+                          }}
+                        >
+                          <div className="event-title">
+                            {event.name}
+                          </div>
+                          {event.locations && event.locations.length > 0 && (
+                            <div className="event-location">
+                              {event.locations.map(loc => loc.full_path).join(', ')}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {selectedEvent && (

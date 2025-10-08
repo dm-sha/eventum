@@ -43,31 +43,6 @@ const EventModal: React.FC<EventModalProps> = ({ event, isOpen, onClose }) => {
     return uniqueParts.join(', ');
   };
 
-  const getParticipantTypeText = () => {
-    switch (event.participant_type) {
-      case 'all':
-        return 'Для всех участников';
-      case 'registration':
-        return `По записи (${event.registrations_count}${event.max_participants ? `/${event.max_participants}` : ''} заявок)`;
-      case 'manual':
-        return 'По приглашению';
-      default:
-        return 'Участники определяются отдельно';
-    }
-  };
-
-  const getParticipantTypeColor = () => {
-    switch (event.participant_type) {
-      case 'all':
-        return 'bg-green-100 text-green-800';
-      case 'registration':
-        return 'bg-blue-100 text-blue-800';
-      case 'manual':
-        return 'bg-purple-100 text-purple-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
@@ -147,30 +122,6 @@ const EventModal: React.FC<EventModalProps> = ({ event, isOpen, onClose }) => {
               </div>
             </div>
             
-            {/* Тип участия */}
-            <div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Тип участия</h3>
-              <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getParticipantTypeColor()}`}>
-                {getParticipantTypeText()}
-              </span>
-            </div>
-            
-            {/* Теги */}
-            {event.tags && event.tags.length > 0 && (
-              <div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Теги</h3>
-                <div className="flex flex-wrap gap-2">
-                  {event.tags.map(tag => (
-                    <span
-                      key={tag.id}
-                      className="inline-flex items-center px-2 py-1 rounded-md text-sm font-medium bg-gray-100 text-gray-800"
-                    >
-                      {tag.name}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
             
             {/* Статус регистрации */}
             {event.participant_type === 'registration' && (
