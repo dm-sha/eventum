@@ -14,29 +14,15 @@ build-job:
     DOCKER_HOST: tcp://docker:2375
     DOCKER_DRIVER: overlay2
     DOCKER_BUILDKIT: "1"
-    DOCKER_TLS_CERTDIR: ""   # важно для работы без TLS с dind
+    DOCKER_TLS_CERTDIR: ""   # важно для dind без TLS
   before_script:
-    - apk add --no-cache curl ca-certificates
-    # ставим yc без bash
-    - curl -fsSL https://storage.yandexcloud.net/yandexcloud-yc/install.sh -o /tmp/yc-install.sh
-    - sh /tmp/yc-install.sh -i /usr/local/yandex-cloud -n
-    - export PATH="$PATH:/usr/local/yandex-cloud/bin"
-
-    # аутентификация SA и получение oauth-токена
-    - printf "%s" "$SA_PROD_DEPLOYER_PRIVATE_KEY" > key.json
-    - yc config set service-account-key key.json
-    - yc config set cloud-id "$cloud_id"
-    - yc config set folder-id "$cart_prod"
-    - export YC_TOKEN="$(yc iam create-token)"
-
-    # логин в YCR через oauth (НЕ через gitlab-ci-token)
-    - echo "$YC_TOKEN" | docker login --username oauth --password-stdin cr.yandex
-
+    # логин в YCR БЕЗ yc, через json_key
+    - echo "$SA_PROD_DEPLOYER_PRIVATE_KEY" | docker login --username json_key --password-stdin cr.yandex
     - docker buildx create --use
   script:
     - docker buildx build \
         -f backend/Dockerfile \
-        -t "cr.yandex/$YCR_REGISTRY_ID/$YCR_REPO:$CI_COMMIT_SHORT_SHA" \
+        -t "cr.yandex/${CI_REGISTRY}/eventum:${CI_COMMIT_SHORT_SHA}" \
         --push backend
 
 release-job:
