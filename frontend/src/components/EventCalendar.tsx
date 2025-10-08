@@ -112,35 +112,6 @@ const EventCalendar: React.FC<EventCalendarProps> = ({ events, participantId, cu
     };
   }, [participantEvents, currentDate]);
 
-  // Получаем цвет для типа мероприятия
-  const getEventColor = (participantType: string) => {
-    switch (participantType) {
-      case 'all':
-        return {
-          backgroundColor: '#10b981',
-          borderColor: '#059669',
-          textColor: '#ffffff'
-        };
-      case 'registration':
-        return {
-          backgroundColor: '#3b82f6',
-          borderColor: '#2563eb',
-          textColor: '#ffffff'
-        };
-      case 'manual':
-        return {
-          backgroundColor: '#8b5cf6',
-          borderColor: '#7c3aed',
-          textColor: '#ffffff'
-        };
-      default:
-        return {
-          backgroundColor: '#6b7280',
-          borderColor: '#4b5563',
-          textColor: '#ffffff'
-        };
-    }
-  };
 
   // Форматируем время
   const formatTime = (dateString: string) => {
@@ -206,10 +177,6 @@ const EventCalendar: React.FC<EventCalendarProps> = ({ events, participantId, cu
             {eventDays.map((day) => {
               const isActive = currentDate && 
                 day.toDateString() === currentDate.toDateString();
-              const dayEvents = participantEvents.filter(event => {
-                const eventDate = new Date(event.start_time);
-                return eventDate.toDateString() === day.toDateString();
-              });
               
               return (
                 <button
@@ -261,7 +228,6 @@ const EventCalendar: React.FC<EventCalendarProps> = ({ events, participantId, cu
             ) : (
               <div className="events-list">
                 {currentDayEvents.map((event) => {
-                  const colors = getEventColor(event.participant_type);
                   return (
                     <div
                       key={event.id}

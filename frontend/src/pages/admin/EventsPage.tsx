@@ -389,8 +389,32 @@ const AdminEventsPage = () => {
                     
                     {/* Основной контент */}
                     <div className="flex-1 min-w-0">
-                      {/* Название */}
-                      <h3 className="text-lg font-semibold text-gray-900 mb-2 leading-tight">{event.name}</h3>
+                      {/* Название и локация */}
+                      <div className="flex items-start gap-4 mb-2">
+                        <h3 className="text-lg font-semibold text-gray-900 leading-tight flex-1">{event.name}</h3>
+                        {event.locations && event.locations.length > 0 && (
+                          <div className="text-xs text-gray-500 flex-shrink-0">
+                            <span className="whitespace-nowrap">
+                              {(() => {
+                                // Функция для получения уникальных частей пути локаций
+                                const getUniqueLocationParts = (locations: any[]) => {
+                                  const allParts = new Set<string>();
+                                  
+                                  locations.forEach(loc => {
+                                    const parts = loc.full_path.split(', ');
+                                    parts.forEach((part: string) => allParts.add(part.trim()));
+                                  });
+                                  
+                                  return Array.from(allParts);
+                                };
+                                
+                                const uniqueParts = getUniqueLocationParts(event.locations);
+                                return uniqueParts.join(', ');
+                              })()}
+                            </span>
+                          </div>
+                        )}
+                      </div>
                       
                       {/* Теги */}
                       <div className="flex items-center gap-2 flex-wrap">
