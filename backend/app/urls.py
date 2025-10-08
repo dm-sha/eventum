@@ -53,6 +53,7 @@ urlpatterns = [
     path('eventums/<slug:slug>/organizers/<int:role_id>/', remove_eventum_organizer, name='remove_eventum_organizer'),
     path('eventums/<slug:slug>/registration-stats/', eventum_registration_stats, name='eventum_registration_stats'),
     path('eventums/<slug:eventum_slug>/calendar.ics', participant_calendar_ics, name='participant_calendar_ics'),
+    path('eventums/<slug:eventum_slug>/calendar/<int:participant_id>.ics', participant_calendar_ics, name='participant_calendar_ics_with_id'),
     path('eventums/<slug:eventum_slug>/calendar/webcal', participant_calendar_webcal, name='participant_calendar_webcal'),
     
     # Fallback для поддоменов (обратная совместимость)

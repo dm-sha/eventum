@@ -159,11 +159,11 @@ const EventCalendar: React.FC<EventCalendarProps> = ({ events, participantId, cu
   };
 
   const handleSubscribeToCalendar = async () => {
-    if (!eventumSlug) return;
+    if (!eventumSlug || !participantId) return;
     
     setIsLoadingWebcal(true);
     try {
-      const response = await getParticipantCalendarWebcalUrl(eventumSlug);
+      const response = await getParticipantCalendarWebcalUrl(eventumSlug, participantId);
       
       // Создаем ссылку и сразу открываем её
       const link = document.createElement('a');
@@ -235,7 +235,7 @@ const EventCalendar: React.FC<EventCalendarProps> = ({ events, participantId, cu
               
               <button
                 onClick={handleSubscribeToCalendar}
-                disabled={isLoadingWebcal || participantEvents.length === 0}
+                disabled={isLoadingWebcal || participantEvents.length === 0 || !participantId}
                 className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-green-600 bg-green-50 rounded-lg hover:bg-green-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 title="Подписаться на календарь в приложении календаря"
               >

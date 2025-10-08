@@ -1310,28 +1310,24 @@ def search_users(request):
 
 
 @api_view(['GET'])
-@require_authentication
-def participant_calendar_ics(request, eventum_slug=None):
-    """Генерация iCalendar файла с мероприятиями участника"""
+def participant_calendar_ics(request, eventum_slug=None, participant_id=None):
+    """Генерация iCalendar файла с мероприятиями участника (публичный endpoint)"""
     try:
         # Получаем eventum
         eventum = get_eventum_from_request(request, kwargs={'slug': eventum_slug})
         
-        # Получаем ID участника из параметров запроса (для отладки)
-        participant_id = request.GET.get('participant_id')
+        # Получаем ID участника из параметров запроса или пути
+        if not participant_id:
+            participant_id = request.GET.get('participant_id')
         
-        if participant_id:
-            # Если указан конкретный участник, получаем его
-            try:
-                participant = Participant.objects.get(id=participant_id, eventum=eventum)
-            except Participant.DoesNotExist:
-                return Response({'error': f'Participant with ID {participant_id} not found in this eventum'}, status=status.HTTP_404_NOT_FOUND)
-        else:
-            # Иначе получаем участника для текущего пользователя
-            try:
-                participant = Participant.objects.get(user=request.user, eventum=eventum)
-            except Participant.DoesNotExist:
-                return Response({'error': 'User is not a participant in this eventum'}, status=status.HTTP_404_NOT_FOUND)
+        if not participant_id:
+            return Response({'error': 'participant_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Получаем участника по ID
+        try:
+            participant = Participant.objects.get(id=participant_id, eventum=eventum)
+        except Participant.DoesNotExist:
+            return Response({'error': f'Participant with ID {participant_id} not found in this eventum'}, status=status.HTTP_404_NOT_FOUND)
         
         # Получаем все мероприятия для участника
         participant_events = Event.objects.filter(eventum=eventum).select_related(
@@ -1471,28 +1467,23 @@ def participant_calendar_ics(request, eventum_slug=None):
 
 
 @api_view(['GET'])
-@require_authentication
 def participant_calendar_webcal(request, eventum_slug=None):
     """Возвращает webcal ссылку для подписки на календарь участника"""
     try:
         # Получаем eventum
         eventum = get_eventum_from_request(request, kwargs={'slug': eventum_slug})
         
-        # Получаем ID участника из параметров запроса (для отладки)
+        # Получаем ID участника из параметров запроса
         participant_id = request.GET.get('participant_id')
         
-        if participant_id:
-            # Если указан конкретный участник, получаем его
-            try:
-                participant = Participant.objects.get(id=participant_id, eventum=eventum)
-            except Participant.DoesNotExist:
-                return Response({'error': f'Participant with ID {participant_id} not found in this eventum'}, status=status.HTTP_404_NOT_FOUND)
-        else:
-            # Иначе получаем участника для текущего пользователя
-            try:
-                participant = Participant.objects.get(user=request.user, eventum=eventum)
-            except Participant.DoesNotExist:
-                return Response({'error': 'User is not a participant in this eventum'}, status=status.HTTP_404_NOT_FOUND)
+        if not participant_id:
+            return Response({'error': 'participant_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Получаем участника по ID
+        try:
+            participant = Participant.objects.get(id=participant_id, eventum=eventum)
+        except Participant.DoesNotExist:
+            return Response({'error': f'Participant with ID {participant_id} not found in this eventum'}, status=status.HTTP_404_NOT_FOUND)
         
         # Получаем базовый URL из настроек или строим его из запроса
         base_url = getattr(settings, 'BASE_URL', None)
@@ -1509,12 +1500,8 @@ def participant_calendar_webcal(request, eventum_slug=None):
                     # Для продакшена принудительно используем HTTPS
                     base_url = base_url.replace('http://', 'https://')
         
-        # Создаем webcal ссылку
-        webcal_url = f"{base_url}/api/eventums/{eventum_slug}/calendar.ics"
-        
-        # Если указан конкретный участник, добавляем его ID в параметры
-        if participant_id:
-            webcal_url += f"?participant_id={participant_id}"
+        # Создаем webcal ссылку с participant_id в пути
+        webcal_url = f"{base_url}/api/eventums/{eventum_slug}/calendar/{participant.id}.ics"
         
         # Заменяем https на webcal (принудительно используем HTTPS)
         webcal_url = webcal_url.replace('https://', 'webcal://')

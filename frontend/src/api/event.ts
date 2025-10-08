@@ -100,7 +100,7 @@ export const downloadParticipantCalendar = async (eventumSlug: string): Promise<
 };
 
 // Получить webcal ссылку для подписки на календарь участника
-export const getParticipantCalendarWebcalUrl = async (eventumSlug: string): Promise<{
+export const getParticipantCalendarWebcalUrl = async (eventumSlug: string, participantId: number): Promise<{
     webcal_url: string;
     calendar_name: string;
     description: string;
@@ -108,7 +108,7 @@ export const getParticipantCalendarWebcalUrl = async (eventumSlug: string): Prom
     const { apiClient } = await import('./client');
     
     try {
-        const response = await apiClient.get(`/eventums/${eventumSlug}/calendar/webcal`);
+        const response = await apiClient.get(`/eventums/${eventumSlug}/calendar/webcal?participant_id=${participantId}`);
         return response.data;
     } catch (error) {
         console.error('Ошибка при получении webcal ссылки:', error);
