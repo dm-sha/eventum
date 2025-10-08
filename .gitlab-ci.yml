@@ -4,22 +4,23 @@ stages:
   - frontend_build
   - frontend_deploy
 
-# Сборка образа контейнера.
 build-job:
   stage: build
-# Использование kaniko для создания контейнера внутри контейнера для большей безопасности.
-  image:
-    name: us-docker.pkg.dev/kaniko-project/executor/executor:debug
-    entrypoint: [""]
+  image: docker:27.1.2
+  services:
+    - name: docker:27.1.2-dind
+      command: ["--tls=false"]
+  variables:
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_DRIVER: overlay2
+    DOCKER_BUILDKIT: "1"
   script:
-    - mkdir -p /kaniko/.docker
-# Отправка образа контейнера в реестр. Образ отмечен хэшем коммита.
-    - echo "{\"auths\":{\"$CI_REGISTRY\":{\"auth\":\"$(echo -n "json_key:${CI_REGISTRY_KEY}" | base64 | tr -d '\n' )\"}}}" > /kaniko/.docker/config.json
-    - >-
-      /kaniko/executor
-      --context "${CI_PROJECT_DIR}/backend"
-      --dockerfile "${CI_PROJECT_DIR}/backend/Dockerfile"
-      --destination "${CI_REGISTRY}/${CI_PROJECT_PATH}:${CI_COMMIT_SHORT_SHA}"
+    - docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD"
+    - docker buildx create --use
+    - docker buildx build \
+        -f backend/Dockerfile \
+        -t "$CI_REGISTRY/$CI_PROJECT_PATH:$CI_COMMIT_SHORT_SHA" \
+        --push backend
 
 release-job:
   stage: release
