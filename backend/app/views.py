@@ -1470,3 +1470,61 @@ def participant_calendar_ics(request, eventum_slug=None):
         )
 
 
+@api_view(['GET'])
+@require_authentication
+def participant_calendar_webcal(request, eventum_slug=None):
+    """Возвращает webcal ссылку для подписки на календарь участника"""
+    try:
+        # Получаем eventum
+        eventum = get_eventum_from_request(request, kwargs={'slug': eventum_slug})
+        
+        # Получаем ID участника из параметров запроса (для отладки)
+        participant_id = request.GET.get('participant_id')
+        
+        if participant_id:
+            # Если указан конкретный участник, получаем его
+            try:
+                participant = Participant.objects.get(id=participant_id, eventum=eventum)
+            except Participant.DoesNotExist:
+                return Response({'error': f'Participant with ID {participant_id} not found in this eventum'}, status=status.HTTP_404_NOT_FOUND)
+        else:
+            # Иначе получаем участника для текущего пользователя
+            try:
+                participant = Participant.objects.get(user=request.user, eventum=eventum)
+            except Participant.DoesNotExist:
+                return Response({'error': 'User is not a participant in this eventum'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Получаем базовый URL из настроек или строим его из запроса
+        base_url = getattr(settings, 'BASE_URL', None)
+        
+        if not base_url:
+            # Если BASE_URL не настроен, строим URL из запроса
+            base_url = request.build_absolute_uri('/').rstrip('/')
+            # Принудительно используем HTTPS для безопасности (кроме localhost для разработки)
+            if base_url.startswith('http://') and 'localhost' not in base_url:
+                base_url = base_url.replace('http://', 'https://')
+        
+        # Создаем webcal ссылку
+        webcal_url = f"{base_url}/api/eventums/{eventum_slug}/calendar.ics"
+        
+        # Если указан конкретный участник, добавляем его ID в параметры
+        if participant_id:
+            webcal_url += f"?participant_id={participant_id}"
+        
+        # Заменяем https на webcal (принудительно используем HTTPS)
+        webcal_url = webcal_url.replace('https://', 'webcal://')
+        
+        return Response({
+            'webcal_url': webcal_url,
+            'calendar_name': f'Мероприятия {eventum.name} - {participant.name}',
+            'description': f'Календарь мероприятий для участника {participant.name}'
+        })
+        
+    except Exception as e:
+        logger.error(f"Error generating webcal URL for participant: {str(e)}", exc_info=True)
+        return Response(
+            {'error': f'Error generating webcal URL: {str(e)}'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+

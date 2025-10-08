@@ -1,8 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import type { Event, Participant } from '../types';
 import EventModal from './EventModal';
-import { downloadParticipantCalendar } from '../api/event';
-import { IconCalendarDownload } from './icons';
+import { downloadParticipantCalendar, getParticipantCalendarWebcalUrl } from '../api/event';
+import { IconCalendarDownload, IconCalendarSubscribe } from './icons';
 import { useEventumSlug } from '../hooks/useEventumSlug';
 import './EventCalendar.css';
 
@@ -17,6 +17,7 @@ const EventCalendar: React.FC<EventCalendarProps> = ({ events, participantId, cu
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentDate, setCurrentDate] = useState<Date | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isLoadingWebcal, setIsLoadingWebcal] = useState(false);
   
   const eventumSlug = useEventumSlug();
 
@@ -157,6 +158,32 @@ const EventCalendar: React.FC<EventCalendarProps> = ({ events, participantId, cu
     }
   };
 
+  const handleSubscribeToCalendar = async () => {
+    if (!eventumSlug) return;
+    
+    setIsLoadingWebcal(true);
+    try {
+      const response = await getParticipantCalendarWebcalUrl(eventumSlug);
+      
+      // Создаем ссылку и сразу открываем её
+      const link = document.createElement('a');
+      link.href = response.webcal_url;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      
+      // Добавляем ссылку в DOM, кликаем и удаляем
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+    } catch (error) {
+      console.error('Ошибка при подписке на календарь:', error);
+      alert('Ошибка при подписке на календарь. Попробуйте еще раз.');
+    } finally {
+      setIsLoadingWebcal(false);
+    }
+  };
+
   // Если нет мероприятий для участника
   if (participantEvents.length === 0) {
     return (
@@ -191,19 +218,31 @@ const EventCalendar: React.FC<EventCalendarProps> = ({ events, participantId, cu
   return (
     <div className="w-full calendar-wrapper">
       <div>
-        {/* Заголовок с кнопкой скачивания */}
+        {/* Заголовок с кнопками календаря */}
         <div className="p-4 pb-2">
           <div className="flex items-center gap-4 mb-4">
             <h2 className="text-lg font-semibold text-gray-900">Расписание мероприятий</h2>
-            <button
-              onClick={handleDownloadCalendar}
-              disabled={isDownloading || participantEvents.length === 0}
-              className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              title="Скачать календарь в формате iCalendar (.ics)"
-            >
-              <IconCalendarDownload size={16} />
-              {isDownloading ? 'Скачивание...' : 'Скачать календарь'}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleDownloadCalendar}
+                disabled={isDownloading || participantEvents.length === 0}
+                className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Скачать календарь в формате iCalendar (.ics)"
+              >
+                <IconCalendarDownload size={16} />
+                {isDownloading ? 'Скачивание...' : 'Скачать календарь'}
+              </button>
+              
+              <button
+                onClick={handleSubscribeToCalendar}
+                disabled={isLoadingWebcal || participantEvents.length === 0}
+                className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-green-600 bg-green-50 rounded-lg hover:bg-green-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Подписаться на календарь в приложении календаря"
+              >
+                <IconCalendarSubscribe size={16} />
+                {isLoadingWebcal ? 'Открытие...' : 'Подписаться в календарь'}
+              </button>
+            </div>
           </div>
         </div>
         

@@ -23,7 +23,8 @@ from .views import (
     eventum_registration_stats,
     remove_eventum_organizer,
     search_users,
-    participant_calendar_ics
+    participant_calendar_ics,
+    participant_calendar_webcal
 )
 
 router = DefaultRouter()
@@ -52,6 +53,7 @@ urlpatterns = [
     path('eventums/<slug:slug>/organizers/<int:role_id>/', remove_eventum_organizer, name='remove_eventum_organizer'),
     path('eventums/<slug:slug>/registration-stats/', eventum_registration_stats, name='eventum_registration_stats'),
     path('eventums/<slug:eventum_slug>/calendar.ics', participant_calendar_ics, name='participant_calendar_ics'),
+    path('eventums/<slug:eventum_slug>/calendar/webcal', participant_calendar_webcal, name='participant_calendar_webcal'),
     
     # Fallback для поддоменов (обратная совместимость)
     path('', include(eventum_scoped_router.urls)),

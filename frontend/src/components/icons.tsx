@@ -358,3 +358,18 @@ export const IconCalendarDownload = ({ size = 20, ...props }: Props) => (
     />
   </svg>
 );
+
+export const IconCalendarSubscribe = ({ size = 20, ...props }: Props) => (
+  <svg {...base} width={size} height={size} {...props}>
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      d="M6.75 3v2.25M17.25 3v2.25M3.75 8.25h16.5M4.5 6.75h15a1.5 1.5 0 011.5 1.5V18a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 18V8.25a1.5 1.5 0 011.5-1.5z"
+    />
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      d="M12 9.75v6m3-3H9"
+    />
+  </svg>
+);
