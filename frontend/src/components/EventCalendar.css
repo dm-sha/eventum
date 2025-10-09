@@ -187,11 +187,11 @@
   
   /* Уменьшенные отступы для заголовка и переключателя дней */
   .calendar-wrapper > div > div:first-child {
-    padding: 0.5rem 0.5rem 0.25rem 0.5rem;
+    padding: 0.5rem 0 0.25rem 0;
   }
   
   .calendar-wrapper > div > div:nth-child(2) {
-    padding: 0 0.5rem 0.5rem 0.5rem;
+    padding: 0 0 0.5rem 0;
   }
   
   /* Стили для кнопок календаря на мобильных */
@@ -205,7 +205,7 @@
     min-width: 0;
     max-width: 200px;
     padding: 0.75rem 1rem;
-    font-size: 0.875rem;
+    font-size: 1rem;
   }
   
   /* Центрирование иконок в кнопках */
@@ -233,7 +233,7 @@
   
   /* Увеличенный заголовок на мобильных */
   .schedule-page h2 {
-    font-size: 1.25rem;
+    font-size: 1.5rem;
   }
   
   .event-item {
@@ -246,7 +246,7 @@
   /* Увеличенные переключатели дней на мобильных */
   .schedule-page button {
     padding: 0.75rem 1rem;
-    font-size: 0.875rem;
+    font-size: 1rem;
   }
   
   .event-time {
@@ -265,25 +265,25 @@
   }
   
   .time-start {
-    font-size: 1rem;
+    font-size: 1.125rem;
   }
   
   .time-end {
-    font-size: 1rem;
+    font-size: 1.125rem;
   }
   
   .time-separator {
-    font-size: 1rem;
+    font-size: 1.125rem;
   }
   
   .event-title-container {
-    font-size: 1.125rem;
+    font-size: 1.25rem;
     padding: 0.75rem 1rem;
     max-width: calc(100vw - 100px);
   }
   
   .event-title {
-    font-size: 1.125rem;
+    font-size: 1.25rem;
   }
   
   .event-location {
@@ -291,7 +291,7 @@
   }
   
   .events-list {
-    padding: 0.25rem;
+    padding: 0;
     gap: 0.25rem;
   }
   
@@ -316,23 +316,23 @@
   
   /* Еще более компактные отступы для очень узких экранов */
   .calendar-wrapper > div > div:first-child {
-    padding: 0.25rem 0.25rem 0.125rem 0.25rem;
+    padding: 0.25rem 0 0.125rem 0;
   }
   
   .calendar-wrapper > div > div:nth-child(2) {
-    padding: 0 0.25rem 0.25rem 0.25rem;
+    padding: 0 0 0.25rem 0;
   }
   
   /* Компактные кнопки для очень узких экранов */
   .calendar-header-buttons button {
     padding: 0.75rem 1rem;
-    font-size: 0.875rem;
+    font-size: 0.9375rem;
     max-width: 160px;
   }
   
   .calendar-header-buttons button svg {
-    width: 14px;
-    height: 14px;
+    width: 16px;
+    height: 16px;
     display: block;
     margin: 0 auto;
   }
@@ -354,25 +354,25 @@
   }
   
   .time-start {
-    font-size: 0.875rem;
+    font-size: 1rem;
   }
   
   .time-end {
-    font-size: 0.875rem;
+    font-size: 1rem;
   }
   
   .time-separator {
-    font-size: 0.875rem;
+    font-size: 1rem;
   }
   
   .event-title-container {
-    font-size: 1rem;
+    font-size: 1.125rem;
     padding: 0.5rem 0.75rem;
     max-width: calc(100vw - 80px);
   }
   
   .event-title {
-    font-size: 1rem;
+    font-size: 1.125rem;
   }
   
   .event-location {
