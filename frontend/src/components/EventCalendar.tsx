@@ -216,7 +216,7 @@ const EventCalendar: React.FC<EventCalendarProps> = ({ events, participantId, cu
   const currentDayEvents = currentDate ? eventsByDay[currentDate.toDateString()] || [] : [];
 
   return (
-    <div className="w-full calendar-wrapper">
+    <div className="w-full calendar-wrapper schedule-page">
       <div>
         {/* Заголовок с кнопками календаря */}
         <div className="p-4 pb-2">

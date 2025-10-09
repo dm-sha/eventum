@@ -180,6 +180,20 @@
     margin: 0;
   }
   
+  /* Уменьшенные отступы для мобильных */
+  .calendar-container .p-4 {
+    padding: 0.75rem;
+  }
+  
+  /* Уменьшенные отступы для заголовка и переключателя дней */
+  .calendar-wrapper > div > div:first-child {
+    padding: 0.5rem 0.5rem 0.25rem 0.5rem;
+  }
+  
+  .calendar-wrapper > div > div:nth-child(2) {
+    padding: 0 0.5rem 0.5rem 0.5rem;
+  }
+  
   /* Стили для кнопок календаря на мобильных */
   .calendar-header-buttons {
     flex-wrap: wrap;
@@ -258,12 +272,12 @@
   }
   
   .events-list {
-    padding: 0.75rem;
-    gap: 0.5rem;
+    padding: 0.25rem;
+    gap: 0.25rem;
   }
   
   .no-events {
-    padding: 2rem;
+    padding: 1rem;
   }
   
   .no-events-icon {
@@ -279,6 +293,15 @@
 @media (max-width: 480px) {
   .calendar-header {
     grid-template-columns: 1fr;
+  }
+  
+  /* Еще более компактные отступы для очень узких экранов */
+  .calendar-wrapper > div > div:first-child {
+    padding: 0.25rem 0.25rem 0.125rem 0.25rem;
+  }
+  
+  .calendar-wrapper > div > div:nth-child(2) {
+    padding: 0 0.25rem 0.25rem 0.25rem;
   }
   
   /* Компактные кнопки для очень узких экранов */
@@ -399,14 +422,34 @@
   padding-left: 4rem;
 }
 
+/* Переопределение отступов Layout для страницы расписания */
+.schedule-page {
+  margin-left: -1rem;
+  margin-right: -1rem;
+}
+
+@media (max-width: 768px) {
+  .schedule-page {
+    margin-left: -0.5rem;
+    margin-right: -0.5rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .schedule-page {
+    margin-left: -0.25rem;
+    margin-right: -0.25rem;
+  }
+}
+
 @media (max-width: 768px) {
   .calendar-wrapper {
-    padding-left: 0.5rem;
+    padding-left: 0;
   }
 }
 
 @media (max-width: 480px) {
   .calendar-wrapper {
-    padding-left: 0.25rem;
+    padding-left: 0;
   }
 }
