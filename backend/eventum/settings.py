@@ -283,6 +283,8 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_RENDERER_CLASSES': [
         'rest_framework.renderers.JSONRenderer',
+        'app.renderers.ICalendarRenderer',  # Добавляем поддержку text/calendar
+        'app.renderers.ICalendarApplicationRenderer',  # Добавляем поддержку application/calendar
     ],
     'DEFAULT_PARSER_CLASSES': [
         'rest_framework.parsers.JSONParser',

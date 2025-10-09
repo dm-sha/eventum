@@ -1433,9 +1433,9 @@ def search_users(request):
 def participant_calendar_ics(request, eventum_slug=None, participant_id=None):
     """Генерация iCalendar файла с мероприятиями участника (публичный endpoint)"""
     try:
-        # Проверяем Accept заголовок
+        # Проверяем Accept заголовок - разрешаем text/calendar, application/calendar и */*
         accept_header = request.META.get('HTTP_ACCEPT', '')
-        if accept_header and 'text/calendar' not in accept_header and 'application/calendar' not in accept_header and '*/*' not in accept_header:
+        if accept_header and not any(accepted in accept_header for accepted in ['text/calendar', 'application/calendar', '*/*', 'text/html']):
             # Если клиент не принимает календарные типы, возвращаем ошибку
             return Response(
                 {'error': 'Client does not accept calendar format'}, 
@@ -1524,7 +1524,7 @@ def participant_calendar_ics(request, eventum_slug=None, participant_id=None):
         cached_calendar = cache.get(cache_key)
         if cached_calendar:
             logger.info(f"iCalendar получен из кэша для участника {participant_id}")
-            response = HttpResponse(cached_calendar, content_type='text/calendar; charset=utf-8')
+            response = Response(cached_calendar, content_type='text/calendar; charset=utf-8')
             response['Content-Disposition'] = f'attachment; filename="eventum-{eventum.slug}-{participant.id}.ics"'
             response['Cache-Control'] = 'public, max-age=300'  # Кэшируем на 5 минут
             response['Access-Control-Allow-Origin'] = '*'
@@ -1604,7 +1604,7 @@ def participant_calendar_ics(request, eventum_slug=None, participant_id=None):
         logger.info(f"iCalendar сгенерирован и закэширован для участника {participant_id}")
         
         # Создаем HTTP ответ с правильными заголовками
-        response = HttpResponse(calendar_content, content_type='text/calendar; charset=utf-8')
+        response = Response(calendar_content, content_type='text/calendar; charset=utf-8')
         
         # Безопасное имя файла (убираем специальные символы)
         safe_filename = f"eventum-{eventum.slug}-{participant.id}.ics"
@@ -1657,8 +1657,11 @@ def participant_calendar_webcal(request, eventum_slug=None):
         # Создаем webcal ссылку с participant_id в пути
         webcal_url = f"{base_url}/api/eventums/{eventum_slug}/calendar/{participant.id}.ics"
         
-        # Заменяем https на webcal (правильный формат webcal://domain.com/path)
-        webcal_url = webcal_url.replace('https://', 'webcal://')
+        # Принудительно используем HTTPS для webcal ссылок (заменяем http на https)
+        webcal_url = webcal_url.replace('http://', 'https://')
+        
+        # Заменяем https на webcals (безопасный формат webcals://domain.com/path)
+        webcal_url = webcal_url.replace('https://', 'webcals://')
         
         return Response({
             'webcal_url': webcal_url,

@@ -4,6 +4,7 @@ WORKDIR /app
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
+ENV BASE_URL=https://bbapo5ibqs4eg6dail89.containers.yandexcloud.net
 
 RUN pip install --upgrade pip setuptools wheel
 
