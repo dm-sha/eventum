@@ -1538,7 +1538,7 @@ def participant_calendar_ics(request, eventum_slug=None, participant_id=None):
         cal.add('version', '2.0')
         cal.add('calscale', 'GREGORIAN')
         cal.add('method', 'PUBLISH')
-        cal.add('X-WR-CALNAME', f'Мероприятия {eventum.name} - {participant.name}')
+        cal.add('X-WR-CALNAME', f'{eventum.name} - {participant.name}')
         cal.add('X-WR-CALDESC', f'Календарь мероприятий для участника {participant.name}')
         
         # Добавляем каждое мероприятие в календарь
