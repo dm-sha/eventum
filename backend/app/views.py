@@ -193,6 +193,48 @@ class ParticipantViewSet(CachedListMixin, EventumScopedViewSet):
         
         serializer = EventRegistrationSerializer(registrations, many=True, context={'request': request})
         return Response(serializer.data)
+    
+    def perform_create(self, serializer):
+        """Переопределяем для инвалидации кэша при создании"""
+        super().perform_create(serializer)
+        eventum_slug = self.kwargs.get('eventum_slug')
+        cache_key = f"participants_list_{eventum_slug}"
+        cache.delete(cache_key)
+        # Инвалидируем кэш iCalendar файлов для всех участников этого eventum
+        self._invalidate_ical_cache(eventum_slug)
+    
+    def perform_update(self, serializer):
+        """Переопределяем для инвалидации кэша при обновлении"""
+        super().perform_update(serializer)
+        eventum_slug = self.kwargs.get('eventum_slug')
+        cache_key = f"participants_list_{eventum_slug}"
+        cache.delete(cache_key)
+        # Инвалидируем кэш iCalendar файлов для всех участников этого eventum
+        self._invalidate_ical_cache(eventum_slug)
+    
+    def perform_destroy(self, instance):
+        """Переопределяем для инвалидации кэша при удалении"""
+        eventum_slug = self.kwargs.get('eventum_slug')
+        super().perform_destroy(instance)
+        cache_key = f"participants_list_{eventum_slug}"
+        cache.delete(cache_key)
+        # Инвалидируем кэш iCalendar файлов для всех участников этого eventum
+        self._invalidate_ical_cache(eventum_slug)
+    
+    def _invalidate_ical_cache(self, eventum_slug):
+        """Инвалидирует кэш iCalendar файлов для всех участников eventum"""
+        try:
+            # Получаем всех участников этого eventum
+            participant_ids = Participant.objects.filter(eventum__slug=eventum_slug).values_list('id', flat=True)
+            
+            # Удаляем кэш для каждого участника
+            for participant_id in participant_ids:
+                cache_key = f"ical_calendar_{eventum_slug}_{participant_id}"
+                cache.delete(cache_key)
+            
+            logger.info(f"Инвалидирован кэш iCalendar для {len(participant_ids)} участников eventum {eventum_slug}")
+        except Exception as e:
+            logger.error(f"Ошибка при инвалидации кэша iCalendar: {str(e)}")
 
 class ParticipantGroupViewSet(CachedListMixin, EventumScopedViewSet):
     queryset = ParticipantGroup.objects.all().prefetch_related(
@@ -247,6 +289,8 @@ class ParticipantGroupViewSet(CachedListMixin, EventumScopedViewSet):
         eventum_slug = self.kwargs.get('eventum_slug')
         cache_key = f"groups_list_{eventum_slug}"
         cache.delete(cache_key)
+        # Инвалидируем кэш iCalendar файлов для всех участников этого eventum
+        self._invalidate_ical_cache(eventum_slug)
     
     def perform_update(self, serializer):
         """Переопределяем для инвалидации кэша при обновлении"""
@@ -254,6 +298,8 @@ class ParticipantGroupViewSet(CachedListMixin, EventumScopedViewSet):
         eventum_slug = self.kwargs.get('eventum_slug')
         cache_key = f"groups_list_{eventum_slug}"
         cache.delete(cache_key)
+        # Инвалидируем кэш iCalendar файлов для всех участников этого eventum
+        self._invalidate_ical_cache(eventum_slug)
     
     def perform_destroy(self, instance):
         """Переопределяем для инвалидации кэша при удалении"""
@@ -261,6 +307,23 @@ class ParticipantGroupViewSet(CachedListMixin, EventumScopedViewSet):
         eventum_slug = self.kwargs.get('eventum_slug')
         cache_key = f"groups_list_{eventum_slug}"
         cache.delete(cache_key)
+        # Инвалидируем кэш iCalendar файлов для всех участников этого eventum
+        self._invalidate_ical_cache(eventum_slug)
+    
+    def _invalidate_ical_cache(self, eventum_slug):
+        """Инвалидирует кэш iCalendar файлов для всех участников eventum"""
+        try:
+            # Получаем всех участников этого eventum
+            participant_ids = Participant.objects.filter(eventum__slug=eventum_slug).values_list('id', flat=True)
+            
+            # Удаляем кэш для каждого участника
+            for participant_id in participant_ids:
+                cache_key = f"ical_calendar_{eventum_slug}_{participant_id}"
+                cache.delete(cache_key)
+            
+            logger.info(f"Инвалидирован кэш iCalendar для {len(participant_ids)} участников eventum {eventum_slug}")
+        except Exception as e:
+            logger.error(f"Ошибка при инвалидации кэша iCalendar: {str(e)}")
 
 class GroupTagViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
     queryset = GroupTag.objects.all().prefetch_related(
@@ -518,6 +581,8 @@ class EventViewSet(CachedListMixin, EventumScopedViewSet, viewsets.ModelViewSet)
         eventum_slug = self.kwargs.get('eventum_slug')
         cache_key = f"events_list_{eventum_slug}"
         cache.delete(cache_key)
+        # Инвалидируем кэш iCalendar файлов для всех участников этого eventum
+        self._invalidate_ical_cache(eventum_slug)
     
     def perform_update(self, serializer):
         """Переопределяем для инвалидации кэша при обновлении"""
@@ -525,13 +590,32 @@ class EventViewSet(CachedListMixin, EventumScopedViewSet, viewsets.ModelViewSet)
         eventum_slug = self.kwargs.get('eventum_slug')
         cache_key = f"events_list_{eventum_slug}"
         cache.delete(cache_key)
+        # Инвалидируем кэш iCalendar файлов для всех участников этого eventum
+        self._invalidate_ical_cache(eventum_slug)
     
     def perform_destroy(self, instance):
         """Переопределяем для инвалидации кэша при удалении"""
-        super().perform_destroy(instance)
         eventum_slug = self.kwargs.get('eventum_slug')
+        super().perform_destroy(instance)
         cache_key = f"events_list_{eventum_slug}"
         cache.delete(cache_key)
+        # Инвалидируем кэш iCalendar файлов для всех участников этого eventum
+        self._invalidate_ical_cache(eventum_slug)
+    
+    def _invalidate_ical_cache(self, eventum_slug):
+        """Инвалидирует кэш iCalendar файлов для всех участников eventum"""
+        try:
+            # Получаем всех участников этого eventum
+            participant_ids = Participant.objects.filter(eventum__slug=eventum_slug).values_list('id', flat=True)
+            
+            # Удаляем кэш для каждого участника
+            for participant_id in participant_ids:
+                cache_key = f"ical_calendar_{eventum_slug}_{participant_id}"
+                cache.delete(cache_key)
+            
+            logger.info(f"Инвалидирован кэш iCalendar для {len(participant_ids)} участников eventum {eventum_slug}")
+        except Exception as e:
+            logger.error(f"Ошибка при инвалидации кэша iCalendar: {str(e)}")
 
     def _get_participant(self, request, eventum):
         """Получить участника для текущего пользователя"""
@@ -1345,6 +1429,7 @@ def search_users(request):
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
+@log_execution_time("Генерация iCalendar файла")
 def participant_calendar_ics(request, eventum_slug=None, participant_id=None):
     """Генерация iCalendar файла с мероприятиями участника (публичный endpoint)"""
     try:
@@ -1367,65 +1452,85 @@ def participant_calendar_ics(request, eventum_slug=None, participant_id=None):
         if not participant_id:
             return Response({'error': 'participant_id is required'}, status=status.HTTP_400_BAD_REQUEST)
         
-        # Получаем участника по ID
+        # Получаем участника с предзагруженными группами и их тегами
         try:
-            participant = Participant.objects.get(id=participant_id, eventum=eventum)
+            participant = Participant.objects.select_related('eventum').prefetch_related(
+                'groups__tags'
+            ).get(id=participant_id, eventum=eventum)
         except Participant.DoesNotExist:
             return Response({'error': f'Participant with ID {participant_id} not found in this eventum'}, status=status.HTTP_404_NOT_FOUND)
         
-        # Получаем все мероприятия для участника
-        participant_events = Event.objects.filter(eventum=eventum).select_related(
-            'eventum'
-        ).prefetch_related(
-            'tags',
-            'group_tags',
-            'locations',
-            'groups',
-            'groups__tags',
-            'participants',
-            'participants__user',
-            'registrations',
-            'registrations__participant',
-            'registrations__participant__user',
+        # Получаем ID групп участника и их тегов для оптимизации запросов
+        participant_groups = list(participant.groups.all())
+        participant_group_ids = [g.id for g in participant_groups]
+        participant_group_tag_ids = []
+        for group in participant_groups:
+            participant_group_tag_ids.extend([tag.id for tag in group.tags.all()])
+        
+        # Оптимизированный запрос: получаем только нужные события с минимальными prefetch
+        from django.db.models import Q, Exists, OuterRef
+        
+        # Создаем подзапросы для проверки участия
+        participant_registration_exists = Exists(
+            EventRegistration.objects.filter(
+                event=OuterRef('pk'),
+                participant_id=participant_id
+            )
         )
         
-        # Фильтруем мероприятия для участника
-        filtered_events = []
-        for event in participant_events:
-            # Мероприятия для всех участников
-            if event.participant_type == Event.ParticipantType.ALL:
-                filtered_events.append(event)
-                continue
-            
-            # Мероприятия по записи - показываем если участник подал заявку
-            if event.participant_type == Event.ParticipantType.REGISTRATION:
-                if event.registrations.filter(participant=participant).exists():
-                    filtered_events.append(event)
-                continue
-            
-            # Мероприятия вручную - проверяем различные способы назначения
-            if event.participant_type == Event.ParticipantType.MANUAL:
-                # 1. Прямое назначение участника
-                if event.participants.filter(id=participant.id).exists():
-                    filtered_events.append(event)
-                    continue
-                
-                # 2. Назначение через группу участника
-                participant_groups = participant.groups.all()
-                participant_group_ids = [g.id for g in participant_groups]
-                if event.groups.filter(id__in=participant_group_ids).exists():
-                    filtered_events.append(event)
-                    continue
-                
-                # 3. Назначение через теги групп участника
-                participant_group_tags = set()
-                for group in participant_groups:
-                    participant_group_tags.update(group.tags.all())
-                
-                participant_group_tag_ids = [t.id for t in participant_group_tags]
-                if event.group_tags.filter(id__in=participant_group_tag_ids).exists():
-                    filtered_events.append(event)
-                    continue
+        participant_direct_exists = Exists(
+            Event.objects.filter(
+                pk=OuterRef('pk'),
+                participants__id=participant_id
+            )
+        )
+        
+        participant_group_exists = Exists(
+            Event.objects.filter(
+                pk=OuterRef('pk'),
+                groups__id__in=participant_group_ids
+            )
+        )
+        
+        participant_group_tag_exists = Exists(
+            Event.objects.filter(
+                pk=OuterRef('pk'),
+                group_tags__id__in=participant_group_tag_ids
+            )
+        )
+        
+        # Основной запрос с фильтрацией на уровне SQL
+        filtered_events = Event.objects.filter(
+            eventum=eventum
+        ).filter(
+            # События для всех участников
+            Q(participant_type=Event.ParticipantType.ALL) |
+            # События по записи, где участник подал заявку
+            Q(participant_type=Event.ParticipantType.REGISTRATION, registrations__participant_id=participant_id) |
+            # События вручную с прямым назначением
+            Q(participant_type=Event.ParticipantType.MANUAL, participants__id=participant_id) |
+            # События вручную через группы участника
+            Q(participant_type=Event.ParticipantType.MANUAL, groups__id__in=participant_group_ids) |
+            # События вручную через теги групп участника
+            Q(participant_type=Event.ParticipantType.MANUAL, group_tags__id__in=participant_group_tag_ids)
+        ).select_related('eventum').prefetch_related(
+            'tags',
+            'group_tags', 
+            'locations'
+        ).distinct()
+        
+        # Проверяем кэш для этого участника
+        cache_key = f"ical_calendar_{eventum.slug}_{participant_id}"
+        cached_calendar = cache.get(cache_key)
+        if cached_calendar:
+            logger.info(f"iCalendar получен из кэша для участника {participant_id}")
+            response = HttpResponse(cached_calendar, content_type='text/calendar; charset=utf-8')
+            response['Content-Disposition'] = f'attachment; filename="eventum-{eventum.slug}-{participant.id}.ics"'
+            response['Cache-Control'] = 'public, max-age=300'  # Кэшируем на 5 минут
+            response['Access-Control-Allow-Origin'] = '*'
+            response['Access-Control-Allow-Methods'] = 'GET'
+            response['Access-Control-Allow-Headers'] = 'Content-Type'
+            return response
         
         # Создаем iCalendar календарь
         cal = Calendar()
@@ -1494,15 +1599,17 @@ def participant_calendar_ics(request, eventum_slug=None, participant_id=None):
         # Генерируем содержимое календаря
         calendar_content = cal.to_ical().decode('utf-8')
         
+        # Кэшируем результат на 5 минут
+        cache.set(cache_key, calendar_content, 300)
+        logger.info(f"iCalendar сгенерирован и закэширован для участника {participant_id}")
+        
         # Создаем HTTP ответ с правильными заголовками
         response = HttpResponse(calendar_content, content_type='text/calendar; charset=utf-8')
         
         # Безопасное имя файла (убираем специальные символы)
         safe_filename = f"eventum-{eventum.slug}-{participant.id}.ics"
         response['Content-Disposition'] = f'attachment; filename="{safe_filename}"'
-        response['Cache-Control'] = 'no-cache, must-revalidate'
-        response['Pragma'] = 'no-cache'
-        response['Expires'] = '0'
+        response['Cache-Control'] = 'public, max-age=300'  # Кэшируем на 5 минут
         response['Access-Control-Allow-Origin'] = '*'
         response['Access-Control-Allow-Methods'] = 'GET'
         response['Access-Control-Allow-Headers'] = 'Content-Type'
