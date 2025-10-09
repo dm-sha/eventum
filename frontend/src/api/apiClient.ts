@@ -3,14 +3,7 @@
  */
 import axios, { type AxiosResponse, type AxiosError, type AxiosRequestConfig } from 'axios';
 import { getCookie, setCookie, deleteCookie, getMerupCookieOptions } from '../utils/cookies';
-
-// Определяем базовый URL API
-const getApiBaseUrl = (): string => {
-  if (import.meta.env.DEV) {
-    return 'http://localhost:8000/api';
-  }
-  return import.meta.env.VITE_API_BASE_URL || 'https://bbapo5ibqs4eg6dail89.containers.yandexcloud.net/api';
-};
+import { resolveApiBaseUrl } from './baseUrl';
 
 // Утилиты для работы с токенами
 class TokenManager {
@@ -69,7 +62,7 @@ class TokenManager {
 
 // Создаем основной API клиент
 const apiClient = axios.create({
-  baseURL: getApiBaseUrl(),
+  baseURL: resolveApiBaseUrl(),
   headers: {
     'Content-Type': 'application/json',
   },
@@ -79,11 +72,14 @@ const apiClient = axios.create({
 apiClient.interceptors.request.use(
   (config) => {
     // Пропускаем добавление токенов для эндпоинтов аутентификации
-    const isAuthEndpoint = config.url?.includes('/auth/vk/') || 
+    const isAuthEndpoint = config.url?.includes('/auth/vk/') ||
                           config.url?.includes('/auth/refresh/') ||
                           config.url?.includes('/auth/dev-user/');
-    
-    if (!isAuthEndpoint) {
+    const isCalendarEndpoint = config.url?.includes('/calendar/') ||
+                               config.url?.includes('/calendar.ics') ||
+                               config.url?.includes('/calendar/webcal');
+
+    if (!isAuthEndpoint && !isCalendarEndpoint) {
       const tokens = TokenManager.getTokens();
       if (tokens?.access) {
         // Используем только query параметр для передачи токена
@@ -110,7 +106,7 @@ apiClient.interceptors.response.use(
       const tokens = TokenManager.getTokens();
       if (tokens?.refresh) {
         try {
-          const response = await axios.post(`${getApiBaseUrl()}/auth/refresh/`, {
+          const response = await axios.post(`${resolveApiBaseUrl()}/auth/refresh/`, {
             refresh: tokens.refresh
           });
 
@@ -141,7 +137,7 @@ apiClient.interceptors.response.use(
 
 // Функция для создания URL с учетом поддоменов
 export const createApiUrl = (path: string, eventumSlug?: string): string => {
-  const baseUrl = getApiBaseUrl();
+  const baseUrl = resolveApiBaseUrl();
 
   if (eventumSlug) {
     return `${baseUrl}/eventums/${eventumSlug}${path}`;

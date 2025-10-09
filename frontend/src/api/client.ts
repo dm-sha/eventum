@@ -1,33 +1,10 @@
 import axios, { type AxiosResponse, type AxiosError } from 'axios';
 import { getCookie, setCookie, deleteCookie, getMerupCookieOptions } from '../utils/cookies';
+import { resolveApiBaseUrl } from './baseUrl';
 import { getSubdomainSlug } from '../utils/eventumSlug';
 
-// Определяем базовый URL API в зависимости от окружения
-const getApiBaseUrl = () => {
-    // В режиме разработки используем локальный бекенд
-    if (import.meta.env.DEV) {
-        return 'http://localhost:8000/api';
-    }
-    
-    // В продакшене определяем API URL на основе текущего домена
-    const hostname = window.location.hostname;
-    
-    // Если мы на поддомене merup.ru, используем основной домен для API
-    if (hostname.endsWith('.merup.ru')) {
-        return 'https://bbapo5ibqs4eg6dail89.containers.yandexcloud.net/api';
-    }
-    
-    // Если мы на основном домене merup.ru
-    if (hostname === 'merup.ru') {
-        return 'https://bbapo5ibqs4eg6dail89.containers.yandexcloud.net/api';
-    }
-    
-    // Fallback на переменную окружения или продакшн URL
-    return import.meta.env.VITE_API_BASE_URL || 'https://bbapo5ibqs4eg6dail89.containers.yandexcloud.net/api';
-};
-
 const apiClient = axios.create({
-    baseURL: getApiBaseUrl(),
+    baseURL: resolveApiBaseUrl(),
     headers: {
         'Content-Type': 'application/json',
     },
@@ -164,9 +141,9 @@ apiClient.interceptors.response.use(
                 
                 if (tokens) {
                     const { refresh } = JSON.parse(tokens);
-                    
+
                     // Пытаемся обновить токен
-                    const response = await axios.post(`${getApiBaseUrl()}/auth/refresh/`, {
+                    const response = await axios.post(`${resolveApiBaseUrl()}/auth/refresh/`, {
                         refresh
                     });
 
@@ -227,7 +204,7 @@ apiClient.interceptors.response.use(
 
 // Функция для создания API клиента с учетом поддомена
 export const createEventumApiClient = (slug: string) => {
-  const baseURL = getApiBaseUrl();
+  const baseURL = resolveApiBaseUrl();
   const subdomainSlug = getSubdomainSlug();
   
   // Если мы на поддомене, не добавляем slug в базовый URL
