@@ -165,9 +165,12 @@ const EventCalendar: React.FC<EventCalendarProps> = ({ events, participantId, cu
     try {
       const response = await getParticipantCalendarWebcalUrl(eventumSlug, participantId);
       
-      // Создаем ссылку и сразу открываем её
+      // Для календарных подписок используем webcal:// протокол
+      const webcalUrl = response.webcal_url.replace('https://', 'webcal://');
+      
+      // Создаем ссылку с webcal протоколом
       const link = document.createElement('a');
-      link.href = response.webcal_url;
+      link.href = webcalUrl;
       link.target = '_blank';
       link.rel = 'noopener noreferrer';
       

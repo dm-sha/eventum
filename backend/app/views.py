@@ -1654,14 +1654,11 @@ def participant_calendar_webcal(request, eventum_slug=None):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-        # Создаем webcal ссылку с participant_id в пути
+        # Создаем HTTPS ссылку на календарь (современные календарные приложения поддерживают HTTPS)
         webcal_url = f"{base_url}/api/eventums/{eventum_slug}/calendar/{participant.id}.ics"
         
-        # Принудительно используем HTTPS для webcal ссылок (заменяем http на https)
+        # Принудительно используем HTTPS для календарных ссылок
         webcal_url = webcal_url.replace('http://', 'https://')
-        
-        # Заменяем https на webcals (безопасный формат webcals://domain.com/path)
-        webcal_url = webcal_url.replace('https://', 'webcals://')
         
         return Response({
             'webcal_url': webcal_url,
