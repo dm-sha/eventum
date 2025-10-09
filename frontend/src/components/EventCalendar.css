@@ -229,6 +229,7 @@
   
   .day-name {
     font-size: 1.25rem;
+    padding: 1rem 0;
   }
   
   /* Увеличенный заголовок на мобильных */
@@ -312,6 +313,11 @@
 @media (max-width: 480px) {
   .calendar-header {
     grid-template-columns: 1fr;
+  }
+  
+  .day-name {
+    font-size: 1.125rem;
+    padding: 1.0rem 0;
   }
   
   /* Еще более компактные отступы для очень узких экранов */
