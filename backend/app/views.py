@@ -17,6 +17,7 @@ import json
 from icalendar import Calendar, Event as ICalEvent
 from datetime import datetime
 import uuid
+from urllib.parse import urlsplit, urlunsplit
 from .models import Eventum, Participant, ParticipantGroup, GroupTag, Event, EventTag, UserProfile, UserRole, Location, EventWave, EventRegistration
 from .serializers import (
     EventumSerializer, ParticipantSerializer, ParticipantGroupSerializer,
@@ -31,6 +32,39 @@ from .base_views import EventumScopedViewSet, CachedListMixin
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+def build_public_base_url(request):
+    """Возвращает публичный базовый URL с принудительным HTTPS."""
+    configured_base_url = getattr(settings, 'BASE_URL', '') or ''
+    configured_base_url = configured_base_url.strip()
+
+    if configured_base_url:
+        sanitized = configured_base_url.rstrip('/')
+        if not sanitized.startswith(('http://', 'https://')):
+            sanitized = f'https://{sanitized}'
+
+        parsed = urlsplit(sanitized)
+        netloc = parsed.netloc or parsed.path
+
+        if not netloc:
+            raise ValueError('BASE_URL configuration must contain a hostname')
+
+        scheme = 'https'
+        return urlunsplit((scheme, netloc, '', '', ''))
+
+    forwarded_proto = request.META.get('HTTP_X_FORWARDED_PROTO')
+    scheme = forwarded_proto.split(',')[0] if forwarded_proto else request.scheme
+    host = request.META.get('HTTP_X_FORWARDED_HOST') or request.get_host()
+
+    base_url = f'{scheme}://{host}'.rstrip('/')
+
+    if scheme == 'http':
+        hostname = host.split(':')[0]
+        if hostname not in ('localhost', '127.0.0.1'):
+            base_url = base_url.replace('http://', 'https://', 1)
+
+    return base_url
 
 class EventumViewSet(EventumMixin, viewsets.ModelViewSet):
     queryset = Eventum.objects.all()
@@ -1503,20 +1537,16 @@ def participant_calendar_webcal(request, eventum_slug=None):
         except Participant.DoesNotExist:
             return Response({'error': f'Participant with ID {participant_id} not found in this eventum'}, status=status.HTTP_404_NOT_FOUND)
         
-        # Получаем базовый URL из настроек или строим его из запроса
-        base_url = getattr(settings, 'BASE_URL', None)
-        
-        if not base_url:
-            # Если BASE_URL не настроен, строим URL из запроса
-            base_url = request.build_absolute_uri('/').rstrip('/')
-            logger.warning(f"BASE_URL not configured, using request URL: {base_url}")
-        
-        # Для webcal ссылок ВСЕГДА используем HTTPS (даже для localhost)
-        # Это критично для корректной работы календарных приложений
-        if base_url.startswith('http://'):
-            base_url = base_url.replace('http://', 'https://')
-            logger.info(f"Converted HTTP to HTTPS for webcal URL: {base_url}")
-        
+        # Получаем корректный публичный URL с учетом HTTPS
+        try:
+            base_url = build_public_base_url(request)
+        except ValueError as config_error:
+            logger.error(f"Invalid BASE_URL configuration: {config_error}")
+            return Response(
+                {'error': 'Invalid BASE_URL configuration'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
         # Создаем webcal ссылку с participant_id в пути
         webcal_url = f"{base_url}/api/eventums/{eventum_slug}/calendar/{participant.id}.ics"
         
