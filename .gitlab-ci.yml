@@ -49,6 +49,7 @@ release-job:
       --service-account-id ${PROD_SA_ID}
       --network-id enps2mqrhf2muo7s7d74
       --min-instances 1
+      --environment BASE_URL=https://bbapo5ibqs4eg6dail89.containers.yandexcloud.net
       --secret environment-variable=DB_NAME,id=e6qmac6cr2goqb03sfjn,version-id=e6qtom5dst8bamfc4pfh,key=DB_NAME
       --secret environment-variable=DB_HOST,id=e6qmac6cr2goqb03sfjn,version-id=e6qtom5dst8bamfc4pfh,key=DB_HOST
       --secret environment-variable=DB_PASSWORD,id=e6qmac6cr2goqb03sfjn,version-id=e6qtom5dst8bamfc4pfh,key=DB_PASSWORD
