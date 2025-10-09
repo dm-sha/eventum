@@ -208,6 +208,12 @@
     font-size: 0.875rem;
   }
   
+  /* Центрирование иконок в кнопках */
+  .calendar-header-buttons button svg {
+    display: block;
+    margin: 0 auto;
+  }
+  
   .calendar-header {
     grid-template-columns: 1fr;
   }
@@ -327,6 +333,8 @@
   .calendar-header-buttons button svg {
     width: 14px;
     height: 14px;
+    display: block;
+    margin: 0 auto;
   }
   
   .event-item {

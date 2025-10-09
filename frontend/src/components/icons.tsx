@@ -354,7 +354,7 @@ export const IconCalendarDownload = ({ size = 20, ...props }: Props) => (
     <path
       strokeLinecap="round"
       strokeLinejoin="round"
-      d="M12 12.75L12 18M12 12.75L9 15.75M12 12.75L15 15.75"
+      d="M12 12v4.5m0 0l-3-3m3 3l3-3"
     />
   </svg>
 );
@@ -369,7 +369,7 @@ export const IconCalendarSubscribe = ({ size = 20, ...props }: Props) => (
     <path
       strokeLinecap="round"
       strokeLinejoin="round"
-      d="M12 9.75v6m3-3H9"
+      d="M12 11.25v6m3-3H9"
     />
   </svg>
 );
