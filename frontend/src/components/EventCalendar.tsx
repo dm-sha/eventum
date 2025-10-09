@@ -220,27 +220,29 @@ const EventCalendar: React.FC<EventCalendarProps> = ({ events, participantId, cu
       <div>
         {/* Заголовок с кнопками календаря */}
         <div className="p-4 pb-2">
-          <div className="flex items-center gap-4 mb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-4">
             <h2 className="text-lg font-semibold text-gray-900">Расписание мероприятий</h2>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-row items-center gap-2 calendar-header-buttons">
               <button
                 onClick={handleDownloadCalendar}
                 disabled={isDownloading || participantEvents.length === 0}
-                className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
                 title="Скачать календарь в формате iCalendar (.ics)"
               >
                 <IconCalendarDownload size={16} />
-                {isDownloading ? 'Скачивание...' : 'Скачать календарь'}
+                <span className="hidden xs:inline">{isDownloading ? 'Скачивание...' : 'Скачать календарь'}</span>
+                <span className="xs:hidden">{isDownloading ? 'Скачивание...' : 'Скачать'}</span>
               </button>
               
               <button
                 onClick={handleSubscribeToCalendar}
                 disabled={isLoadingWebcal || participantEvents.length === 0 || !participantId}
-                className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-green-600 bg-green-50 rounded-lg hover:bg-green-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-green-600 bg-green-50 rounded-lg hover:bg-green-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
                 title="Подписаться на календарь в приложении календаря"
               >
                 <IconCalendarSubscribe size={16} />
-                {isLoadingWebcal ? 'Открытие...' : 'Подписаться в календарь'}
+                <span className="hidden xs:inline">{isLoadingWebcal ? 'Открытие...' : 'Подписаться в календарь'}</span>
+                <span className="xs:hidden">{isLoadingWebcal ? 'Открытие...' : 'Подписаться'}</span>
               </button>
             </div>
           </div>
