@@ -1452,6 +1452,9 @@ def participant_calendar_ics(request, eventum_slug=None, participant_id=None):
         if not participant_id:
             return Response({'error': 'participant_id is required'}, status=status.HTTP_400_BAD_REQUEST)
         
+        # Используем фиксированный интервал обновления 10 минут
+        refresh_interval_minutes = 10
+        
         # Получаем участника с предзагруженными группами и их тегами
         try:
             participant = Participant.objects.select_related('eventum').prefetch_related(
@@ -1540,6 +1543,10 @@ def participant_calendar_ics(request, eventum_slug=None, participant_id=None):
         cal.add('method', 'PUBLISH')
         cal.add('X-WR-CALNAME', f'{eventum.name} - {participant.name}')
         cal.add('X-WR-CALDESC', f'Календарь мероприятий для участника {participant.name}')
+        
+        # Добавляем рекомендуемый интервал обновления
+        # Формат: PT{minutes}M означает "Period Time {minutes} Minutes"
+        cal.add('REFRESH-INTERVAL', f'PT{refresh_interval_minutes}M')
         
         # Добавляем каждое мероприятие в календарь
         for event in filtered_events:
@@ -1736,6 +1743,9 @@ def participant_calendar_webcal(request, eventum_slug=None):
         if not participant_id:
             return Response({'error': 'participant_id is required'}, status=status.HTTP_400_BAD_REQUEST)
         
+        # Используем фиксированный интервал обновления 10 минут
+        refresh_interval_minutes = 10
+        
         # Получаем участника по ID
         try:
             participant = Participant.objects.get(id=participant_id, eventum=eventum)
@@ -1752,7 +1762,7 @@ def participant_calendar_webcal(request, eventum_slug=None):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-        # Создаем HTTPS ссылку на календарь (современные календарные приложения поддерживают HTTPS)
+        # Создаем HTTPS ссылку на календарь
         webcal_url = f"{base_url}/api/eventums/{eventum_slug}/calendar/{participant.id}.ics"
         
         # Принудительно используем HTTPS для календарных ссылок
