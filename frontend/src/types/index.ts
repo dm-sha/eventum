@@ -115,6 +115,7 @@ export interface Location {
   } | null;
   children?: Location[];
   full_path: string;
+  effective_address?: string;
 }
 
 export interface CreateLocationData {

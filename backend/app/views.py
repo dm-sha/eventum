@@ -1556,15 +1556,113 @@ def participant_calendar_ics(request, eventum_slug=None, participant_id=None):
             if event.description:
                 description_parts.append(event.description)
             
-            # Добавляем информацию о локациях
+            # Добавляем информацию о локациях с оптимизированным отображением
             if event.locations.exists():
-                location_names = [loc.name for loc in event.locations.all()]
-                description_parts.append(f"Место: {', '.join(location_names)}")
-            
-            # Добавляем информацию о тегах
-            if event.tags.exists():
-                tag_names = [tag.name for tag in event.tags.all()]
-                description_parts.append(f"Теги: {', '.join(tag_names)}")
+                location_paths = []
+                locations_data = []
+                
+                # Собираем данные о всех локациях
+                for loc in event.locations.all():
+                    # Получаем полный путь локации от корня до текущей локации
+                    path = []
+                    current = loc
+                    while current:
+                        path.insert(0, current.name)
+                        current = current.parent
+                    location_path = ', '.join(path)
+                    
+                    # Получаем адрес локации (с поиском по иерархии вверх)
+                    address = None
+                    current_for_address = loc
+                    while current_for_address and not address:
+                        if current_for_address.address:
+                            address = current_for_address.address
+                        current_for_address = current_for_address.parent
+                    
+                    locations_data.append({
+                        'path': location_path,
+                        'address': address,
+                        'name': loc.name
+                    })
+                
+                # Оптимизируем отображение - находим общие префиксы
+                if len(locations_data) > 1:
+                    # Находим общий префикс для всех путей (по словам, разделенным запятыми)
+                    common_prefix_parts = []
+                    if locations_data:
+                        first_path_parts = locations_data[0]['path'].split(', ')
+                        for i in range(len(first_path_parts)):
+                            if all(loc['path'].startswith(', '.join(first_path_parts[:i+1])) for loc in locations_data):
+                                common_prefix_parts = first_path_parts[:i+1]
+                            else:
+                                break
+                    
+                    common_prefix = ', '.join(common_prefix_parts) if common_prefix_parts else ""
+                    
+                    # Находим общий адрес (только если все адреса одинаковые и не пустые)
+                    common_address = None
+                    if locations_data and all(loc['address'] == locations_data[0]['address'] for loc in locations_data) and locations_data[0]['address']:
+                        common_address = locations_data[0]['address']
+                    
+                    # Если нет общего адреса, но есть общий префикс, то общий адрес - это адрес от общего префикса
+                    if not common_address and common_prefix:
+                        # Находим адрес для общего префикса
+                        prefix_parts = common_prefix.split(', ')
+                        if len(prefix_parts) > 0:
+                            # Находим локацию, соответствующую последней части префикса
+                            for loc in event.locations.all():
+                                if loc.name == prefix_parts[-1]:
+                                    # Получаем адрес этой локации
+                                    address = None
+                                    current_for_address = loc
+                                    while current_for_address and not address:
+                                        if current_for_address.address:
+                                            address = current_for_address.address
+                                        current_for_address = current_for_address.parent
+                                    if address:
+                                        common_address = address
+                                    break
+                    
+                    # Формируем оптимизированные строки
+                    for loc_data in locations_data:
+                        if common_prefix and loc_data['path'].startswith(common_prefix):
+                            # Убираем общий префикс
+                            remaining_path = loc_data['path'][len(common_prefix):].lstrip(', ')
+                            if remaining_path:
+                                path_to_show = remaining_path
+                            else:
+                                path_to_show = loc_data['name']
+                        else:
+                            path_to_show = loc_data['path']
+                        
+                        # Формируем строку с адресом
+                        if loc_data['address'] and loc_data['address'] != common_address:
+                            location_paths.append(f"{path_to_show} ({loc_data['address']})")
+                        elif not common_address and loc_data['address']:
+                            # Если нет общего адреса, но у этой локации есть адрес
+                            location_paths.append(f"{path_to_show} ({loc_data['address']})")
+                        else:
+                            location_paths.append(path_to_show)
+                    
+                    # Добавляем общий префикс и адрес в начало, если они есть
+                    if common_prefix or common_address:
+                        prefix_parts = []
+                        if common_prefix:
+                            prefix_parts.append(common_prefix)
+                        if common_address:
+                            prefix_parts.append(f"({common_address})")
+                        
+                        if prefix_parts:
+                            location_paths.insert(0, ' '.join(prefix_parts))
+                else:
+                    # Если только одна локация, отображаем как обычно
+                    for loc_data in locations_data:
+                        if loc_data['address']:
+                            location_paths.append(f"{loc_data['path']} ({loc_data['address']})")
+                        else:
+                            location_paths.append(loc_data['path'])
+                
+                description_parts.append(f"Место: {'; '.join(location_paths)}")
             
             if description_parts:
                 ical_event.add('description', '\n'.join(description_parts))

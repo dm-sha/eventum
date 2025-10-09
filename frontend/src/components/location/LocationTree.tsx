@@ -112,7 +112,7 @@ const LocationNode: React.FC<LocationNodeProps> = ({
               {location.name}
             </span>
             {(location.address) && (
-              <span className="text-sm text-gray-500 truncate ml-8 select-text w-48">
+              <span className="font-medium text-gray-500 truncate ml-8 select-text w-48">
                 {[location.address].filter(Boolean).join(', ')}
               </span>
             )}

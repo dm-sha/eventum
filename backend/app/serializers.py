@@ -774,12 +774,13 @@ class LocationSerializer(serializers.ModelSerializer):
     parent_id = serializers.IntegerField(write_only=True, required=False, allow_null=True)
     children = serializers.SerializerMethodField(read_only=True)
     full_path = serializers.SerializerMethodField(read_only=True)
+    effective_address = serializers.SerializerMethodField(read_only=True)
     
     class Meta:
         model = Location
         fields = [
             'id', 'name', 'slug', 'kind', 'address', 'floor', 'notes',
-            'parent', 'parent_id', 'children', 'full_path'
+            'parent', 'parent_id', 'children', 'full_path', 'effective_address'
         ]
         read_only_fields = ['slug']
     
@@ -821,6 +822,18 @@ class LocationSerializer(serializers.ModelSerializer):
             current = current.parent
         
         return ', '.join(path)
+    
+    def get_effective_address(self, obj):
+        """Возвращает адрес локации или адрес ближайшего родителя с адресом"""
+        current = obj
+        
+        # Ищем адрес у текущей локации или у ближайшего родителя
+        while current:
+            if current.address:
+                return current.address
+            current = current.parent
+        
+        return None
     
     
     def validate_parent_id(self, value):
