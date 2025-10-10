@@ -1,13 +1,15 @@
 import { useState, useEffect } from "react";
 import { IconX, IconUser, IconSearch, IconCheck } from "../icons";
-import type { Participant, User } from "../../types";
+import type { Participant, ParticipantGroup, User } from "../../types";
 import { searchUsers } from "../../api/organizers";
 import { usersApi } from "../../api/eventumApi";
 
 interface ParticipantModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (data: { name: string; user_id?: number | null }) => Promise<void>;
+  onSave: (
+    data: { name: string; user_id?: number | null; removedGroupIds?: number[] }
+  ) => Promise<void>;
   participant?: Participant | null;
   isLoading?: boolean;
 }
@@ -26,16 +28,23 @@ const ParticipantModal = ({
   const [isSearching, setIsSearching] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showAddUserModal, setShowAddUserModal] = useState(false);
+  const [participantGroups, setParticipantGroups] = useState<ParticipantGroup[]>([]);
+  const [initialGroupIds, setInitialGroupIds] = useState<number[]>([]);
 
   useEffect(() => {
     if (participant) {
       setName(participant.name);
       setSelectedUser(participant.user || null);
       setUserSearchQuery(participant.user?.name || "");
+      const groups = participant.groups ?? [];
+      setParticipantGroups(groups);
+      setInitialGroupIds(groups.map((group) => group.id));
     } else {
       setName("");
       setSelectedUser(null);
       setUserSearchQuery("");
+      setParticipantGroups([]);
+      setInitialGroupIds([]);
     }
   }, [participant, isOpen]);
 
@@ -104,15 +113,24 @@ const ParticipantModal = ({
     try {
       // Если поле поиска пустое, но selectedUser не null, очищаем связь
       const user_id = (userSearchQuery.trim() && selectedUser) ? selectedUser.id : null;
-      
-      await onSave({ 
-        name: name.trim(), 
-        user_id: user_id
+      const currentGroupIds = participantGroups.map((group) => group.id);
+      const removedGroupIds = initialGroupIds.filter(
+        (groupId) => !currentGroupIds.includes(groupId)
+      );
+
+      await onSave({
+        name: name.trim(),
+        user_id: user_id,
+        removedGroupIds: removedGroupIds.length > 0 ? removedGroupIds : undefined
       });
       onClose();
     } catch (error) {
       console.error("Ошибка при сохранении участника:", error);
     }
+  };
+
+  const handleRemoveGroup = (groupId: number) => {
+    setParticipantGroups((prev) => prev.filter((group) => group.id !== groupId));
   };
 
   const handleClose = () => {
@@ -308,13 +326,13 @@ const ParticipantModal = ({
           </div>
 
 
-          {participant?.groups && participant.groups.length > 0 && (
+          {participantGroups.length > 0 && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Группы участника
               </label>
               <div className="space-y-1">
-                {participant.groups.map((group) => (
+                {participantGroups.map((group) => (
                   <div key={group.id} className="flex items-center gap-2 text-sm">
                     <IconUser size={16} className="text-gray-400" />
                     <span className="text-gray-900">{group.name}</span>
@@ -330,6 +348,15 @@ const ParticipantModal = ({
                         ))}
                       </div>
                     )}
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveGroup(group.id)}
+                      disabled={isLoading}
+                      className="ml-auto flex items-center justify-center rounded-full p-1 text-gray-400 hover:bg-gray-100 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50"
+                      aria-label={`Удалить группу ${group.name}`}
+                    >
+                      <IconX size={14} />
+                    </button>
                   </div>
                 ))}
               </div>

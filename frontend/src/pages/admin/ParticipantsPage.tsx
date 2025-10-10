@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useDelayedLoading } from "../../hooks/useDelayedLoading";
 import { getParticipantsForEventum, createParticipant, updateParticipant, deleteParticipant } from "../../api/participant";
-import { getGroupsForEventum } from "../../api/group";
+import { getGroupsForEventum, updateGroup } from "../../api/group";
 import { groupTagApi } from "../../api/groupTag";
 import { IconUser, IconExternalLink, IconPencil, IconTrash, IconPlus, IconEye } from "../../components/icons";
 import ParticipantModal from "../../components/participant/ParticipantModal";
@@ -83,15 +83,34 @@ const AdminParticipantsPage = () => {
     setIsModalOpen(true);
   };
 
-  const handleSaveParticipant = async (data: { name: string; user_id?: number | null }) => {
+  const handleSaveParticipant = async (data: { name: string; user_id?: number | null; removedGroupIds?: number[] }) => {
     if (!eventumSlug) return;
-    
+
     setIsSaving(true);
     try {
+      const { removedGroupIds, ...participantPayload } = data;
       if (editingParticipant) {
-        await updateParticipant(eventumSlug, editingParticipant.id, data);
+        await updateParticipant(eventumSlug, editingParticipant.id, participantPayload);
+        if (removedGroupIds && removedGroupIds.length > 0) {
+          const participantId = editingParticipant.id;
+          await Promise.all(
+            removedGroupIds.map(async (groupId) => {
+              const group = groups.find((g) => g.id === groupId);
+              if (!group) return;
+
+              const updatedParticipantIds = group.participants.filter((id) => id !== participantId);
+              try {
+                await updateGroup(eventumSlug, groupId, {
+                  participants: updatedParticipantIds
+                });
+              } catch (groupError) {
+                console.error(`Ошибка при обновлении группы ${groupId}:`, groupError);
+              }
+            })
+          );
+        }
       } else {
-        await createParticipant(eventumSlug, data);
+        await createParticipant(eventumSlug, participantPayload);
       }
       await loadData();
     } catch (error) {
