@@ -7,9 +7,10 @@ import {
   getParticipantsForEventum,
 } from '../../api';
 import type { ParticipantGroup, Participant } from '../../types';
-import { IconPencil, IconX, IconPlus, IconInformationCircle, IconTrash } from '../../components/icons';
+import { IconPencil, IconX, IconPlus, IconInformationCircle, IconTrash, IconFilter } from '../../components/icons';
 import { useEventumSlug } from '../../hooks/useEventumSlug';
 import GroupsLoadingSkeleton from '../../components/admin/skeletons/GroupsLoadingSkeleton';
+import ParticipantFilterModal from '../../components/ParticipantFilterModal';
 
 const AdminGroupsPage = () => {
   const eventumSlug = useEventumSlug();
@@ -28,6 +29,7 @@ const AdminGroupsPage = () => {
   const [selectedParticipants, setSelectedParticipants] = useState<Participant[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
 
   useEffect(() => {
     if (!eventumSlug) return;
@@ -156,6 +158,21 @@ const AdminGroupsPage = () => {
     setParticipantQuery('');
   };
 
+  const handleAddParticipantsFromFilter = (filteredParticipants: Participant[]) => {
+    console.log('Получены участники из фильтра:', filteredParticipants);
+    
+    // Добавляем участников из фильтра в список редактирования
+    setEditingParticipants(prev => {
+      const existingIds = new Set(prev.map(p => p.id));
+      const newParticipants = filteredParticipants.filter(p => !existingIds.has(p.id));
+      console.log('Добавляем новых участников:', newParticipants);
+      console.log('Предыдущий список:', prev);
+      console.log('Новый список:', [...prev, ...newParticipants]);
+      return [...prev, ...newParticipants];
+    });
+    setIsFilterModalOpen(false);
+  };
+
   const handleDeleteGroup = async (groupId: number) => {
     if (!confirm('Вы уверены, что хотите удалить эту группу?')) return;
     if (!eventumSlug) return;
@@ -258,6 +275,17 @@ const AdminGroupsPage = () => {
                   </div>
                 </div>
 
+                {/* Кнопка добавления по фильтру */}
+                <div className="mb-3">
+                  <button
+                    onClick={() => setIsFilterModalOpen(true)}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center justify-center gap-2"
+                  >
+                    <IconFilter size={16} />
+                    Добавить по фильтру
+                  </button>
+                </div>
+
                 <div className="space-y-1">
                   {editingParticipants.map((participant) => (
                     <div key={participant.id} className="flex items-center justify-between">
@@ -350,30 +378,43 @@ const AdminGroupsPage = () => {
 
               <div className="space-y-2">
                 {isEditing && (
-                  <div className="mb-3">
-                    <div className="relative">
-                      <input
-                        type="text"
-                        value={participantQuery}
-                        onChange={(e) => setParticipantQuery(e.target.value)}
-                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                        placeholder="Добавить участника..."
-                      />
-                      {suggestions.length > 0 && (
-                        <div className="absolute z-10 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg">
-                          {suggestions.map((p) => (
-                            <button
-                              key={p.id}
-                              onClick={() => addParticipant(p)}
-                              className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50"
-                            >
-                              {p.name}
-                            </button>
-                          ))}
-                        </div>
-                      )}
+                  <>
+                    <div className="mb-3">
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={participantQuery}
+                          onChange={(e) => setParticipantQuery(e.target.value)}
+                          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          placeholder="Добавить участника..."
+                        />
+                        {suggestions.length > 0 && (
+                          <div className="absolute z-10 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg">
+                            {suggestions.map((p) => (
+                              <button
+                                key={p.id}
+                                onClick={() => addParticipant(p)}
+                                className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50"
+                              >
+                                {p.name}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
+
+                    {/* Кнопка добавления по фильтру в режиме редактирования */}
+                    <div className="mb-3">
+                      <button
+                        onClick={() => setIsFilterModalOpen(true)}
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center justify-center gap-2"
+                      >
+                        <IconFilter size={16} />
+                        Добавить по фильтру
+                      </button>
+                    </div>
+                  </>
                 )}
 
                 <div className="space-y-1">
@@ -431,6 +472,14 @@ const AdminGroupsPage = () => {
           Группы не найдены
         </div>
       )}
+
+      {/* Модальное окно для выбора фильтра участников */}
+      <ParticipantFilterModal
+        isOpen={isFilterModalOpen}
+        onClose={() => setIsFilterModalOpen(false)}
+        onAddParticipants={handleAddParticipantsFromFilter}
+        eventumSlug={eventumSlug || ''}
+      />
     </div>
   );
 };
