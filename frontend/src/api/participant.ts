@@ -77,3 +77,13 @@ export const getParticipantRegistrations = async (eventumSlug: string, participa
     const response = await participantsApi.getRegistrations(participantId, eventumSlug);
     return response.data;
 };
+
+// Получить участников по фильтру мероприятий
+export const getParticipantsByEventFilter = async (
+    eventumSlug: string, 
+    filterType: 'participating' | 'not_participating', 
+    eventIds: number[]
+): Promise<Participant[]> => {
+    const response = await participantsApi.filterByEvents({ filter_type: filterType, event_ids: eventIds }, eventumSlug);
+    return response.data;
+};
