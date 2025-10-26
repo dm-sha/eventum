@@ -3,6 +3,7 @@ stages:
   - release
   - frontend_build
   - frontend_deploy
+  - deploy-to-vm
 
 build-job:
   stage: build
