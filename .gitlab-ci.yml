@@ -3,7 +3,6 @@ stages:
   - release
   - frontend_build
   - frontend_deploy
-  - deploy-to-vm
 
 build-job:
   stage: build
@@ -26,43 +25,6 @@ build-job:
         -f backend/Dockerfile \
         -t "${CI_REGISTRY}/${CI_PROJECT_PATH}:${CI_COMMIT_SHORT_SHA}" \
         --push backend
-
-release-job:
-  stage: release
-  image: alpine:3.15
-  script:
-    - apk add -q --no-cache bash curl jq gettext
-    - curl --fail --silent --location --remote-name https://storage.yandexcloud.net/yandexcloud-yc/install.sh
-    - bash install.sh -i /usr/local/yandex-cloud -n
-    - ln -s /usr/local/yandex-cloud/bin/yc /usr/local/bin/yc
-    - echo "$SA_PROD_DEPLOYER_PRIVATE_KEY" > key.json
-    - yc config profile create sa-profile
-    - yc config set service-account-key key.json
-    - yc serverless container revision deploy
-      --container-id ${CI_CONTAINER_ID_prod}
-      --image "${CI_REGISTRY}/${CI_PROJECT_PATH}:${CI_COMMIT_SHORT_SHA}"
-      --cores 4
-      --memory 1024mb
-      --concurrency 1
-      --execution-timeout 10s
-      --cloud-id ${cloud_id}
-      --folder-id ${cart_prod}
-      --service-account-id ${PROD_SA_ID}
-      --network-id enps2mqrhf2muo7s7d74
-      --min-instances 1
-      --environment BASE_URL=https://bbapo5ibqs4eg6dail89.containers.yandexcloud.net
-      --secret environment-variable=DB_NAME,id=e6qmac6cr2goqb03sfjn,version-id=e6qtom5dst8bamfc4pfh,key=DB_NAME
-      --secret environment-variable=DB_HOST,id=e6qmac6cr2goqb03sfjn,version-id=e6qtom5dst8bamfc4pfh,key=DB_HOST
-      --secret environment-variable=DB_PASSWORD,id=e6qmac6cr2goqb03sfjn,version-id=e6qtom5dst8bamfc4pfh,key=DB_PASSWORD
-      --secret environment-variable=DB_USER,id=e6qmac6cr2goqb03sfjn,version-id=e6qtom5dst8bamfc4pfh,key=DB_USER
-      --secret environment-variable=DJANGO_SECRET_KEY,id=e6q6ecgut30u34e250gm,version-id=e6qvonsc1vrqc4noahcg,key=DJANGO_SECRET_KEY
-      --secret environment-variable=VK_APP_ID,id=e6q6ecgut30u34e250gm,version-id=e6qvonsc1vrqc4noahcg,key=VK_APP_ID
-      --secret environment-variable=VK_APP_SECRET,id=e6q6ecgut30u34e250gm,version-id=e6qvonsc1vrqc4noahcg,key=VK_APP_SECRET
-      --secret environment-variable=VK_REDIRECT_URI,id=e6q6ecgut30u34e250gm,version-id=e6qvonsc1vrqc4noahcg,key=VK_REDIRECT_URI 
-    - container_id=${prod_container_id}
-# Создание продакшн среды.
-  environment:
-    name: production/$CI_COMMIT_SHORT_SHA
 
 variables:
   # IMAGE определяется в build-job и используется ниже
