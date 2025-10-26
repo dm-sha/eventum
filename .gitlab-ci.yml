@@ -58,18 +58,18 @@ deploy-to-vm:
     - scp -o StrictHostKeyChecking=yes .env ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_DIR}/.env
     - scp -o StrictHostKeyChecking=yes backend/docker-compose.yml ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_DIR}/docker-compose.yml || echo "No local docker-compose.yml to copy, assuming exists on host"
     - |
-      ssh ${DEPLOY_USER}@${DEPLOY_HOST} bash <<SSH
+      ssh ${DEPLOY_USER}@${DEPLOY_HOST} SA_PROD_DEPLOYER_PRIVATE_KEY="$SA_PROD_DEPLOYER_PRIVATE_KEY" bash <<SSH
         set -euo pipefail
 
         cd ${DEPLOY_DIR} || { echo "ERROR: deploy dir not found: ${DEPLOY_DIR}" >&2; exit 2; }
 
         echo "Files in deploy dir:" && ls -la
 
-        # Логинимся в registry (подставленные переменные скрыты в CI логе)
-        echo "$SA_PROD_DEPLOYER_PRIVATE_KEY" | docker login --username json_key --password-stdin cr.yandex
+        # Логинимся в registry (переменная передана через SSH env и сохранит кавычки в JSON)
+        echo "\$SA_PROD_DEPLOYER_PRIVATE_KEY" | docker login --username json_key --password-stdin cr.yandex
 
-        export IMAGE='${CI_REGISTRY}/${CI_PROJECT_PATH}:${CI_COMMIT_SHORT_SHA}'
-        echo "Using image: $IMAGE"
+        export IMAGE="${CI_REGISTRY}/${CI_PROJECT_PATH}:${CI_COMMIT_SHORT_SHA}"
+        echo "Using image: \$IMAGE"
 
         if [ ! -f docker-compose.yml ]; then
           echo "ERROR: docker-compose.yml not found in ${DEPLOY_DIR}" >&2
