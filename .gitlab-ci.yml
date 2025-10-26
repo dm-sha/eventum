@@ -81,18 +81,6 @@ deploy-to-vm:
         # Удаляем ключ с удаленного сервера
         rm /tmp/sa_key.json
 
-        if [ ! -f docker-compose.yml ]; then
-          echo "ERROR: docker-compose.yml not found in ${DEPLOY_DIR}" >&2
-          ls -la
-          exit 3
-        fi
-
-        # Проверяем, что IMAGE есть в .env
-        if ! grep -q "^IMAGE=" .env 2>/dev/null; then
-          echo "ERROR: IMAGE not found in .env" >&2
-          exit 3
-        fi
-
         docker compose pull || true
         docker compose up -d --remove-orphans
 
