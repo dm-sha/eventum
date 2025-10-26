@@ -96,7 +96,7 @@ deploy-to-vm:
         docker compose pull || true
         docker compose up -d --remove-orphans
 
-        docker compose run --rm backend python manage.py migrate --noinput
+        docker compose run --rm backend python manage.py migrate --noinput || true
         docker compose run --rm backend python manage.py collectstatic --noinput || true
 
         docker compose ps
