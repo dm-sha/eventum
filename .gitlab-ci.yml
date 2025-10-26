@@ -68,7 +68,7 @@ deploy-to-vm:
         # Логинимся в registry (подставленные переменные скрыты в CI логе)
         cat > key.json <<'EOF'
         $SA_PROD_DEPLOYER_PRIVATE_KEY
-        EOF
+        'EOF'
         cat key.json | docker login --username json_key --password-stdin cr.yandex
 
         export IMAGE='${CI_REGISTRY}/${CI_PROJECT_PATH}:${CI_COMMIT_SHORT_SHA}'
