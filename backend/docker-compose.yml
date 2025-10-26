@@ -27,10 +27,3 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-
-  worker:
-    image: "${IMAGE}"
-    command: celery -A eventum worker --loglevel=info
-    env_file:
-      - .env
-    restart: always
