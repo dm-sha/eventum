@@ -58,8 +58,13 @@ deploy-to-vm:
       # Удаляем локальный ключ
       rm /tmp/sa_key.json
       
-      ssh ${DEPLOY_USER}@${DEPLOY_HOST} bash <<SSH
+      # Создаем IMAGE переменную на раннере
+      IMAGE="${CI_REGISTRY}/${CI_PROJECT_PATH}:${CI_COMMIT_SHORT_SHA}"
+      IMAGE="$(echo "$IMAGE" | tr -d '\r\n')"
+      
+      ssh ${DEPLOY_USER}@${DEPLOY_HOST} bash -s -- "$IMAGE" <<SSH
         set -euo pipefail
+        export IMAGE="\$1"
 
         cd ${DEPLOY_DIR} || { echo "ERROR: deploy dir not found: ${DEPLOY_DIR}" >&2; exit 2; }
 
@@ -71,9 +76,7 @@ deploy-to-vm:
         # Удаляем ключ с удаленного сервера
         rm /tmp/sa_key.json
 
-        IMAGE_RAW='${CI_REGISTRY}/${CI_PROJECT_PATH}:${CI_COMMIT_SHORT_SHA}'
-        IMAGE="$(echo "$IMAGE_RAW" | tr -d '\r\n' )"
-        echo "IMAGE=|$IMAGE|"
+        echo "IMAGE=|\$IMAGE|"
 
         if [ ! -f docker-compose.yml ]; then
           echo "ERROR: docker-compose.yml not found in ${DEPLOY_DIR}" >&2
@@ -81,7 +84,7 @@ deploy-to-vm:
           exit 3
         fi
 
-        docker pull "$IMAGE" || echo "docker pull failed or image not present; continuing with docker compose pull"
+        docker pull "\$IMAGE" || echo "docker pull failed or image not present; continuing with docker compose pull"
         docker compose pull || true
         docker compose up -d --remove-orphans
 
