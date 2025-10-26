@@ -42,7 +42,6 @@ deploy-to-vm:
     - chmod 600 ~/.ssh/id_rsa
     - ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
   script:
-    # 1) Собираем .env локально (не коммитим его в репо)
     - |
       cat > .env <<'EOF'
       DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
@@ -57,60 +56,45 @@ deploy-to-vm:
       VK_REDIRECT_URI=${VK_REDIRECT_URI}
       EOF
     - chmod 600 .env
-
-    # 2) Копируем .env и (при необходимости) docker-compose.yml на VM
     - scp -o StrictHostKeyChecking=yes .env ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_DIR}/.env
     - scp -o StrictHostKeyChecking=yes docker-compose.yml ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_DIR}/docker-compose.yml || echo "No local docker-compose.yml to copy, assuming exists on host"
-
-    # 3) На VM: зайдём через heredoc — безопасно, не рубит кавычки
     - |
       ssh ${DEPLOY_USER}@${DEPLOY_HOST} bash <<'SSH'
       set -euo pipefail
 
-      echo "Workdir: ${DEPLOY_DIR}"
-      cd ${DEPLOY_DIR} || (echo "ERROR: deploy dir not found: ${DEPLOY_DIR}" >&2; exit 2)
+      cd ${DEPLOY_DIR} || { echo "ERROR: deploy dir not found: ${DEPLOY_DIR}" >&2; exit 2; }
 
-      echo "Files in deploy dir:"
-      ls -la
+      echo "Files in deploy dir:" && ls -la
 
-      echo "Show start of .env (masked):"
-      head -n 20 .env || true
-
-      # 4) Логинимся в реестр перед pull (используем CI_REGISTRY_* переменные, переданные в окружение)
-      # Передача creds в этот heredoc безопасна — переменные подставлены на runner'е с маскировкой.
+      # Логинимся в registry (подставленные переменные скрыты в CI логе)
       echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin ${CI_REGISTRY%%/*} || true
-      # Примечание: ${CI_REGISTRY%%/*} — если CI_REGISTRY это 'registry/project', то берём host 'registry'
 
       export IMAGE='${CI_REGISTRY}/${CI_PROJECT_PATH}:${CI_COMMIT_SHORT_SHA}'
       echo "Using image: $IMAGE"
 
-      # 5) Убедимся, что docker-compose.yml доступен
       if [ ! -f docker-compose.yml ]; then
         echo "ERROR: docker-compose.yml not found in ${DEPLOY_DIR}" >&2
         ls -la
         exit 3
       fi
 
-      # 6) Попробуем pull нужного образа и поднять сервисы
-      docker pull "$IMAGE" || echo "warning: docker pull failed (may be private); continuing to docker compose pull"
+      docker pull "$IMAGE" || true
       docker compose pull || true
       docker compose up -d --remove-orphans
 
-      # 7) Миграции / collectstatic в one-off контейнерах
       docker compose run --rm web python manage.py migrate --noinput
       docker compose run --rm web python manage.py collectstatic --noinput || true
 
-      # 8) Проверка статуса контейнеров и health
       docker compose ps
       sleep 2
-      # проверка HTTP health endpoint (замени на https если нужно)
       curl -f --retry 5 --retry-delay 2 --max-time 10 "https://api.merup.ru/healthz" || {
         echo "Health check failed" >&2
         docker compose logs --tail=200
         exit 4
       }
+
       echo "Deploy finished successfully"
-    SSH
+      SSH
   environment:
     name: production
     url: https://api.merup.ru
