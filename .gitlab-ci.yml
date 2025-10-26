@@ -66,7 +66,7 @@ deploy-to-vm:
         echo "Files in deploy dir:" && ls -la
 
         # Логинимся в registry (подставленные переменные скрыты в CI логе)
-        echo "$SA_PROD_DEPLOYER_PRIVATE_KEY" > key.json
+        printf '%s\n' "$SA_PROD_DEPLOYER_PRIVATE_KEY" > key.json
         cat key.json | docker login --username json_key --password-stdin cr.yandex
 
         export IMAGE='${CI_REGISTRY}/${CI_PROJECT_PATH}:${CI_COMMIT_SHORT_SHA}'
