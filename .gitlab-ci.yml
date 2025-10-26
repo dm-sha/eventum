@@ -43,8 +43,16 @@ deploy-to-vm:
   script:
     # 1) Создаём .env локально на раннере (используем printf, чтобы точно подставить значения)
     - |
-      printf 'DJANGO_SECRET_KEY=%s\nDB_NAME=%s\nDB_USER=%s\nDB_PASSWORD=%s\nDB_HOST=%s\nBASE_URL=%s\nPORT=8000\nVK_APP_ID=%s\nVK_APP_SECRET=%s\nVK_REDIRECT_URI=%s\n' \
-        "${DJANGO_SECRET_KEY}" "${DB_NAME}" "${DB_USER}" "${DB_PASSWORD}" "${DB_HOST}" "${BASE_URL}" "${VK_APP_ID}" "${VK_APP_SECRET}" "${VK_REDIRECT_URI}" > .env
+      printf 'DJANGO_SECRET_KEY=%s\n' "${DJANGO_SECRET_KEY}" > .env
+      printf 'DB_NAME=%s\n' "${DB_NAME}" >> .env
+      printf 'DB_USER=%s\n' "${DB_USER}" >> .env
+      printf 'DB_PASSWORD=%s\n' "${DB_PASSWORD}" >> .env
+      printf 'DB_HOST=%s\n' "${DB_HOST}" >> .env
+      printf 'BASE_URL=https://api.merup.ru\n' >> .env
+      printf 'PORT=8000\n' >> .env
+      printf 'VK_APP_ID=%s\n' "${VK_APP_ID}" >> .env
+      printf 'VK_APP_SECRET=%s\n' "${VK_APP_SECRET}" >> .env
+      printf 'VK_REDIRECT_URI=%s\n' "${VK_REDIRECT_URI}" >> .env
     - chmod 600 .env
     - scp -o StrictHostKeyChecking=yes .env ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_DIR}/.env
     - scp -o StrictHostKeyChecking=yes ${CI_PROJECT_DIR}/backend/docker-compose.yml ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_DIR}/docker-compose.yml || echo "No local docker-compose.yml to copy, assuming exists on host"
