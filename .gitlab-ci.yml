@@ -57,7 +57,7 @@ deploy-to-vm:
       EOF
     - chmod 600 .env
     - scp -o StrictHostKeyChecking=yes .env ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_DIR}/.env
-    - scp -o StrictHostKeyChecking=yes docker-compose.yml ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_DIR}/docker-compose.yml || echo "No local docker-compose.yml to copy, assuming exists on host"
+    - scp -o StrictHostKeyChecking=yes backend/docker-compose.yml ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_DIR}/docker-compose.yml || echo "No local docker-compose.yml to copy, assuming exists on host"
     - |
       ssh ${DEPLOY_USER}@${DEPLOY_HOST} bash <<'SSH'
       set -euo pipefail
