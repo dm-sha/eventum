@@ -43,6 +43,7 @@ deploy-to-vm:
   script:
     # 1) Создаём .env локально на раннере (используем printf, чтобы точно подставить значения)
     - |
+      IMAGE="${CI_REGISTRY}/${CI_PROJECT_PATH}:${CI_COMMIT_SHORT_SHA}"
       printf 'DJANGO_SECRET_KEY=%s\n' "${DJANGO_SECRET_KEY}" > .env
       printf 'DB_NAME=%s\n' "${DB_NAME}" >> .env
       printf 'DB_USER=%s\n' "${DB_USER}" >> .env
@@ -53,6 +54,7 @@ deploy-to-vm:
       printf 'VK_APP_ID=%s\n' "${VK_APP_ID}" >> .env
       printf 'VK_APP_SECRET=%s\n' "${VK_APP_SECRET}" >> .env
       printf 'VK_REDIRECT_URI=%s\n' "${VK_REDIRECT_URI}" >> .env
+      printf 'IMAGE=%s\n' "${IMAGE}" >> .env
     - chmod 600 .env
     - scp -o StrictHostKeyChecking=yes .env ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_DIR}/.env
     - scp -o StrictHostKeyChecking=yes ${CI_PROJECT_DIR}/backend/docker-compose.yml ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_DIR}/docker-compose.yml || echo "No local docker-compose.yml to copy, assuming exists on host"
@@ -66,13 +68,8 @@ deploy-to-vm:
       # Удаляем локальный ключ
       rm /tmp/sa_key.json
       
-      # Создаем IMAGE переменную на раннере
-      IMAGE="${CI_REGISTRY}/${CI_PROJECT_PATH}:${CI_COMMIT_SHORT_SHA}"
-      IMAGE="$(echo "$IMAGE" | tr -d '\r\n')"
-      
-      ssh ${DEPLOY_USER}@${DEPLOY_HOST} bash -s -- "$IMAGE" <<SSH
+      ssh ${DEPLOY_USER}@${DEPLOY_HOST} bash -s <<SSH
         set -euo pipefail
-        export IMAGE="\$1"
 
         cd ${DEPLOY_DIR} || { echo "ERROR: deploy dir not found: ${DEPLOY_DIR}" >&2; exit 2; }
 
@@ -84,15 +81,18 @@ deploy-to-vm:
         # Удаляем ключ с удаленного сервера
         rm /tmp/sa_key.json
 
-        echo "IMAGE=|\$IMAGE|"
-
         if [ ! -f docker-compose.yml ]; then
           echo "ERROR: docker-compose.yml not found in ${DEPLOY_DIR}" >&2
           ls -la
           exit 3
         fi
 
-        docker pull "\$IMAGE" || echo "docker pull failed or image not present; continuing with docker compose pull"
+        # Проверяем, что IMAGE есть в .env
+        if ! grep -q "^IMAGE=" .env 2>/dev/null; then
+          echo "ERROR: IMAGE not found in .env" >&2
+          exit 3
+        fi
+
         docker compose pull || true
         docker compose up -d --remove-orphans
 
