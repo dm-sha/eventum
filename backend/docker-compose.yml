@@ -22,7 +22,6 @@ services:
       DJANGO_SETTINGS_MODULE: ${DJANGO_SETTINGS_MODULE:-eventum.settings}
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
       DEBUG: "0"
-      ALLOWED_HOSTS: ${ALLOWED_HOSTS}
       DB_HOST: ${DB_HOST}
       DB_PORT: ${DB_PORT:-5432}
       DB_NAME: ${DB_NAME}
@@ -35,7 +34,7 @@ services:
       - "../static:/app/static"
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.eventum.rule=Host(`${APP_DOMAIN}`)"
+      - "traefik.http.routers.eventum.rule=Host(`api.merup.ru`)"
       - "traefik.http.routers.eventum.entrypoints=websecure"
       - "traefik.http.routers.eventum.tls.certresolver=le"
       - "traefik.http.services.eventum.loadbalancer.server.port=8000"
