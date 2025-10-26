@@ -18,10 +18,10 @@ services:
       retries: 3
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.myapp.rule=Host(`your.domain.tld`)"
-      - "traefik.http.routers.myapp.entrypoints=websecure"
-      - "traefik.http.routers.myapp.tls=true"
-      - "traefik.http.services.myapp.loadbalancer.server.port=8000"
+      - "traefik.http.routers.eventum.rule=Host(`api.merup.ru`)"
+      - "traefik.http.routers.eventum.entrypoints=websecure"
+      - "traefik.http.routers.eventum.tls=true"
+      - "traefik.http.services.eventum.loadbalancer.server.port=8000"
     logging:
       driver: "json-file"
       options:
