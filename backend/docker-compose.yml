@@ -1,0 +1,36 @@
+services:
+  web:
+    image: "${IMAGE}"
+    restart: always
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1024M
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/healthz || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.myapp.rule=Host(`your.domain.tld`)"
+      - "traefik.http.routers.myapp.entrypoints=websecure"
+      - "traefik.http.routers.myapp.tls=true"
+      - "traefik.http.services.myapp.loadbalancer.server.port=8000"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  worker:
+    image: "${IMAGE}"
+    command: celery -A eventum worker --loglevel=info
+    env_file:
+      - .env
+    restart: always

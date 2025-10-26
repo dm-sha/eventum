@@ -63,6 +63,75 @@ release-job:
   environment:
     name: production/$CI_COMMIT_SHORT_SHA
 
+variables:
+  # IMAGE определяется в build-job и используется ниже
+  DEPLOY_DIR: /srv/eventum
+  DEPLOY_USER: deploy
+  DEPLOY_HOST: 84.201.185.243
+
+deploy-to-vm:
+  stage: release
+  image: alpine:3.18
+  before_script:
+    - apk add --no-cache openssh-client bash curl jq gettext
+    - mkdir -p ~/.ssh
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa
+    - chmod 600 ~/.ssh/id_rsa
+    - ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+  script:
+    # 1) Собираем .env локально (переменные — GitLab CI Protected & Masked)
+    - |
+      cat > .env <<'EOF'
+      DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
+      DB_NAME=${DB_NAME}
+      DB_USER=${DB_USER}
+      DB_PASSWORD=${DB_PASSWORD}
+      DB_HOST=${DB_HOST}
+      BASE_URL=${BASE_URL}
+      PORT=8000
+      VK_APP_ID=${VK_APP_ID}
+      VK_APP_SECRET=${VK_APP_SECRET}
+      VK_REDIRECT_URI=${VK_REDIRECT_URI}
+      EOF
+    - chmod 600 .env
+
+    # 2) Передаём файл .env на VM (scp); если docker-compose.yml меняется — тоже передай
+    - scp -o StrictHostKeyChecking=yes .env ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_DIR}/.env
+    # необязательно: scp docker-compose.yml ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_DIR}/docker-compose.yml
+
+    # 3) На VM: pull образ, обновить и поднять сервисы, миграции, collectstatic
+    - |
+      ssh ${DEPLOY_USER}@${DEPLOY_HOST} bash -lc "
+        set -euo pipefail
+        cd ${DEPLOY_DIR}
+        export IMAGE='${CI_REGISTRY}/${CI_PROJECT_PATH}:${CI_COMMIT_SHORT_SHA}'
+
+        # тк docker compose v2, используем 'docker compose'
+        docker pull \"\$IMAGE\" || true
+
+        # Обновим docker compose (если в compose используется IMAGE переменная, docker compose заменит)
+        # Если docker-compose.yml живёт в репо и уже на хосте — можно просто docker compose pull && up
+        docker compose pull || true
+        docker compose up -d --remove-orphans
+
+        # One-off миграции (без логов в CI)
+        docker compose run --rm web python manage.py migrate --noinput
+
+        # collectstatic: можно вынести в CI, но здесь быстрое решение
+        docker compose run --rm web python manage.py collectstatic --noinput || true
+
+        # Проверка health
+        sleep 2
+        docker compose ps
+        curl -f --retry 5 --retry-delay 2 --max-time 10 \"https://api.merup.ru/healthz\"
+      "
+  environment:
+    name: production
+    url: https://api.merup.ru
+  only:
+    - master
+  when: manual
+
 # ---- FRONTEND BUILD ----
 
 frontend-build:
