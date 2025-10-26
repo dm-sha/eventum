@@ -141,9 +141,9 @@ export const shouldUseSubdomainApi = (): boolean => {
 export const shouldUseContainerApi = (): boolean => {
   const hostname = window.location.hostname;
   
-  // Используем контейнер API если мы на основном домене контейнера
-  // ИЛИ если мы на поддомене merup.ru но API запрос идет к контейнеру
-  return hostname === 'bbapo5ibqs4eg6dail89.containers.yandexcloud.net' || 
+  // Используем API если мы на основном домене или на поддомене merup.ru
+  return hostname === 'api.merup.ru' || 
+         hostname === 'merup.ru' ||
          (hostname.endsWith('.merup.ru') && !import.meta.env.DEV);
 };
 
@@ -153,5 +153,5 @@ const getApiBaseUrl = (): string => {
     return 'http://localhost:8000/api';
   }
   // В продакшене используем переменную окружения или fallback на продакшн URL
-  return import.meta.env.VITE_API_BASE_URL || 'https://bbapo5ibqs4eg6dail89.containers.yandexcloud.net/api';
+  return import.meta.env.VITE_API_BASE_URL || 'https://api.merup.ru/api';
 };

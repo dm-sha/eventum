@@ -1,4 +1,4 @@
-const DEFAULT_REMOTE_API = 'https://bbapo5ibqs4eg6dail89.containers.yandexcloud.net/api';
+const DEFAULT_REMOTE_API = 'https://api.merup.ru/api';
 const LOCAL_API = 'http://localhost:8000/api';
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1']);
 

@@ -68,6 +68,7 @@ CORS_ALLOWED_ORIGINS = [
   'http://localhost:5174',  # For dev (alternative port)
   'https://eventum-web-ui.vercel.app',  # Your Vercel URL
   'https://merup.ru',
+  'https://api.merup.ru',  # API backend
   'https://bbapo5ibqs4eg6dail89.containers.yandexcloud.net',  # Yandex Cloud container
 ]
 
@@ -78,6 +79,7 @@ CSRF_TRUSTED_ORIGINS = [
     'https://eventum-web-ui.vercel.app',
     'https://merup.ru',
     'https://*.merup.ru',
+    'https://api.merup.ru',  # API backend
     'https://bbapo5ibqs4eg6dail89.containers.yandexcloud.net',
 ]
 
