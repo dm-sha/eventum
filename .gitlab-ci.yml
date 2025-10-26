@@ -27,7 +27,6 @@ build-job:
         --push backend
 
 variables:
-  # IMAGE определяется в build-job и используется ниже
   DEPLOY_DIR: /srv/eventum
   DEPLOY_USER: deploy
   DEPLOY_HOST: 84.201.185.243
@@ -59,41 +58,41 @@ deploy-to-vm:
     - scp -o StrictHostKeyChecking=yes .env ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_DIR}/.env
     - scp -o StrictHostKeyChecking=yes backend/docker-compose.yml ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_DIR}/docker-compose.yml || echo "No local docker-compose.yml to copy, assuming exists on host"
     - |
-      ssh ${DEPLOY_USER}@${DEPLOY_HOST} bash <<'SSH'
-      set -euo pipefail
+      ssh ${DEPLOY_USER}@${DEPLOY_HOST} bash <<SSH
+        set -euo pipefail
 
-      cd ${DEPLOY_DIR} || { echo "ERROR: deploy dir not found: ${DEPLOY_DIR}" >&2; exit 2; }
+        cd ${DEPLOY_DIR} || { echo "ERROR: deploy dir not found: ${DEPLOY_DIR}" >&2; exit 2; }
 
-      echo "Files in deploy dir:" && ls -la
+        echo "Files in deploy dir:" && ls -la
 
-      # Логинимся в registry (подставленные переменные скрыты в CI логе)
-      echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin ${CI_REGISTRY%%/*} || true
+        # Логинимся в registry (подставленные переменные скрыты в CI логе)
+        echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin ${CI_REGISTRY%%/*} || true
 
-      export IMAGE='${CI_REGISTRY}/${CI_PROJECT_PATH}:${CI_COMMIT_SHORT_SHA}'
-      echo "Using image: $IMAGE"
+        export IMAGE='${CI_REGISTRY}/${CI_PROJECT_PATH}:${CI_COMMIT_SHORT_SHA}'
+        echo "Using image: $IMAGE"
 
-      if [ ! -f docker-compose.yml ]; then
-        echo "ERROR: docker-compose.yml not found in ${DEPLOY_DIR}" >&2
-        ls -la
-        exit 3
-      fi
+        if [ ! -f docker-compose.yml ]; then
+          echo "ERROR: docker-compose.yml not found in ${DEPLOY_DIR}" >&2
+          ls -la
+          exit 3
+        fi
 
-      docker pull "$IMAGE" || true
-      docker compose pull || true
-      docker compose up -d --remove-orphans
+        docker pull "$IMAGE" || true
+        docker compose pull || true
+        docker compose up -d --remove-orphans
 
-      docker compose run --rm web python manage.py migrate --noinput
-      docker compose run --rm web python manage.py collectstatic --noinput || true
+        docker compose run --rm web python manage.py migrate --noinput
+        docker compose run --rm web python manage.py collectstatic --noinput || true
 
-      docker compose ps
-      sleep 2
-      curl -f --retry 5 --retry-delay 2 --max-time 10 "https://api.merup.ru/healthz" || {
-        echo "Health check failed" >&2
-        docker compose logs --tail=200
-        exit 4
-      }
+        docker compose ps
+        sleep 2
+        curl -f --retry 5 --retry-delay 2 --max-time 10 "https://api.merup.ru/healthz" || {
+          echo "Health check failed" >&2
+          docker compose logs --tail=200
+          exit 4
+        }
 
-      echo "Deploy finished successfully"
+        echo "Deploy finished successfully"
       SSH
   environment:
     name: production
