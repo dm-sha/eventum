@@ -1,29 +1,44 @@
 services:
-  web:
-    image: "${IMAGE}"
-    restart: always
-    env_file:
-      - .env
+  reverse-proxy:
+    image: traefik:v3.1
+    command:
+      - --providers.docker=true
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --certificatesresolvers.le.acme.tlschallenge=true
+      - --certificatesresolvers.le.acme.email=${LE_EMAIL}
+      - --certificatesresolvers.le.acme.storage=/letsencrypt/acme.json
     ports:
-      - "8000:8000"
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 1024M
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8000/healthz || exit 1"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
+      - "80:80"
+      - "443:443"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "../letsencrypt:/letsencrypt"
+    restart: always
+
+  backend:
+    image: ${IMAGE}
+    environment:
+      DJANGO_SETTINGS_MODULE: ${DJANGO_SETTINGS_MODULE:-eventum.settings}
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
+      DEBUG: "0"
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS}
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      PORT: "8000"
+    working_dir: /app
+    volumes:
+      - "../media:/app/media"
+      - "../static:/app/static"
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.eventum.rule=Host(`api.merup.ru`)"
+      - "traefik.http.routers.eventum.rule=Host(`${APP_DOMAIN}`)"
       - "traefik.http.routers.eventum.entrypoints=websecure"
-      - "traefik.http.routers.eventum.tls=true"
+      - "traefik.http.routers.eventum.tls.certresolver=le"
       - "traefik.http.services.eventum.loadbalancer.server.port=8000"
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
+      - "traefik.http.services.eventum.loadbalancer.healthcheck.path=/healthz"
+      - "traefik.http.services.eventum.loadbalancer.healthcheck.interval=2s"
+    restart: always
