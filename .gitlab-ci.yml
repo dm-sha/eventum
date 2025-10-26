@@ -91,9 +91,6 @@ deploy-to-vm:
   environment:
     name: production
     url: https://api.merup.ru
-  only:
-    - master
-  when: manual
 
 # ---- FRONTEND BUILD ----
 
