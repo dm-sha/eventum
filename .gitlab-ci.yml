@@ -47,7 +47,7 @@ deploy-to-vm:
         "${DJANGO_SECRET_KEY}" "${DB_NAME}" "${DB_USER}" "${DB_PASSWORD}" "${DB_HOST}" "${BASE_URL}" "${VK_APP_ID}" "${VK_APP_SECRET}" "${VK_REDIRECT_URI}" > .env
     - chmod 600 .env
     - scp -o StrictHostKeyChecking=yes .env ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_DIR}/.env
-    - scp -o StrictHostKeyChecking=yes backend/docker-compose.yml ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_DIR}/docker-compose.yml || echo "No local docker-compose.yml to copy, assuming exists on host"
+    - scp -o StrictHostKeyChecking=yes ${CI_PROJECT_DIR}/backend/docker-compose.yml ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_DIR}/docker-compose.yml || echo "No local docker-compose.yml to copy, assuming exists on host"
     - |
       # Сохраняем ключ в файл для безопасной передачи
       echo "$SA_PROD_DEPLOYER_PRIVATE_KEY" > /tmp/sa_key.json
