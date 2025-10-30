@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { useEventumSlug } from "../../hooks/useEventumSlug";
 import type { Event, EventTag, GroupTag, Location, Participant, ParticipantGroup, ParticipantType, ValidationError } from "../../types";
 import { MultiLocationSelector } from "../location/MultiLocationSelector";
 
@@ -127,7 +128,7 @@ const GeneralTab = ({
           ...prev,
           location_ids: locationIds
         }))}
-        placeholder="Выберите локации (необязательно)"
+        placeholder="Выберите локации"
       />
     </div>
     
@@ -153,7 +154,7 @@ const GeneralTab = ({
               setShowTagSuggestions(false);
             }
           }}
-          placeholder="Добавить тег..."
+          placeholder="Выберите тег"
           className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
         />
         
@@ -173,10 +174,12 @@ const GeneralTab = ({
           </div>
         )}
         
-        {showTagSuggestions && tagSearchQuery.trim() && getTagSuggestions().length === 0 && (
+        {showTagSuggestions && getTagSuggestions().length === 0 && (
           <div className="absolute z-10 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg">
             <div className="px-3 py-2 text-sm text-gray-500">
-              Теги не найдены
+              {eventTags.length === 0
+                ? 'Нет тегов'
+                : (tagSearchQuery.trim() ? 'Теги не найдены' : 'Нет доступных тегов')}
             </div>
           </div>
         )}
@@ -627,6 +630,7 @@ const EventEditModal = ({
   locations,
   title 
 }: EventEditModalProps) => {
+  const eventumSlug = useEventumSlug();
   const [activeTab, setActiveTab] = useState<'general' | 'participants'>('general');
   const [eventForm, setEventForm] = useState({
     name: "",
@@ -711,11 +715,35 @@ const EventEditModal = ({
           location_ids: locationIds
         });
       } else {
+        // Попытаться подставить дату и время последнего созданного мероприятия из localStorage
+        let start = getDefaultDateTime();
+        let end = getDefaultEndDateTime();
+        try {
+          if (eventumSlug) {
+            const lastStart = localStorage.getItem(`eventum:${eventumSlug}:lastEventStart`);
+            if (lastStart) {
+              // Если сохранено полное значение YYYY-MM-DDTHH:mm — используем его целиком
+              if (lastStart.includes('T')) {
+                start = lastStart;
+              } else {
+                // Обратная совместимость: если сохранена только дата
+                const now = new Date();
+                now.setMinutes(0, 0, 0);
+                const hours = String(now.getHours()).padStart(2, '0');
+                const minutes = String(now.getMinutes()).padStart(2, '0');
+                start = `${lastStart}T${hours}:${minutes}`;
+              }
+              // Конец — +1 час от старта
+              end = getEndTimeFromStartTime(start);
+            }
+          }
+        } catch {}
+
         setEventForm({
           name: "",
           description: "",
-          start_time: getDefaultDateTime(),
-          end_time: getDefaultEndDateTime(),
+          start_time: start,
+          end_time: end,
           participant_type: 'all',
           max_participants: undefined,
           image_url: "",
@@ -997,6 +1025,14 @@ const EventEditModal = ({
         group_tag_ids: eventForm.group_tags
       };
       await onSave(eventData);
+
+      // Если создаём новое событие, сохраняем дату начала как последнюю использованную дату
+      if (!event && eventumSlug) {
+        try {
+          // Сохраняем полное время начала в формате YYYY-MM-DDTHH:mm
+          localStorage.setItem(`eventum:${eventumSlug}:lastEventStart`, eventForm.start_time);
+        } catch {}
+      }
       onClose();
     } catch (error: any) {
       console.error('Ошибка сохранения мероприятия:', error);

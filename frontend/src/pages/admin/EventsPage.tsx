@@ -418,18 +418,14 @@ const AdminEventsPage = () => {
                       
                       {/* Теги */}
                       <div className="flex items-center gap-2 flex-wrap">
-                        {displayTags.length > 0 ? (
-                          displayTags.map((tag) => (
-                            <span
-                              key={tag.id}
-                              className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
-                            >
-                              {tag.name}
-                            </span>
-                          ))
-                        ) : (
-                          <span className="text-xs text-gray-400">Нет тегов</span>
-                        )}
+                        {displayTags.length > 0 && displayTags.map((tag) => (
+                          <span
+                            key={tag.id}
+                            className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                          >
+                            {tag.name}
+                          </span>
+                        ))}
                         {hasMoreTags && !isExpanded && (
                           <button
                             onClick={(e) => {
