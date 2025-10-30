@@ -16,7 +16,9 @@ const GeneralTab = ({
   addTagToForm, 
   removeTagFromForm, 
   getEndTimeFromStartTime,
-  tagInputRef
+  tagInputRef,
+  hasUserEditedEndTime,
+  setHasUserEditedEndTime
 }: {
   eventForm: any;
   setEventForm: any;
@@ -31,6 +33,8 @@ const GeneralTab = ({
   removeTagFromForm: (tagId: number) => void;
   getEndTimeFromStartTime: (startTime: string) => string;
   tagInputRef: React.RefObject<HTMLDivElement | null>;
+  hasUserEditedEndTime: boolean;
+  setHasUserEditedEndTime: (edited: boolean) => void;
 }) => (
   <div className="space-y-4">
     <div>
@@ -83,9 +87,9 @@ const GeneralTab = ({
           onChange={(e) => {
             const newStartTime = e.target.value;
             setEventForm((prev: any) => {
-              const newEndTime = prev.end_time && new Date(prev.end_time) > new Date(newStartTime) 
-                ? prev.end_time 
-                : getEndTimeFromStartTime(newStartTime);
+              const newEndTime = !hasUserEditedEndTime
+                ? getEndTimeFromStartTime(newStartTime)
+                : prev.end_time;
               return { 
                 ...prev, 
                 start_time: newStartTime,
@@ -103,7 +107,10 @@ const GeneralTab = ({
         <input
           type="datetime-local"
           value={eventForm.end_time}
-          onChange={(e) => setEventForm((prev: any) => ({ ...prev, end_time: e.target.value }))}
+          onChange={(e) => {
+            setHasUserEditedEndTime(true);
+            setEventForm((prev: any) => ({ ...prev, end_time: e.target.value }));
+          }}
           className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
         />
       </div>
@@ -646,6 +653,7 @@ const EventEditModal = ({
   const [isSaving, setIsSaving] = useState(false);
   const [validationErrors, setValidationErrors] = useState<ValidationError>({});
   const [participantTypeError, setParticipantTypeError] = useState<string | null>(null);
+  const [hasUserEditedEndTime, setHasUserEditedEndTime] = useState(false);
   const tagInputRef = useRef<HTMLDivElement>(null);
   const groupTagInputRef = useRef<HTMLDivElement>(null);
   const participantInputRef = useRef<HTMLDivElement>(null);
@@ -728,6 +736,7 @@ const EventEditModal = ({
       setShowGroupSuggestions(false);
       setValidationErrors({});
       setParticipantTypeError(null);
+      setHasUserEditedEndTime(false);
     }
   }, [isOpen, event]);
 
@@ -1118,7 +1127,9 @@ const EventEditModal = ({
               addTagToForm={addTagToForm}
               removeTagFromForm={removeTagFromForm}
               getEndTimeFromStartTime={getEndTimeFromStartTime}
-              tagInputRef={tagInputRef}
+            tagInputRef={tagInputRef}
+            hasUserEditedEndTime={hasUserEditedEndTime}
+            setHasUserEditedEndTime={setHasUserEditedEndTime}
             />
           ) : (
             <ParticipantsTab 
