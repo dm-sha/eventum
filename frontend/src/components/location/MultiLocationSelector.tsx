@@ -174,7 +174,7 @@ export const MultiLocationSelector: React.FC<MultiLocationSelectorProps> = ({
               ))
             ) : (
               <div className="px-3 py-2 text-sm text-gray-500">
-                {searchQuery.trim() ? 'Локации не найдены' : 'Все доступные локации уже выбраны'}
+                {searchQuery.trim() ? 'Локации не найдены' : 'Нет доступных локаций'}
               </div>
             )}
           </div>
