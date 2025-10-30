@@ -371,18 +371,22 @@ const ParticipantsTab = ({
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
             />
             
-            {showParticipantSuggestions && getParticipantSuggestions().length > 0 && (
+            {showParticipantSuggestions && (
               <div className="absolute z-10 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg max-h-32 overflow-y-auto">
-                {getParticipantSuggestions().map((participant) => (
-                  <button
-                    key={participant.id}
-                    type="button"
-                    onClick={() => addParticipantToForm(participant)}
-                    className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50"
-                  >
-                    {participant.name}
-                  </button>
-                ))}
+                {getParticipantSuggestions().length > 0 ? (
+                  getParticipantSuggestions().map((participant) => (
+                    <button
+                      key={participant.id}
+                      type="button"
+                      onClick={() => addParticipantToForm(participant)}
+                      className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50"
+                    >
+                      {participant.name}
+                    </button>
+                  ))
+                ) : (
+                  <div className="px-3 py-2 text-sm text-gray-500">Нет доступных участников</div>
+                )}
               </div>
             )}
           </div>
@@ -433,18 +437,22 @@ const ParticipantsTab = ({
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
             />
             
-            {showGroupSuggestions && getGroupSuggestions().length > 0 && (
+            {showGroupSuggestions && (
               <div className="absolute z-10 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg max-h-32 overflow-y-auto">
-                {getGroupSuggestions().map((group) => (
-                  <button
-                    key={group.id}
-                    type="button"
-                    onClick={() => addGroupToForm(group)}
-                    className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50"
-                  >
-                    {group.name}
-                  </button>
-                ))}
+                {getGroupSuggestions().length > 0 ? (
+                  getGroupSuggestions().map((group) => (
+                    <button
+                      key={group.id}
+                      type="button"
+                      onClick={() => addGroupToForm(group)}
+                      className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50"
+                    >
+                      {group.name}
+                    </button>
+                  ))
+                ) : (
+                  <div className="px-3 py-2 text-sm text-gray-500">Нет доступных групп</div>
+                )}
               </div>
             )}
           </div>
@@ -495,18 +503,22 @@ const ParticipantsTab = ({
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
             />
             
-            {showGroupTagSuggestions && getGroupTagSuggestions().length > 0 && (
+            {showGroupTagSuggestions && (
               <div className="absolute z-10 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg max-h-32 overflow-y-auto">
-                {getGroupTagSuggestions().map((groupTag) => (
-                  <button
-                    key={groupTag.id}
-                    type="button"
-                    onClick={() => addGroupTagToForm(groupTag)}
-                    className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50"
-                  >
-                    {groupTag.name}
-                  </button>
-                ))}
+                {getGroupTagSuggestions().length > 0 ? (
+                  getGroupTagSuggestions().map((groupTag) => (
+                    <button
+                      key={groupTag.id}
+                      type="button"
+                      onClick={() => addGroupTagToForm(groupTag)}
+                      className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50"
+                    >
+                      {groupTag.name}
+                    </button>
+                  ))
+                ) : (
+                  <div className="px-3 py-2 text-sm text-gray-500">Нет доступных тегов групп</div>
+                )}
               </div>
             )}
           </div>
