@@ -28,6 +28,8 @@ services:
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
       PORT: "8000"
+    env_file:
+      - .env
     working_dir: /app
     volumes:
       - "../media:/app/media"
