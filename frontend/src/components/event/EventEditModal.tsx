@@ -418,7 +418,7 @@ const ParticipantsTab = ({
                   setShowParticipantSuggestions(false);
                 }
               }}
-              placeholder="Добавить участника..."
+              placeholder="Выбрать участников..."
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
             />
             
@@ -480,7 +480,7 @@ const ParticipantsTab = ({
                   setShowGroupSuggestions(false);
                 }
               }}
-              placeholder="Добавить группу..."
+              placeholder="Выбрать группы..."
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
             />
             
@@ -542,7 +542,7 @@ const ParticipantsTab = ({
                   setShowGroupTagSuggestions(false);
                 }
               }}
-              placeholder="Добавить тег группы..."
+              placeholder="Выбрать теги групп..."
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
             />
             
