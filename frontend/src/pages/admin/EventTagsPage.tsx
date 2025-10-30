@@ -27,6 +27,7 @@ const AdminEventTagsPage = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(false);
 
   useEffect(() => {
     if (!eventumSlug) return;
@@ -54,21 +55,17 @@ const AdminEventTagsPage = () => {
     t.name.toLowerCase().includes(filter.toLowerCase())
   );
 
-  const suggestions = eventQuery
-    ? events
-        .filter((e) => {
-          const matchesQuery = e.name.toLowerCase().includes(eventQuery.toLowerCase());
-          
-          if (editingTag || isCreatingTag) {
-            // В режиме редактирования или создания исключаем мероприятия, которые уже в списке редактирования
-            return matchesQuery && !editingEvents.some((ee) => ee.id === e.id);
-          } else {
-            // При создании нового тега исключаем уже выбранные мероприятия
-            return matchesQuery && !selectedEvents.some((se) => se.id === e.id);
-          }
-        })
-        .slice(0, 5)
-    : [];
+  const suggestions = (() => {
+    const normalizedQuery = eventQuery.toLowerCase();
+    const excludeIdSet = new Set(
+      (editingTag || isCreatingTag ? editingEvents : selectedEvents).map((e) => e.id)
+    );
+    const baseList = events.filter((e) => !excludeIdSet.has(e.id));
+    const filtered = normalizedQuery
+      ? baseList.filter((e) => e.name.toLowerCase().includes(normalizedQuery))
+      : baseList;
+    return filtered.slice(0, 5);
+  })();
 
   const addEvent = (e: Event) => {
     if (editingTag || isCreatingTag) {
@@ -82,6 +79,7 @@ const AdminEventTagsPage = () => {
       setSelectedEvents([...selectedEvents, e]);
     }
     setEventQuery('');
+    setIsSuggestionsOpen(false);
   };
 
   const removeEditingEvent = (id: number) => {
@@ -295,6 +293,7 @@ const AdminEventTagsPage = () => {
     setTagName('');
     setEditingEvents([]);
     setEventQuery('');
+    setIsSuggestionsOpen(false);
     setValidationError(null);
   };
 
@@ -390,14 +389,17 @@ const AdminEventTagsPage = () => {
                       type="text"
                       value={eventQuery}
                       onChange={(e) => setEventQuery(e.target.value)}
+                      onFocus={() => setIsSuggestionsOpen(true)}
+                      onBlur={() => setIsSuggestionsOpen(false)}
                       className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                       placeholder="Добавить мероприятие..."
                     />
-                    {suggestions.length > 0 && (
+                    {isSuggestionsOpen && suggestions.length > 0 && (
                       <div className="absolute z-10 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg">
                         {suggestions.map((e) => (
                           <button
                             key={e.id}
+                            onMouseDown={(ev) => ev.preventDefault()}
                             onClick={() => addEvent(e)}
                             className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50"
                           >
@@ -496,14 +498,17 @@ const AdminEventTagsPage = () => {
                           type="text"
                           value={eventQuery}
                           onChange={(e) => setEventQuery(e.target.value)}
+                          onFocus={() => setIsSuggestionsOpen(true)}
+                          onBlur={() => setIsSuggestionsOpen(false)}
                           className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                           placeholder="Добавить мероприятие..."
                         />
-                        {suggestions.length > 0 && (
+                        {isSuggestionsOpen && suggestions.length > 0 && (
                           <div className="absolute z-10 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg">
                             {suggestions.map((e) => (
                               <button
                                 key={e.id}
+                                onMouseDown={(ev) => ev.preventDefault()}
                                 onClick={() => addEvent(e)}
                                 className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50"
                               >
