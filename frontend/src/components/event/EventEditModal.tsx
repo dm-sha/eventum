@@ -290,74 +290,41 @@ const ParticipantsTab = ({
       <div className="space-y-2">
         <label className="flex items-center">
           <input
-            type="radio"
-            name="participant_type"
-            value="all"
+            type="checkbox"
+            name="participant_type_all"
             checked={eventForm.participant_type === 'all'}
             onChange={(e) => {
-              const newType = e.target.value as ParticipantType;
-              const error = checkParticipantTypeValidation(newType);
-              if (error) {
-                // Показываем ошибку красным текстом
-                setParticipantTypeError("Нельзя изменить тип участников, пока не удалены все связи с участниками, группами или тегами групп");
-                return;
+              const isAll = e.target.checked;
+              if (isAll) {
+                const newType: ParticipantType = 'all';
+                const error = checkParticipantTypeValidation(newType);
+                if (error) {
+                  setParticipantTypeError("Нельзя изменить тип участников, пока не удалены все связи с участниками, группами или тегами групп");
+                  return;
+                }
+                setParticipantTypeError(null);
+                setEventForm((prev: any) => ({
+                  ...prev,
+                  participant_type: 'all',
+                  max_participants: undefined,
+                  participants: [],
+                  groups: [],
+                  group_tags: []
+                }));
+              } else {
+                setParticipantTypeError(null);
+                setEventForm((prev: any) => ({
+                  ...prev,
+                  participant_type: 'manual',
+                  max_participants: undefined
+                }));
               }
-              setParticipantTypeError(null);
-              setEventForm((prev: any) => ({ 
-                ...prev, 
-                participant_type: newType,
-                max_participants: undefined,
-                participants: [],
-                groups: [],
-                group_tags: []
-              }));
             }}
             className="mr-2"
           />
           <span className="text-sm">Для всех</span>
         </label>
-        <label className="flex items-center">
-          <input
-            type="radio"
-            name="participant_type"
-            value="registration"
-            checked={eventForm.participant_type === 'registration'}
-            onChange={(e) => {
-              const newType = e.target.value as ParticipantType;
-              const error = checkParticipantTypeValidation(newType);
-              if (error) {
-                // Показываем ошибку красным текстом
-                setParticipantTypeError("Нельзя изменить тип участников, пока не удалены все связи с участниками, группами или тегами групп");
-                return;
-              }
-              setParticipantTypeError(null);
-              setEventForm((prev: any) => ({ 
-                ...prev, 
-                participant_type: newType,
-                participants: [],
-                groups: [],
-                group_tags: []
-              }));
-            }}
-            className="mr-2"
-          />
-          <span className="text-sm">По записи</span>
-        </label>
-        <label className="flex items-center">
-          <input
-            type="radio"
-            name="participant_type"
-            value="manual"
-            checked={eventForm.participant_type === 'manual'}
-            onChange={(e) => setEventForm((prev: any) => ({ 
-              ...prev, 
-              participant_type: e.target.value,
-              max_participants: undefined
-            }))}
-            className="mr-2"
-          />
-          <span className="text-sm">Вручную</span>
-        </label>
+        {/* Если чекбокс не выбран — показываем поведение как для "Вручную" */}
       </div>
       
       {/* Отображение ошибки валидации для participant_type */}
@@ -368,25 +335,7 @@ const ParticipantsTab = ({
       )}
     </div>
 
-    {/* Поле для максимального количества участников (только для типа registration) */}
-    {eventForm.participant_type === 'registration' && (
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Максимальное количество участников *
-        </label>
-        <input
-          type="number"
-          min="1"
-          value={eventForm.max_participants || ''}
-          onChange={(e) => setEventForm((prev: any) => ({ 
-            ...prev, 
-            max_participants: e.target.value ? parseInt(e.target.value) : undefined 
-          }))}
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-          placeholder="Введите максимальное количество участников"
-        />
-      </div>
-    )}
+    {/* Убран режим "По записи" и его поле максимального количества участников */}
 
     {/* Информация о количестве участников для ручного режима */}
     {eventForm.participant_type === 'manual' && (
