@@ -1,8 +1,6 @@
 stages:
   - build
-  - release
-  - frontend_build
-  - frontend_deploy
+  - deploy
 
 build-job:
   stage: build
@@ -32,7 +30,7 @@ variables:
   DEPLOY_HOST: 84.201.185.243
 
 deploy-to-vm:
-  stage: release
+  stage: deploy
   image: alpine:latest
   before_script:
     - apk add --no-cache openssh-client bash curl jq gettext
@@ -104,7 +102,7 @@ deploy-to-vm:
 # ---- FRONTEND BUILD ----
 
 frontend-build:
-  stage: frontend_build
+  stage: build
   image: node:22-alpine
   script:
     - npm ci --prefix frontend
@@ -119,7 +117,7 @@ frontend-build:
 
 # ---- FRONTEND DEPLOY to Object Storage ----
 frontend-deploy:
-  stage: frontend_deploy
+  stage: deploy
   image: python:3.12-alpine
   dependencies: [frontend-build]
   before_script:
