@@ -8,6 +8,9 @@ import type {
   EventumDetails, 
   Participant, 
   ParticipantGroup, 
+  ParticipantGroupV2,
+  CreateParticipantGroupV2Data,
+  UpdateParticipantGroupV2Data,
   Event, 
   UserRole, 
   User,
@@ -155,6 +158,26 @@ export const groupsApi = {
   // Удалить группу
   delete: (id: number, eventumSlug?: string) => 
     createApiRequest<void>('DELETE', `/groups/${id}/`, getEventumSlugForRequest(eventumSlug))
+};
+
+// ============= GROUPS V2 API =============
+
+export const groupsV2Api = {
+  // Получить все группы V2
+  getAll: (eventumSlug?: string) => 
+    createApiRequest<ParticipantGroupV2[]>('GET', '/groups-v2/', getEventumSlugForRequest(eventumSlug)),
+  
+  // Создать группу V2
+  create: (data: CreateParticipantGroupV2Data, eventumSlug?: string) => 
+    createApiRequest<ParticipantGroupV2>('POST', '/groups-v2/', getEventumSlugForRequest(eventumSlug), data),
+  
+  // Обновить группу V2
+  update: (id: number, data: UpdateParticipantGroupV2Data, eventumSlug?: string) => 
+    createApiRequest<ParticipantGroupV2>('PATCH', `/groups-v2/${id}/`, getEventumSlugForRequest(eventumSlug), data),
+  
+  // Удалить группу V2
+  delete: (id: number, eventumSlug?: string) => 
+    createApiRequest<void>('DELETE', `/groups-v2/${id}/`, getEventumSlugForRequest(eventumSlug))
 };
 
 // ============= EVENTS API =============

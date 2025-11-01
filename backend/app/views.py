@@ -18,12 +18,14 @@ from icalendar import Calendar, Event as ICalEvent
 from datetime import datetime
 import uuid
 from urllib.parse import urlsplit, urlunsplit
-from .models import Eventum, Participant, ParticipantGroup, GroupTag, Event, EventTag, UserProfile, UserRole, Location, EventWave, EventRegistration
+from .models import Eventum, Participant, ParticipantGroup, GroupTag, Event, EventTag, UserProfile, UserRole, Location, EventWave, EventRegistration, ParticipantGroupV2, ParticipantGroupV2ParticipantRelation, ParticipantGroupV2GroupRelation, ParticipantGroupV2EventRelation
 from .serializers import (
     EventumSerializer, ParticipantSerializer, ParticipantGroupSerializer,
     GroupTagSerializer, EventSerializer, EventTagSerializer,
     UserProfileSerializer, UserRoleSerializer, VKAuthSerializer, CustomTokenObtainPairSerializer,
-    LocationSerializer, EventWaveSerializer, EventRegistrationSerializer
+    LocationSerializer, EventWaveSerializer, EventRegistrationSerializer,
+    ParticipantGroupV2Serializer, ParticipantGroupV2ParticipantRelationSerializer, ParticipantGroupV2GroupRelationSerializer,
+    ParticipantGroupV2EventRelationSerializer
 )
 from .permissions import IsEventumOrganizer, IsEventumParticipant, IsEventumOrganizerOrReadOnly, IsEventumOrganizerOrReadOnlyForList, IsEventumOrganizerOrPublicReadOnly
 from .utils import log_execution_time, csrf_exempt_class_api
@@ -528,6 +530,240 @@ class GroupTagViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
             return Response({'status': 'success'}, status=status.HTTP_200_OK)
         except ParticipantGroup.DoesNotExist:
             return Response({'error': 'Group not found'}, status=status.HTTP_404_NOT_FOUND)
+
+
+class ParticipantGroupV2ViewSet(CachedListMixin, EventumScopedViewSet):
+    """ViewSet для новых групп участников V2"""
+    queryset = ParticipantGroupV2.objects.all().prefetch_related(
+        'participant_relations__participant',
+        'group_relations__target_group',
+    )
+    serializer_class = ParticipantGroupV2Serializer
+    permission_classes = [IsEventumOrganizerOrReadOnly]
+    
+    def get_queryset(self):
+        """Оптимизированный queryset для списка групп V2 с использованием Prefetch для предотвращения N+1 запросов"""
+        eventum = self.get_eventum()
+        # По умолчанию показываем только группы, не связанные с событиями
+        show_event_groups = self.request.query_params.get('include_event_groups', 'false').lower() == 'true'
+        
+        queryset = ParticipantGroupV2.objects.filter(eventum=eventum)
+        
+        if not show_event_groups:
+            queryset = queryset.filter(is_event_group=False)
+        
+        # Используем Prefetch с явным queryset для точной оптимизации загрузки связей с участниками
+        # Это предотвращает N+1 запросы при обращении к participant.groups и group.tags в сериализаторе
+        participant_relations_prefetch = Prefetch(
+            'participant_relations',
+            queryset=ParticipantGroupV2ParticipantRelation.objects.select_related(
+                'participant__user',
+                'participant__eventum'
+            ).prefetch_related(
+                'participant__groups',
+                'participant__groups__tags'
+            )
+        )
+        
+        # Используем Prefetch для связей групп, хотя они менее критичны
+        group_relations_prefetch = Prefetch(
+            'group_relations',
+            queryset=ParticipantGroupV2GroupRelation.objects.select_related(
+                'target_group'
+            )
+        )
+        
+        return queryset.prefetch_related(
+            participant_relations_prefetch,
+            group_relations_prefetch,
+        ).select_related('eventum')
+    
+    def get_serializer_context(self):
+        """Добавляем eventum в контекст сериализатора"""
+        context = super().get_serializer_context()
+        context['eventum'] = self.get_eventum()
+        return context
+    
+    @log_execution_time("Получение списка групп участников V2")
+    def list(self, request, *args, **kwargs):
+        """Переопределяем list для добавления кэширования"""
+        if request.GET.get('page'):
+            return super().list(request, *args, **kwargs)
+        
+        eventum_slug = kwargs.get('eventum_slug')
+        cache_key = f"groups_v2_list_{eventum_slug}"
+        
+        cached_data = cache.get(cache_key)
+        if cached_data is not None:
+            logger.info(f"Данные групп V2 получены из кэша для {eventum_slug}")
+            return Response(cached_data)
+        
+        logger.info(f"Загрузка групп V2 из БД для {eventum_slug}")
+        queryset = self.filter_queryset(self.get_queryset())
+        serializer = self.get_serializer(queryset, many=True)
+        
+        cache.set(cache_key, serializer.data, 300)
+        logger.info(f"Кэшировано {len(serializer.data)} групп V2 для {eventum_slug}")
+        
+        return Response(serializer.data)
+    
+    def perform_create(self, serializer):
+        """Переопределяем для инвалидации кэша при создании"""
+        super().perform_create(serializer)
+        eventum_slug = self.kwargs.get('eventum_slug')
+        cache_key = f"groups_v2_list_{eventum_slug}"
+        cache.delete(cache_key)
+    
+    def perform_update(self, serializer):
+        """Переопределяем для инвалидации кэша при обновлении"""
+        super().perform_update(serializer)
+        eventum_slug = self.kwargs.get('eventum_slug')
+        cache_key = f"groups_v2_list_{eventum_slug}"
+        cache.delete(cache_key)
+    
+    def perform_destroy(self, instance):
+        """Переопределяем для инвалидации кэша при удалении"""
+        eventum_slug = self.kwargs.get('eventum_slug')
+        super().perform_destroy(instance)
+        cache_key = f"groups_v2_list_{eventum_slug}"
+        cache.delete(cache_key)
+
+
+class ParticipantGroupV2ParticipantRelationViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
+    """ViewSet для связей групп V2 с участниками"""
+    queryset = ParticipantGroupV2ParticipantRelation.objects.all()
+    serializer_class = ParticipantGroupV2ParticipantRelationSerializer
+    permission_classes = [IsEventumOrganizerOrReadOnly]
+    
+    def get_queryset(self):
+        """Оптимизированный queryset для списка связей"""
+        eventum = self.get_eventum()
+        group_id = self.request.query_params.get('group_id')
+        
+        queryset = ParticipantGroupV2ParticipantRelation.objects.filter(
+            group__eventum=eventum
+        ).select_related(
+            'group',
+            'participant',
+            'participant__user',
+            'participant__eventum'
+        )
+        
+        if group_id:
+            queryset = queryset.filter(group_id=group_id)
+        
+        return queryset
+    
+    def get_serializer_context(self):
+        """Добавляем eventum в контекст сериализатора"""
+        context = super().get_serializer_context()
+        context['eventum'] = self.get_eventum()
+        return context
+    
+    def perform_create(self, serializer):
+        """Переопределяем для валидации группы"""
+        eventum = self.get_eventum()
+        # group_id должен быть передан в данных запроса
+        validated_data = serializer.validated_data
+        group = validated_data.get('group')
+        
+        if group and group.eventum != eventum:
+            raise ValidationError("Group must belong to the same eventum")
+        
+        serializer.save()
+
+
+class ParticipantGroupV2GroupRelationViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
+    """ViewSet для связей групп V2 с другими группами"""
+    queryset = ParticipantGroupV2GroupRelation.objects.all()
+    serializer_class = ParticipantGroupV2GroupRelationSerializer
+    permission_classes = [IsEventumOrganizerOrReadOnly]
+    
+    def get_queryset(self):
+        """Оптимизированный queryset для списка связей"""
+        eventum = self.get_eventum()
+        group_id = self.request.query_params.get('group_id')
+        
+        queryset = ParticipantGroupV2GroupRelation.objects.filter(
+            group__eventum=eventum
+        ).select_related(
+            'group',
+            'target_group'
+        )
+        
+        if group_id:
+            queryset = queryset.filter(group_id=group_id)
+        
+        return queryset
+    
+    def get_serializer_context(self):
+        """Добавляем eventum в контекст сериализатора"""
+        context = super().get_serializer_context()
+        context['eventum'] = self.get_eventum()
+        return context
+    
+    def perform_create(self, serializer):
+        """Переопределяем для валидации группы"""
+        eventum = self.get_eventum()
+        # group_id должен быть передан в данных запроса
+        validated_data = serializer.validated_data
+        group = validated_data.get('group')
+        
+        if group and group.eventum != eventum:
+            raise ValidationError("Group must belong to the same eventum")
+        
+        serializer.save()
+
+
+class ParticipantGroupV2EventRelationViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
+    """ViewSet для связей групп V2 с событиями"""
+    queryset = ParticipantGroupV2EventRelation.objects.all()
+    serializer_class = ParticipantGroupV2EventRelationSerializer
+    permission_classes = [IsEventumOrganizerOrReadOnly]
+    
+    def get_queryset(self):
+        """Оптимизированный queryset для списка связей"""
+        eventum = self.get_eventum()
+        group_id = self.request.query_params.get('group_id')
+        event_id = self.request.query_params.get('event_id')
+        
+        queryset = ParticipantGroupV2EventRelation.objects.filter(
+            group__eventum=eventum
+        ).select_related(
+            'group',
+            'event',
+            'event__eventum'
+        )
+        
+        if group_id:
+            queryset = queryset.filter(group_id=group_id)
+        
+        if event_id:
+            queryset = queryset.filter(event_id=event_id)
+        
+        return queryset
+    
+    def get_serializer_context(self):
+        """Добавляем eventum в контекст сериализатора"""
+        context = super().get_serializer_context()
+        context['eventum'] = self.get_eventum()
+        return context
+    
+    def perform_create(self, serializer):
+        """Переопределяем для валидации группы и события"""
+        eventum = self.get_eventum()
+        validated_data = serializer.validated_data
+        group = validated_data.get('group')
+        event = validated_data.get('event')
+        
+        if group and group.eventum != eventum:
+            raise ValidationError("Group must belong to the same eventum")
+        
+        if event and event.eventum != eventum:
+            raise ValidationError("Event must belong to the same eventum")
+        
+        serializer.save()
+
 
 class EventTagViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
     queryset = EventTag.objects.all()

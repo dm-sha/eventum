@@ -6,7 +6,9 @@ from datetime import datetime
 from transliterate import translit
 from .models import (
     Eventum, Participant, ParticipantGroup,
-    GroupTag, Event, EventTag, UserProfile, UserRole, Location, EventWave, EventRegistration
+    GroupTag, Event, EventTag, UserProfile, UserRole, Location, EventWave, EventRegistration,
+    ParticipantGroupV2, ParticipantGroupV2ParticipantRelation, ParticipantGroupV2GroupRelation,
+    ParticipantGroupV2EventRelation
 )
 
 
@@ -314,6 +316,306 @@ class ParticipantGroupBasicSerializer(serializers.ModelSerializer):
     class Meta:
         model = ParticipantGroup
         fields = ['id', 'name', 'slug']
+
+
+class ParticipantGroupV2ParticipantRelationSerializer(serializers.ModelSerializer):
+    """Сериализатор для связи группы V2 с участником"""
+    group_id = serializers.IntegerField(write_only=True, required=False)
+    participant_id = serializers.IntegerField()
+    participant = ParticipantSerializer(read_only=True)
+    
+    class Meta:
+        model = ParticipantGroupV2ParticipantRelation
+        fields = [
+            'id', 'relation_type', 
+            'group_id', 'participant_id', 'participant'
+        ]
+    
+    def to_representation(self, instance):
+        """Добавляем participant_id в ответ для чтения"""
+        data = super().to_representation(instance)
+        # Добавляем participant_id из модели для чтения
+        data['participant_id'] = instance.participant_id
+        return data
+    
+    def create(self, validated_data):
+        """Создание связи с обработкой group_id и participant_id"""
+        group_id = validated_data.pop('group_id', None)
+        participant_id = validated_data.pop('participant_id')
+        
+        if group_id is None:
+            raise serializers.ValidationError({
+                'group_id': 'group_id is required'
+            })
+        
+        try:
+            validated_data['group'] = ParticipantGroupV2.objects.get(id=group_id)
+        except ParticipantGroupV2.DoesNotExist:
+            raise serializers.ValidationError({
+                'group_id': f'Group with ID {group_id} does not exist'
+            })
+        
+        try:
+            validated_data['participant'] = Participant.objects.get(id=participant_id)
+        except Participant.DoesNotExist:
+            raise serializers.ValidationError({
+                'participant_id': f'Participant with ID {participant_id} does not exist'
+            })
+        return super().create(validated_data)
+    
+    def update(self, instance, validated_data):
+        """Обновление связи с обработкой group_id и participant_id"""
+        group_id = validated_data.pop('group_id', None)
+        participant_id = validated_data.pop('participant_id', None)
+        
+        if group_id is not None:
+            try:
+                validated_data['group'] = ParticipantGroupV2.objects.get(id=group_id)
+            except ParticipantGroupV2.DoesNotExist:
+                raise serializers.ValidationError({
+                    'group_id': f'Group with ID {group_id} does not exist'
+                })
+        
+        if participant_id is not None:
+            try:
+                validated_data['participant'] = Participant.objects.get(id=participant_id)
+            except Participant.DoesNotExist:
+                raise serializers.ValidationError({
+                    'participant_id': f'Participant with ID {participant_id} does not exist'
+                })
+        return super().update(instance, validated_data)
+
+
+class ParticipantGroupV2GroupRelationSerializer(serializers.ModelSerializer):
+    """Сериализатор для связи группы V2 с другой группой"""
+    group_id = serializers.IntegerField(write_only=True, required=False)
+    target_group_id = serializers.IntegerField()
+    target_group = serializers.SerializerMethodField(read_only=True)
+    
+    class Meta:
+        model = ParticipantGroupV2GroupRelation
+        fields = [
+            'id', 'relation_type', 
+            'group_id', 'target_group_id', 'target_group'
+        ]
+    
+    def to_representation(self, instance):
+        """Добавляем target_group_id в ответ для чтения"""
+        data = super().to_representation(instance)
+        # Добавляем target_group_id из модели для чтения
+        data['target_group_id'] = instance.target_group_id
+        return data
+    
+    def get_target_group(self, obj):
+        """Возвращает информацию о целевой группе"""
+        if obj.target_group:
+            return {
+                'id': obj.target_group.id,
+                'name': obj.target_group.name
+            }
+        return None
+    
+    def create(self, validated_data):
+        """Создание связи с обработкой group_id и target_group_id"""
+        group_id = validated_data.pop('group_id', None)
+        target_group_id = validated_data.pop('target_group_id')
+        
+        if group_id is None:
+            raise serializers.ValidationError({
+                'group_id': 'group_id is required'
+            })
+        
+        try:
+            validated_data['group'] = ParticipantGroupV2.objects.get(id=group_id)
+        except ParticipantGroupV2.DoesNotExist:
+            raise serializers.ValidationError({
+                'group_id': f'Group with ID {group_id} does not exist'
+            })
+        
+        try:
+            validated_data['target_group'] = ParticipantGroupV2.objects.get(id=target_group_id)
+        except ParticipantGroupV2.DoesNotExist:
+            raise serializers.ValidationError({
+                'target_group_id': f'Target group with ID {target_group_id} does not exist'
+            })
+        return super().create(validated_data)
+    
+    def update(self, instance, validated_data):
+        """Обновление связи с обработкой group_id и target_group_id"""
+        group_id = validated_data.pop('group_id', None)
+        target_group_id = validated_data.pop('target_group_id', None)
+        
+        if group_id is not None:
+            try:
+                validated_data['group'] = ParticipantGroupV2.objects.get(id=group_id)
+            except ParticipantGroupV2.DoesNotExist:
+                raise serializers.ValidationError({
+                    'group_id': f'Group with ID {group_id} does not exist'
+                })
+        
+        if target_group_id is not None:
+            try:
+                validated_data['target_group'] = ParticipantGroupV2.objects.get(id=target_group_id)
+            except ParticipantGroupV2.DoesNotExist:
+                raise serializers.ValidationError({
+                    'target_group_id': f'Target group with ID {target_group_id} does not exist'
+                })
+        return super().update(instance, validated_data)
+
+
+class ParticipantGroupV2EventRelationSerializer(serializers.ModelSerializer):
+    """Сериализатор для связи группы V2 с событием"""
+    group_id = serializers.IntegerField(write_only=True)
+    event_id = serializers.IntegerField(write_only=True)
+    event = serializers.SerializerMethodField(read_only=True)
+    
+    class Meta:
+        model = ParticipantGroupV2EventRelation
+        fields = [
+            'id', 
+            'group_id', 'event_id', 'event'
+        ]
+    
+    def get_event(self, obj):
+        """Возвращает информацию о событии"""
+        if obj.event:
+            return {
+                'id': obj.event.id,
+                'name': obj.event.name,
+                'start_time': obj.event.start_time.isoformat() if obj.event.start_time else None,
+                'end_time': obj.event.end_time.isoformat() if obj.event.end_time else None,
+            }
+        return None
+    
+    def create(self, validated_data):
+        """Создание связи с обработкой group_id и event_id"""
+        group_id = validated_data.pop('group_id')
+        event_id = validated_data.pop('event_id')
+        
+        try:
+            validated_data['group'] = ParticipantGroupV2.objects.get(id=group_id)
+        except ParticipantGroupV2.DoesNotExist:
+            raise serializers.ValidationError({
+                'group_id': f'Group with ID {group_id} does not exist'
+            })
+        
+        try:
+            validated_data['event'] = Event.objects.get(id=event_id)
+        except Event.DoesNotExist:
+            raise serializers.ValidationError({
+                'event_id': f'Event with ID {event_id} does not exist'
+            })
+        return super().create(validated_data)
+    
+    def update(self, instance, validated_data):
+        """Обновление связи с обработкой group_id и event_id"""
+        group_id = validated_data.pop('group_id', None)
+        event_id = validated_data.pop('event_id', None)
+        
+        if group_id is not None:
+            try:
+                validated_data['group'] = ParticipantGroupV2.objects.get(id=group_id)
+            except ParticipantGroupV2.DoesNotExist:
+                raise serializers.ValidationError({
+                    'group_id': f'Group with ID {group_id} does not exist'
+                })
+        
+        if event_id is not None:
+            try:
+                validated_data['event'] = Event.objects.get(id=event_id)
+            except Event.DoesNotExist:
+                raise serializers.ValidationError({
+                    'event_id': f'Event with ID {event_id} does not exist'
+                })
+        return super().update(instance, validated_data)
+
+
+class ParticipantGroupV2Serializer(serializers.ModelSerializer):
+    """Сериализатор для групп участников V2"""
+    participant_relations = ParticipantGroupV2ParticipantRelationSerializer(many=True, required=False)
+    group_relations = ParticipantGroupV2GroupRelationSerializer(many=True, required=False)
+    
+    class Meta:
+        model = ParticipantGroupV2
+        fields = ['id', 'name', 'is_event_group', 'participant_relations', 'group_relations']
+    
+    def create(self, validated_data):
+        """Создание группы с обработкой вложенных связей"""
+        participant_relations_data = validated_data.pop('participant_relations', [])
+        group_relations_data = validated_data.pop('group_relations', [])
+        eventum = self.context.get('eventum')
+        
+        if eventum:
+            validated_data['eventum'] = eventum
+        
+        # Создаем группу
+        group = super().create(validated_data)
+        
+        # Создаем связи с участниками
+        for relation_data in participant_relations_data:
+            relation_data['group_id'] = group.id
+            serializer = ParticipantGroupV2ParticipantRelationSerializer(data=relation_data, context=self.context)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+        
+        # Создаем связи с группами
+        for relation_data in group_relations_data:
+            relation_data['group_id'] = group.id
+            serializer = ParticipantGroupV2GroupRelationSerializer(data=relation_data, context=self.context)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+        
+        return group
+    
+    def update(self, instance, validated_data):
+        """Обновление группы с обработкой вложенных связей"""
+        participant_relations_data = validated_data.pop('participant_relations', None)
+        group_relations_data = validated_data.pop('group_relations', None)
+        
+        # Обновляем основные поля группы
+        instance = super().update(instance, validated_data)
+        
+        # Обновляем связи с участниками, если они предоставлены
+        if participant_relations_data is not None:
+            # Удаляем существующие связи
+            instance.participant_relations.all().delete()
+            # Создаем новые связи
+            for relation_data in participant_relations_data:
+                relation_data['group_id'] = instance.id
+                serializer = ParticipantGroupV2ParticipantRelationSerializer(data=relation_data, context=self.context)
+                serializer.is_valid(raise_exception=True)
+                serializer.save()
+        
+        # Обновляем связи с группами, если они предоставлены
+        if group_relations_data is not None:
+            # Удаляем существующие связи
+            instance.group_relations.all().delete()
+            # Создаем новые связи
+            for relation_data in group_relations_data:
+                relation_data['group_id'] = instance.id
+                serializer = ParticipantGroupV2GroupRelationSerializer(data=relation_data, context=self.context)
+                serializer.is_valid(raise_exception=True)
+                serializer.save()
+        
+        return instance
+    
+    def to_representation(self, instance):
+        """Переопределяем для оптимизации запросов к связям"""
+        data = super().to_representation(instance)
+        
+        # Если связи уже загружены через prefetch_related, используем их
+        if hasattr(instance, '_prefetched_objects_cache'):
+            if 'participant_relations' in instance._prefetched_objects_cache:
+                data['participant_relations'] = ParticipantGroupV2ParticipantRelationSerializer(
+                    instance.participant_relations.all(), many=True
+                ).data
+            if 'group_relations' in instance._prefetched_objects_cache:
+                data['group_relations'] = ParticipantGroupV2GroupRelationSerializer(
+                    instance.group_relations.all(), many=True
+                ).data
+        
+        return data
+
 
 class GroupTagBasicSerializer(serializers.ModelSerializer):
     """Упрощенный сериализатор для базовой информации о тегах групп"""

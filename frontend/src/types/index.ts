@@ -142,3 +142,58 @@ export interface EventRegistration {
   event: Event;
   registered_at: string; // ISO 8601 string date
 }
+
+export type RelationType = 'inclusive' | 'exclusive';
+
+export interface ParticipantGroupV2ParticipantRelation {
+  id: number;
+  relation_type: RelationType;
+  group_id: number;
+  participant_id: number;
+  participant?: Participant;
+}
+
+export interface ParticipantGroupV2GroupRelation {
+  id: number;
+  relation_type: RelationType;
+  group_id: number;
+  target_group_id: number;
+  target_group?: {
+    id: number;
+    name: string;
+  };
+}
+
+export interface ParticipantGroupV2 {
+  id: number;
+  name: string;
+  is_event_group: boolean;
+  participant_relations: ParticipantGroupV2ParticipantRelation[];
+  group_relations: ParticipantGroupV2GroupRelation[];
+}
+
+export interface CreateParticipantGroupV2Data {
+  name: string;
+  is_event_group?: boolean;
+  participant_relations?: {
+    participant_id: number;
+    relation_type: RelationType;
+  }[];
+  group_relations?: {
+    target_group_id: number;
+    relation_type: RelationType;
+  }[];
+}
+
+export interface UpdateParticipantGroupV2Data {
+  name?: string;
+  is_event_group?: boolean;
+  participant_relations?: {
+    participant_id: number;
+    relation_type: RelationType;
+  }[];
+  group_relations?: {
+    target_group_id: number;
+    relation_type: RelationType;
+  }[];
+}

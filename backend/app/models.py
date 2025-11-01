@@ -130,6 +130,218 @@ class ParticipantGroup(models.Model):
     def __str__(self):
         return f"{self.name} ({self.eventum.name})"
 
+
+class ParticipantGroupV2(models.Model):
+    """Новая модель групп участников с поддержкой рекурсивных связей"""
+    eventum = models.ForeignKey(Eventum, on_delete=models.CASCADE, related_name='participant_groups_v2')
+    name = models.CharField(max_length=200)
+    is_event_group = models.BooleanField(
+        default=False,
+        help_text="Если True, группа используется для связи с событиями и не показывается в основном интерфейсе"
+    )
+    
+    class Meta:
+        indexes = [
+            models.Index(fields=['eventum']),
+            models.Index(fields=['is_event_group']),
+        ]
+        verbose_name = 'Participant Group V2'
+        verbose_name_plural = 'Participant Groups V2'
+    
+    def __str__(self):
+        return f"{self.name} ({self.eventum.name})"
+
+
+class ParticipantGroupV2ParticipantRelation(models.Model):
+    """Связь группы V2 с участником"""
+    class RelationType(models.TextChoices):
+        INCLUSIVE = 'inclusive', 'Включает (участник входит в группу)'
+        EXCLUSIVE = 'exclusive', 'Исключает (участник НЕ входит в группу)'
+    
+    group = models.ForeignKey(
+        ParticipantGroupV2, 
+        on_delete=models.CASCADE, 
+        related_name='participant_relations'
+    )
+    participant = models.ForeignKey(
+        Participant, 
+        on_delete=models.CASCADE, 
+        related_name='group_v2_relations'
+    )
+    relation_type = models.CharField(
+        max_length=20, 
+        choices=RelationType.choices,
+        default=RelationType.INCLUSIVE
+    )
+    
+    class Meta:
+        unique_together = ('group', 'participant')
+        indexes = [
+            models.Index(fields=['group']),
+            models.Index(fields=['participant']),
+        ]
+        verbose_name = 'Participant Group V2 Participant Relation'
+        verbose_name_plural = 'Participant Group V2 Participant Relations'
+    
+    def clean(self):
+        """Валидация связи группа-участник"""
+        # Проверяем, что участник принадлежит тому же eventum
+        if self.group.eventum != self.participant.eventum:
+            raise ValidationError("Participant must belong to the same eventum as the group")
+    
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+    
+    def __str__(self):
+        relation_desc = "включает" if self.relation_type == self.RelationType.INCLUSIVE else "исключает"
+        return f"{self.group.name} {relation_desc} {self.participant.name}"
+
+
+class ParticipantGroupV2GroupRelation(models.Model):
+    """Связь группы V2 с другой группой"""
+    class RelationType(models.TextChoices):
+        INCLUSIVE = 'inclusive', 'Включает (целевая группа входит в исходную)'
+        EXCLUSIVE = 'exclusive', 'Исключает (целевая группа НЕ входит в исходную)'
+    
+    group = models.ForeignKey(
+        ParticipantGroupV2, 
+        on_delete=models.CASCADE, 
+        related_name='group_relations'
+    )
+    target_group = models.ForeignKey(
+        ParticipantGroupV2, 
+        on_delete=models.CASCADE, 
+        related_name='source_relations'
+    )
+    relation_type = models.CharField(
+        max_length=20, 
+        choices=RelationType.choices,
+        default=RelationType.INCLUSIVE
+    )
+    
+    class Meta:
+        unique_together = ('group', 'target_group')
+        indexes = [
+            models.Index(fields=['group']),
+            models.Index(fields=['target_group']),
+        ]
+        verbose_name = 'Participant Group V2 Group Relation'
+        verbose_name_plural = 'Participant Group V2 Group Relations'
+    
+    def clean(self):
+        """Валидация связи группа-группа"""
+        # Проверяем, что целевая группа принадлежит тому же eventum
+        if self.group.eventum != self.target_group.eventum:
+            raise ValidationError("Target group must belong to the same eventum as the source group")
+        
+        # Проверяем, что группа не ссылается сама на себя
+        if self.group.pk and self.target_group.pk and self.group.pk == self.target_group.pk:
+            raise ValidationError("Group cannot reference itself")
+    
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        
+        # Проверка циклов для связей группа-группа
+        if self.target_group:
+            self._check_for_cycles()
+        
+        super().save(*args, **kwargs)
+    
+    def _check_for_cycles(self):
+        """Проверяет, не создается ли цикл в связях между группами"""
+        if not self.group.pk or not self.target_group.pk:
+            return
+        
+        # Если это обновление существующей связи, пропускаем проверку для той же связи
+        if self.pk:
+            try:
+                old_relation = ParticipantGroupV2GroupRelation.objects.get(pk=self.pk)
+                # Если целевая группа не изменилась, пропускаем проверку
+                if old_relation.target_group_id == self.target_group_id:
+                    return
+            except ParticipantGroupV2GroupRelation.DoesNotExist:
+                pass
+        
+        # Проверяем цикл: если целевая группа уже ссылается (прямо или косвенно) на текущую группу
+        visited = set()
+        to_check = [self.target_group_id]
+        
+        while to_check:
+            current_group_id = to_check.pop(0)
+            if current_group_id in visited:
+                continue
+            visited.add(current_group_id)
+            
+            # Если мы достигли исходной группы, значит есть цикл
+            if current_group_id == self.group_id:
+                raise ValidationError(
+                    f"Creating this relation would create a cycle. "
+                    f"Group '{self.target_group.name}' (or a group it references) "
+                    f"already references group '{self.group.name}'"
+                )
+            
+            # Получаем все группы, на которые ссылается текущая группа
+            referenced_groups = ParticipantGroupV2GroupRelation.objects.filter(
+                group_id=current_group_id
+            ).values_list('target_group_id', flat=True)
+            
+            to_check.extend(referenced_groups)
+    
+    def __str__(self):
+        relation_desc = "включает" if self.relation_type == self.RelationType.INCLUSIVE else "исключает"
+        return f"{self.group.name} {relation_desc} {self.target_group.name}"
+
+
+class ParticipantGroupV2EventRelation(models.Model):
+    """Связь группы V2 с событием (участники события = участники группы)"""
+    group = models.ForeignKey(
+        ParticipantGroupV2, 
+        on_delete=models.CASCADE, 
+        related_name='event_relations'
+    )
+    event = models.ForeignKey(
+        'Event', 
+        on_delete=models.CASCADE, 
+        related_name='group_v2_relations'
+    )
+    
+    class Meta:
+        unique_together = ('group', 'event')
+        indexes = [
+            models.Index(fields=['group']),
+            models.Index(fields=['event']),
+        ]
+        verbose_name = 'Participant Group V2 Event Relation'
+        verbose_name_plural = 'Participant Group V2 Event Relations'
+    
+    def clean(self):
+        """Валидация связи группа-событие"""
+        # Проверяем, что группа и событие принадлежат тому же eventum
+        if self.group.eventum != self.event.eventum:
+            raise ValidationError("Group and event must belong to the same eventum")
+    
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        # Автоматически помечаем группу как event_group при создании связи
+        if not self.group.is_event_group:
+            self.group.is_event_group = True
+            self.group.save(update_fields=['is_event_group'])
+        super().save(*args, **kwargs)
+    
+    def delete(self, *args, **kwargs):
+        """При удалении связи проверяем, нужно ли снять флаг is_event_group"""
+        group = self.group
+        super().delete(*args, **kwargs)
+        # Если у группы больше нет связей с событиями, снимаем флаг
+        if not group.event_relations.exists():
+            group.is_event_group = False
+            group.save(update_fields=['is_event_group'])
+    
+    def __str__(self):
+        return f"{self.group.name} → {self.event.name}"
+
+
 class EventTag(models.Model):
     eventum = models.ForeignKey(Eventum, on_delete=models.CASCADE, related_name='event_tags')
     name = models.CharField(max_length=100)

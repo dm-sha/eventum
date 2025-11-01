@@ -24,7 +24,11 @@ from .views import (
     remove_eventum_organizer,
     search_users,
     participant_calendar_ics,
-    participant_calendar_webcal
+    participant_calendar_webcal,
+    ParticipantGroupV2ViewSet,
+    ParticipantGroupV2ParticipantRelationViewSet,
+    ParticipantGroupV2GroupRelationViewSet,
+    ParticipantGroupV2EventRelationViewSet
 )
 
 router = DefaultRouter()
@@ -34,6 +38,10 @@ router.register(r'users', UserViewSet)
 eventum_scoped_router = DefaultRouter()
 eventum_scoped_router.register(r'participants', ParticipantViewSet, basename='participant')
 eventum_scoped_router.register(r'groups', ParticipantGroupViewSet, basename='participantgroup')
+eventum_scoped_router.register(r'groups-v2', ParticipantGroupV2ViewSet, basename='participantgroupv2')
+eventum_scoped_router.register(r'participant-relations-v2', ParticipantGroupV2ParticipantRelationViewSet, basename='participantgroupv2participantrelation')
+eventum_scoped_router.register(r'group-relations-v2', ParticipantGroupV2GroupRelationViewSet, basename='participantgroupv2grouprelation')
+eventum_scoped_router.register(r'event-relations-v2', ParticipantGroupV2EventRelationViewSet, basename='participantgroupv2eventrelation')
 eventum_scoped_router.register(r'group-tags', GroupTagViewSet, basename='grouptag')
 eventum_scoped_router.register(r'events', EventViewSet, basename='event')
 eventum_scoped_router.register(r'event-tags', EventTagViewSet, basename='eventtag')
