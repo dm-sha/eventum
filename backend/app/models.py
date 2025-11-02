@@ -150,6 +150,87 @@ class ParticipantGroupV2(models.Model):
     
     def __str__(self):
         return f"{self.name} ({self.eventum.name})"
+    
+    def get_participants(self, visited_groups=None):
+        """
+        Получает QuerySet участников, которые принадлежат этой группе.
+        
+        Логика:
+        - Если нет ни участников, ни inclusive групп, возвращаются все участники eventum
+        - Если есть участники или inclusive группы, применяется логика включений/исключений
+        """
+        if visited_groups is None:
+            visited_groups = set()
+        
+        # Предотвращаем циклические ссылки
+        if self.id in visited_groups:
+            return Participant.objects.none()
+        
+        visited_groups.add(self.id)
+        
+        # Проверяем, есть ли хотя бы одна inclusive связь с участником или группой
+        has_inclusive_participants = self.participant_relations.filter(
+            relation_type=ParticipantGroupV2ParticipantRelation.RelationType.INCLUSIVE
+        ).exists()
+        
+        has_inclusive_groups = self.group_relations.filter(
+            relation_type=ParticipantGroupV2GroupRelation.RelationType.INCLUSIVE
+        ).exists()
+        
+        # Если нет ни участников, ни inclusive групп, возвращаем всех участников eventum
+        if not has_inclusive_participants and not has_inclusive_groups:
+            all_participants = Participant.objects.filter(eventum=self.eventum)
+            
+            # Применяем исключения (exclusive), если они есть
+            excluded_participant_ids = set()
+            
+            # Исключенные участники из прямых связей
+            excluded_relations = self.participant_relations.filter(
+                relation_type=ParticipantGroupV2ParticipantRelation.RelationType.EXCLUSIVE
+            )
+            excluded_participant_ids.update(
+                rel.participant_id for rel in excluded_relations
+            )
+            
+            # Исключенные участники из групп
+            for group_rel in self.group_relations.filter(
+                relation_type=ParticipantGroupV2GroupRelation.RelationType.EXCLUSIVE
+            ):
+                excluded_participant_ids.update(
+                    group_rel.target_group.get_participants(visited_groups.copy()).values_list('id', flat=True)
+                )
+            
+            if excluded_participant_ids:
+                return all_participants.exclude(id__in=excluded_participant_ids)
+            return all_participants
+        
+        # Иначе применяем стандартную логику включений/исключений
+        included_participant_ids = set()
+        excluded_participant_ids = set()
+        
+        # Обрабатываем прямые связи с участниками
+        for rel in self.participant_relations.all():
+            if rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.INCLUSIVE:
+                included_participant_ids.add(rel.participant_id)
+            elif rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.EXCLUSIVE:
+                excluded_participant_ids.add(rel.participant_id)
+        
+        # Обрабатываем связи с группами
+        for rel in self.group_relations.all():
+            target_participants = rel.target_group.get_participants(visited_groups.copy())
+            target_participant_ids = set(target_participants.values_list('id', flat=True))
+            
+            if rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.INCLUSIVE:
+                included_participant_ids.update(target_participant_ids)
+            elif rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.EXCLUSIVE:
+                excluded_participant_ids.update(target_participant_ids)
+        
+        # Исключаем участников из списка включенных
+        included_participant_ids -= excluded_participant_ids
+        
+        if included_participant_ids:
+            return Participant.objects.filter(id__in=included_participant_ids)
+        return Participant.objects.none()
 
 
 class ParticipantGroupV2ParticipantRelation(models.Model):

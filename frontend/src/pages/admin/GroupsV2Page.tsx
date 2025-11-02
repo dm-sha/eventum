@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { groupsV2Api } from '../../api/eventumApi';
+import { groupsV2Api, participantsApi } from '../../api/eventumApi';
 import type { 
   ParticipantGroupV2, 
   Participant,
@@ -14,6 +14,7 @@ import GroupsLoadingSkeleton from '../../components/admin/skeletons/GroupsLoadin
 const AdminGroupsV2Page = () => {
   const eventumSlug = useEventumSlug();
   const [groups, setGroups] = useState<ParticipantGroupV2[]>([]);
+  const [allParticipants, setAllParticipants] = useState<Participant[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState('');
   const [editingGroup, setEditingGroup] = useState<number | null>(null);
@@ -28,8 +29,12 @@ const AdminGroupsV2Page = () => {
     const loadData = async () => {
       setIsLoading(true);
       try {
-        const groupsData = (await groupsV2Api.getAll(eventumSlug)).data;
-        setGroups(groupsData);
+        const [groupsData, participantsData] = await Promise.all([
+          groupsV2Api.getAll(eventumSlug),
+          participantsApi.getAll(eventumSlug)
+        ]);
+        setGroups(groupsData.data);
+        setAllParticipants(participantsData.data);
       } catch (error) {
         console.error('Error loading data:', error);
       } finally {
@@ -52,9 +57,47 @@ const AdminGroupsV2Page = () => {
     }
     visitedGroups.add(group.id);
 
-    // Множество ID участников, включенных в группу
+    // Проверяем, есть ли хотя бы одна inclusive связь с участником или группой
+    const hasInclusiveParticipants = group.participant_relations.some(
+      rel => rel.relation_type === 'inclusive'
+    );
+    const hasInclusiveGroups = group.group_relations.some(
+      rel => rel.relation_type === 'inclusive'
+    );
+
+    // Если нет ни участников, ни inclusive групп, считаем что в группе все участники eventum
+    if (!hasInclusiveParticipants && !hasInclusiveGroups) {
+      let allParticipantIds = new Set(allParticipants.map(p => p.id));
+      
+      // Применяем исключения (exclusive), если они есть
+      const excludedIds = new Set<number>();
+      
+      // Исключенные участники из прямых связей
+      for (const rel of group.participant_relations) {
+        if (rel.relation_type === 'exclusive' && rel.participant_id) {
+          excludedIds.add(rel.participant_id);
+        }
+      }
+      
+      // Исключенные участники из групп
+      for (const rel of group.group_relations) {
+        if (rel.relation_type === 'exclusive' && rel.target_group_id) {
+          const targetGroup = groups.find(g => g.id === rel.target_group_id);
+          if (targetGroup) {
+            const targetGroupParticipants = getParticipantsIdsFromGroup(targetGroup, new Set(visitedGroups));
+            targetGroupParticipants.forEach(id => excludedIds.add(id));
+          }
+        }
+      }
+      
+      // Исключаем участников из общего списка
+      excludedIds.forEach(id => allParticipantIds.delete(id));
+      
+      return allParticipantIds.size;
+    }
+
+    // Иначе применяем стандартную логику включений/исключений
     const includedParticipants = new Set<number>();
-    // Множество ID участников, исключенных из группы
     const excludedParticipants = new Set<number>();
 
     // Обрабатываем прямые связи с участниками
@@ -102,6 +145,44 @@ const AdminGroupsV2Page = () => {
     }
     visitedGroups.add(group.id);
 
+    // Проверяем, есть ли хотя бы одна inclusive связь с участником или группой
+    const hasInclusiveParticipants = group.participant_relations.some(
+      rel => rel.relation_type === 'inclusive'
+    );
+    const hasInclusiveGroups = group.group_relations.some(
+      rel => rel.relation_type === 'inclusive'
+    );
+
+    // Если нет ни участников, ни inclusive групп, считаем что в группе все участники eventum
+    if (!hasInclusiveParticipants && !hasInclusiveGroups) {
+      const allParticipantIds = new Set(allParticipants.map(p => p.id));
+      const excludedIds = new Set<number>();
+      
+      // Исключенные участники из прямых связей
+      for (const rel of group.participant_relations) {
+        if (rel.relation_type === 'exclusive' && rel.participant_id) {
+          excludedIds.add(rel.participant_id);
+        }
+      }
+      
+      // Исключенные участники из групп
+      for (const rel of group.group_relations) {
+        if (rel.relation_type === 'exclusive' && rel.target_group_id) {
+          const targetGroup = groups.find(g => g.id === rel.target_group_id);
+          if (targetGroup) {
+            const targetGroupParticipants = getParticipantsIdsFromGroup(targetGroup, new Set(visitedGroups));
+            targetGroupParticipants.forEach(id => excludedIds.add(id));
+          }
+        }
+      }
+      
+      // Исключаем участников
+      excludedIds.forEach(id => allParticipantIds.delete(id));
+      
+      return allParticipantIds;
+    }
+
+    // Иначе применяем стандартную логику включений/исключений
     const participantIds = new Set<number>();
     const excludedIds = new Set<number>();
 
