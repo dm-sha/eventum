@@ -359,14 +359,25 @@ const AdminGroupsV2Page = () => {
             return (
               <div key={group.id} className="relative rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
                 {isEditing ? (
-                  <ParticipantGroupV2Editor
-                    group={group}
-                    eventumSlug={eventumSlug || ''}
-                    availableGroups={groups.filter(g => g.id !== group.id)}
-                    onSave={handleSaveUpdate}
-                    onCancel={handleCancel}
-                    isUpdating={isUpdating}
-                  />
+                  <>
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-1"></div>
+                      <button
+                        onClick={() => handleDeleteGroup(group.id)}
+                        className="rounded-lg p-1 text-red-400 hover:bg-red-100 hover:text-red-600"
+                      >
+                        <IconTrash size={16} />
+                      </button>
+                    </div>
+                    <ParticipantGroupV2Editor
+                      group={group}
+                      eventumSlug={eventumSlug || ''}
+                      availableGroups={groups.filter(g => g.id !== group.id)}
+                      onSave={handleSaveUpdate}
+                      onCancel={handleCancel}
+                      isUpdating={isUpdating}
+                    />
+                  </>
                 ) : (
                   <>
                     <div className="flex items-start justify-between mb-3">
@@ -443,17 +454,6 @@ const AdminGroupsV2Page = () => {
                           {isExpanded ? 'Скрыть' : `Показать всех (${groupParticipants.length})`}
                         </button>
                       )}
-
-                      {/* Кнопка удаления */}
-                      <div className="pt-2 border-t border-gray-200 mt-2">
-                        <button
-                          onClick={() => handleDeleteGroup(group.id)}
-                          className="text-xs text-red-600 hover:text-red-800 flex items-center gap-1"
-                        >
-                          <IconTrash size={14} />
-                          Удалить
-                        </button>
-                      </div>
                     </div>
                   </>
                 )}
