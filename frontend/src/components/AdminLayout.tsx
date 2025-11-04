@@ -23,8 +23,8 @@ const AdminLayout = () => {
     { to: "registration", label: "Регистрация на мероприятия", icon: IconClipboardDocumentList },
     { to: "event-tags", label: "Теги мероприятий", icon: IconEventTag },
     { to: "participants", label: "Участники", icon: IconUsersCircle },
-    { to: "groups", label: "Группы участников", icon: IconParticipantGroup },
-    { to: "groups-v2", label: "Группы участников V2", icon: IconParticipantGroup },
+    // { to: "groups", label: "Группы участников", icon: IconParticipantGroup },
+    { to: "groups-v2", label: "Группы участников", icon: IconParticipantGroup },
     { to: "group-tags", label: "Теги групп", icon: IconGroupTag },
   ];
 
