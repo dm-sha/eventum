@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useEventumSlug } from "../../hooks/useEventumSlug";
-import type { Event as EventModel, EventTag, GroupTag, Location, Participant, ParticipantGroup, ParticipantType, ValidationError, ParticipantGroupV2, CreateParticipantGroupV2Data, UpdateParticipantGroupV2Data } from "../../types";
+import type { Event as EventModel, EventTag, Location, Participant, ParticipantType, ValidationError, ParticipantGroupV2 } from "../../types";
 import ParticipantGroupV2Editor from "../participantGroupV2/ParticipantGroupV2Editor";
 import { groupsV2Api } from "../../api/eventumApi";
 import { MultiLocationSelector } from "../location/MultiLocationSelector";
@@ -219,82 +219,14 @@ const GeneralTab = ({
 // Компонент для вкладки "Участники"
 const ParticipantsTab = ({
   eventForm,
-  setEventForm,
   eventumSlug,
   eventGroupV2,
-  setEventGroupV2,
-  setSelectedEventGroupV2Id,
-  participantSearchQuery,
-  setParticipantSearchQuery,
-  groupSearchQuery,
-  setGroupSearchQuery,
-  groupTagSearchQuery,
-  setGroupTagSearchQuery,
-  showParticipantSuggestions,
-  setShowParticipantSuggestions,
-  showGroupSuggestions,
-  setShowGroupSuggestions,
-  showGroupTagSuggestions,
-  setShowGroupTagSuggestions,
-  participants,
-  participantGroups,
-  groupTags,
-  getParticipantSuggestions,
-  addParticipantToForm,
-  removeParticipantFromForm,
-  getGroupSuggestions,
-  addGroupToForm,
-  removeGroupFromForm,
-  getGroupTagSuggestions,
-  addGroupTagToForm,
-  removeGroupTagFromForm,
-  getTotalParticipantsCount,
-  participantInputRef,
-  groupInputRef,
-  groupTagInputRef,
-  checkParticipantTypeValidation,
-  participantTypeError,
-  setParticipantTypeError,
   onEventGroupDraftChange,
   availableGroupsV2,
 }: {
   eventForm: any;
-  setEventForm: any;
   eventumSlug: string | undefined;
   eventGroupV2: ParticipantGroupV2 | null;
-  setEventGroupV2: (g: ParticipantGroupV2 | null) => void;
-  setSelectedEventGroupV2Id: (id: number | null) => void;
-  participantSearchQuery: string;
-  setParticipantSearchQuery: (query: string) => void;
-  groupSearchQuery: string;
-  setGroupSearchQuery: (query: string) => void;
-  groupTagSearchQuery: string;
-  setGroupTagSearchQuery: (query: string) => void;
-  showParticipantSuggestions: boolean;
-  setShowParticipantSuggestions: (show: boolean) => void;
-  showGroupSuggestions: boolean;
-  setShowGroupSuggestions: (show: boolean) => void;
-  showGroupTagSuggestions: boolean;
-  setShowGroupTagSuggestions: (show: boolean) => void;
-  participants: Participant[];
-  participantGroups: ParticipantGroup[];
-  groupTags: GroupTag[];
-  getParticipantSuggestions: () => Participant[];
-  addParticipantToForm: (participant: Participant) => void;
-  removeParticipantFromForm: (participantId: number) => void;
-  getGroupSuggestions: () => ParticipantGroup[];
-  addGroupToForm: (group: ParticipantGroup) => void;
-  removeGroupFromForm: (groupId: number) => void;
-  getGroupTagSuggestions: () => GroupTag[];
-  addGroupTagToForm: (groupTag: GroupTag) => void;
-  removeGroupTagFromForm: (groupTagId: number) => void;
-  getTotalParticipantsCount: () => number;
-  participantInputRef: React.RefObject<HTMLDivElement | null>;
-  groupInputRef: React.RefObject<HTMLDivElement | null>;
-  groupTagInputRef: React.RefObject<HTMLDivElement | null>;
-  checkParticipantTypeValidation: (newParticipantType: ParticipantType) => string | null;
-  participantTypeError: string | null;
-  setParticipantTypeError: (error: string | null) => void;
   onEventGroupDraftChange: (draft: { name: string; participant_relations: any[]; group_relations: any[] }) => void;
   availableGroupsV2: ParticipantGroupV2[];
 }) => (
@@ -305,7 +237,7 @@ const ParticipantsTab = ({
       <ParticipantGroupV2Editor
         group={eventGroupV2}
         eventumSlug={eventumSlug || ''}
-        nameOverride={(event as any) ? `Участники \"${(event as any).name}\"` : (eventForm.name ? `Участники \"${eventForm.name}\"` : '')}
+        nameOverride={eventForm.name ? `Участники \"${eventForm.name}\"` : ''}
         hideNameField
         hideActions
         onChange={onEventGroupDraftChange}
@@ -339,9 +271,7 @@ interface EventEditModalProps {
   }) => Promise<void>;
   event?: EventModel | null;
   eventTags: EventTag[];
-  groupTags: GroupTag[];
   participants: Participant[];
-  participantGroups: ParticipantGroup[];
   locations: Location[];
   title?: string;
 }
@@ -352,9 +282,7 @@ const EventEditModal = ({
   onSave, 
   event, 
   eventTags, 
-  groupTags,
   participants,
-  participantGroups,
   locations,
   title 
 }: EventEditModalProps) => {
@@ -375,16 +303,9 @@ const EventEditModal = ({
     location_ids: [] as number[]
   });
   const [tagSearchQuery, setTagSearchQuery] = useState("");
-  const [groupTagSearchQuery, setGroupTagSearchQuery] = useState("");
-  const [participantSearchQuery, setParticipantSearchQuery] = useState("");
-  const [groupSearchQuery, setGroupSearchQuery] = useState("");
   const [showTagSuggestions, setShowTagSuggestions] = useState(false);
-  const [showGroupTagSuggestions, setShowGroupTagSuggestions] = useState(false);
-  const [showParticipantSuggestions, setShowParticipantSuggestions] = useState(false);
-  const [showGroupSuggestions, setShowGroupSuggestions] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [validationErrors, setValidationErrors] = useState<ValidationError>({});
-  const [participantTypeError, setParticipantTypeError] = useState<string | null>(null);
   const [hasUserEditedEndTime, setHasUserEditedEndTime] = useState(false);
   const [eventGroupV2, setEventGroupV2] = useState<ParticipantGroupV2 | null>(null);
   const [selectedEventGroupV2Id, setSelectedEventGroupV2Id] = useState<number | null>(null);
@@ -395,9 +316,7 @@ const EventEditModal = ({
   } | null>(null);
   const [allGroupsV2, setAllGroupsV2] = useState<ParticipantGroupV2[]>([]);
   const tagInputRef = useRef<HTMLDivElement>(null);
-  const groupTagInputRef = useRef<HTMLDivElement>(null);
-  const participantInputRef = useRef<HTMLDivElement>(null);
-  const groupInputRef = useRef<HTMLDivElement>(null);
+  
 
 
   // Обработка кликов вне области ввода
@@ -406,25 +325,16 @@ const EventEditModal = ({
       if (tagInputRef.current && !tagInputRef.current.contains(event.target as Node)) {
         setShowTagSuggestions(false);
       }
-      if (groupTagInputRef.current && !groupTagInputRef.current.contains(event.target as Node)) {
-        setShowGroupTagSuggestions(false);
-      }
-      if (participantInputRef.current && !participantInputRef.current.contains(event.target as Node)) {
-        setShowParticipantSuggestions(false);
-      }
-      if (groupInputRef.current && !groupInputRef.current.contains(event.target as Node)) {
-        setShowGroupSuggestions(false);
-      }
     };
 
-    if (showTagSuggestions || showGroupTagSuggestions || showParticipantSuggestions || showGroupSuggestions) {
+    if (showTagSuggestions) {
       document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showTagSuggestions, showGroupTagSuggestions, showParticipantSuggestions, showGroupSuggestions]);
+  }, [showTagSuggestions]);
 
   // Инициализация формы при открытии
   useEffect(() => {
@@ -522,15 +432,8 @@ const EventEditModal = ({
         setSelectedEventGroupV2Id(null);
       }
       setTagSearchQuery("");
-      setGroupTagSearchQuery("");
-      setParticipantSearchQuery("");
-      setGroupSearchQuery("");
       setShowTagSuggestions(false);
-      setShowGroupTagSuggestions(false);
-      setShowParticipantSuggestions(false);
-      setShowGroupSuggestions(false);
       setValidationErrors({});
-      setParticipantTypeError(null);
       setHasUserEditedEndTime(false);
       // Подгружаем все группы V2 для подсчета участников
       (async () => {
@@ -616,141 +519,13 @@ const EventEditModal = ({
     return filteredTags.slice(0, 5);
   }, [eventTags, eventForm.tags, tagSearchQuery]);
 
-  const addGroupTagToForm = useCallback((groupTag: GroupTag) => {
-    if (!eventForm.group_tags.includes(groupTag.id)) {
-      setEventForm(prev => ({
-        ...prev,
-        group_tags: [...prev.group_tags, groupTag.id]
-      }));
-    }
-    setGroupTagSearchQuery("");
-    setShowGroupTagSuggestions(false);
-  }, [eventForm.group_tags]);
+  
 
-  const removeGroupTagFromForm = useCallback((groupTagId: number) => {
-    setEventForm(prev => ({
-      ...prev,
-      group_tags: prev.group_tags.filter(id => id !== groupTagId)
-    }));
-    // Очищаем ошибки валидации при изменении связей
-    setValidationErrors(prev => {
-      const newErrors = { ...prev };
-      delete newErrors.participant_type;
-      return newErrors;
-    });
-    setParticipantTypeError(null);
-  }, []);
+  // Функции для работы с участниками (удалены неиспользуемые хелперы)
 
-  const getGroupTagSuggestions = useCallback(() => {
-    const filteredGroupTags = groupTags.filter(groupTag => 
-      !eventForm.group_tags.includes(groupTag.id) &&
-      (!groupTagSearchQuery.trim() || groupTag.name.toLowerCase().includes(groupTagSearchQuery.toLowerCase()))
-    );
-    
-    return filteredGroupTags.slice(0, 5);
-  }, [groupTags, eventForm.group_tags, groupTagSearchQuery]);
+  // Функции для работы с группами (удалены неиспользуемые хелперы)
 
-  // Функции для работы с участниками
-  const addParticipantToForm = useCallback((participant: Participant) => {
-    if (!eventForm.participants.includes(participant.id)) {
-      setEventForm(prev => ({
-        ...prev,
-        participants: [...prev.participants, participant.id]
-      }));
-    }
-    setParticipantSearchQuery("");
-    setShowParticipantSuggestions(false);
-  }, [eventForm.participants]);
-
-  const removeParticipantFromForm = useCallback((participantId: number) => {
-    setEventForm(prev => ({
-      ...prev,
-      participants: prev.participants.filter(id => id !== participantId)
-    }));
-    // Очищаем ошибки валидации при изменении связей
-    setValidationErrors(prev => {
-      const newErrors = { ...prev };
-      delete newErrors.participant_type;
-      return newErrors;
-    });
-    setParticipantTypeError(null);
-  }, []);
-
-  const getParticipantSuggestions = useCallback(() => {
-    const filteredParticipants = participants.filter(participant => 
-      !eventForm.participants.includes(participant.id) &&
-      (!participantSearchQuery.trim() || participant.name.toLowerCase().includes(participantSearchQuery.toLowerCase()))
-    );
-    
-    return filteredParticipants.slice(0, 5);
-  }, [participants, eventForm.participants, participantSearchQuery]);
-
-  // Функции для работы с группами
-  const addGroupToForm = useCallback((group: ParticipantGroup) => {
-    if (!eventForm.groups.includes(group.id)) {
-      setEventForm(prev => ({
-        ...prev,
-        groups: [...prev.groups, group.id]
-      }));
-    }
-    setGroupSearchQuery("");
-    setShowGroupSuggestions(false);
-  }, [eventForm.groups]);
-
-  const removeGroupFromForm = useCallback((groupId: number) => {
-    setEventForm(prev => ({
-      ...prev,
-      groups: prev.groups.filter(id => id !== groupId)
-    }));
-    // Очищаем ошибки валидации при изменении связей
-    setValidationErrors(prev => {
-      const newErrors = { ...prev };
-      delete newErrors.participant_type;
-      return newErrors;
-    });
-    setParticipantTypeError(null);
-  }, []);
-
-  const getGroupSuggestions = useCallback(() => {
-    const filteredGroups = participantGroups.filter(group => 
-      !eventForm.groups.includes(group.id) &&
-      (!groupSearchQuery.trim() || group.name.toLowerCase().includes(groupSearchQuery.toLowerCase()))
-    );
-    
-    return filteredGroups.slice(0, 5);
-  }, [participantGroups, eventForm.groups, groupSearchQuery]);
-
-  // Подсчет общего количества участников для ручного режима
-  const getTotalParticipantsCount = useCallback(() => {
-    const participantIds = new Set<number>();
-    
-    // Участники по прямой связи
-    eventForm.participants.forEach(id => participantIds.add(id));
-    
-    // Участники через группы
-    eventForm.groups.forEach(groupId => {
-      const group = participantGroups.find(g => g.id === groupId);
-      if (group) {
-        group.participants.forEach(id => participantIds.add(id));
-      }
-    });
-    
-    // Участники через теги групп
-    eventForm.group_tags.forEach(groupTagId => {
-      const groupTag = groupTags.find(gt => gt.id === groupTagId);
-      if (groupTag) {
-        // Находим все группы с этим тегом
-        const groupsWithTag = participantGroups.filter(g => 
-          g.tags.some(tag => tag.id === groupTagId)
-        );
-        groupsWithTag.forEach(group => {
-          group.participants.forEach(id => participantIds.add(id));
-        });
-      }
-    });
-    
-    return participantIds.size;
-  }, [eventForm.participants, eventForm.groups, eventForm.group_tags, participantGroups, groupTags]);
+  // Подсчет общего количества участников для ручного режима (не используется)
 
   // Проверка валидации для изменения participant_type
   const checkParticipantTypeValidation = useCallback((newParticipantType: ParticipantType) => {
@@ -896,7 +671,6 @@ const EventEditModal = ({
           const participantTypeError = Array.isArray(serverErrors.participant_type)
             ? serverErrors.participant_type.join(' ')
             : serverErrors.participant_type;
-          setParticipantTypeError(participantTypeError);
           
           // Также добавляем ошибку в общие ошибки, чтобы пользователь её увидел
           serverErrors.non_field_errors = serverErrors.non_field_errors || [];
@@ -1074,42 +848,8 @@ const EventEditModal = ({
           ) : (
             <ParticipantsTab 
               eventForm={eventForm}
-              setEventForm={setEventForm}
               eventumSlug={eventumSlug}
               eventGroupV2={eventGroupV2}
-              setEventGroupV2={setEventGroupV2}
-              setSelectedEventGroupV2Id={setSelectedEventGroupV2Id}
-              participantSearchQuery={participantSearchQuery}
-              setParticipantSearchQuery={setParticipantSearchQuery}
-              groupSearchQuery={groupSearchQuery}
-              setGroupSearchQuery={setGroupSearchQuery}
-              groupTagSearchQuery={groupTagSearchQuery}
-              setGroupTagSearchQuery={setGroupTagSearchQuery}
-              showParticipantSuggestions={showParticipantSuggestions}
-              setShowParticipantSuggestions={setShowParticipantSuggestions}
-              showGroupSuggestions={showGroupSuggestions}
-              setShowGroupSuggestions={setShowGroupSuggestions}
-              showGroupTagSuggestions={showGroupTagSuggestions}
-              setShowGroupTagSuggestions={setShowGroupTagSuggestions}
-              participants={participants}
-              participantGroups={participantGroups}
-              groupTags={groupTags}
-              getParticipantSuggestions={getParticipantSuggestions}
-              addParticipantToForm={addParticipantToForm}
-              removeParticipantFromForm={removeParticipantFromForm}
-              getGroupSuggestions={getGroupSuggestions}
-              addGroupToForm={addGroupToForm}
-              removeGroupFromForm={removeGroupFromForm}
-              getGroupTagSuggestions={getGroupTagSuggestions}
-              addGroupTagToForm={addGroupTagToForm}
-              removeGroupTagFromForm={removeGroupTagFromForm}
-              getTotalParticipantsCount={getTotalParticipantsCount}
-              participantInputRef={participantInputRef}
-              groupInputRef={groupInputRef}
-              groupTagInputRef={groupTagInputRef}
-              checkParticipantTypeValidation={checkParticipantTypeValidation}
-              participantTypeError={participantTypeError}
-              setParticipantTypeError={setParticipantTypeError}
               onEventGroupDraftChange={setEventGroupDraft}
               availableGroupsV2={allGroupsV2}
             />
