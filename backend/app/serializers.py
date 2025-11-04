@@ -604,14 +604,21 @@ class ParticipantGroupV2Serializer(serializers.ModelSerializer):
         data = super().to_representation(instance)
         
         # Если связи уже загружены через prefetch_related, используем их
+        # Используем list() для гарантии свежих данных и конвертации в список
         if hasattr(instance, '_prefetched_objects_cache'):
             if 'participant_relations' in instance._prefetched_objects_cache:
+                # Получаем prefetch'нутые данные напрямую из кэша и сортируем по id
+                prefetched_relations = list(instance._prefetched_objects_cache['participant_relations'])
+                prefetched_relations.sort(key=lambda x: x.id)
                 data['participant_relations'] = ParticipantGroupV2ParticipantRelationSerializer(
-                    instance.participant_relations.all(), many=True
+                    prefetched_relations, many=True
                 ).data
             if 'group_relations' in instance._prefetched_objects_cache:
+                # Получаем prefetch'нутые данные напрямую из кэша и сортируем по id
+                prefetched_group_relations = list(instance._prefetched_objects_cache['group_relations'])
+                prefetched_group_relations.sort(key=lambda x: x.id)
                 data['group_relations'] = ParticipantGroupV2GroupRelationSerializer(
-                    instance.group_relations.all(), many=True
+                    prefetched_group_relations, many=True
                 ).data
         
         return data

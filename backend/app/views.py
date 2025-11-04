@@ -564,7 +564,7 @@ class GroupTagViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
             return Response({'error': 'Group not found'}, status=status.HTTP_404_NOT_FOUND)
 
 
-class ParticipantGroupV2ViewSet(CachedListMixin, EventumScopedViewSet):
+class ParticipantGroupV2ViewSet(EventumScopedViewSet):
     """ViewSet для новых групп участников V2"""
     queryset = ParticipantGroupV2.objects.all().prefetch_related(
         'participant_relations__participant',
@@ -579,13 +579,14 @@ class ParticipantGroupV2ViewSet(CachedListMixin, EventumScopedViewSet):
         # По умолчанию показываем только группы, не связанные с событиями
         show_event_groups = self.request.query_params.get('include_event_groups', 'false').lower() == 'true'
         
-        queryset = ParticipantGroupV2.objects.filter(eventum=eventum)
+        queryset = ParticipantGroupV2.objects.filter(eventum=eventum).order_by('id')
         
         if not show_event_groups:
             queryset = queryset.filter(is_event_group=False)
         
         # Используем Prefetch с явным queryset для точной оптимизации загрузки связей с участниками
         # Это предотвращает N+1 запросы при обращении к participant.groups и group.tags в сериализаторе
+        # Добавляем order_by для гарантии детерминированного порядка
         participant_relations_prefetch = Prefetch(
             'participant_relations',
             queryset=ParticipantGroupV2ParticipantRelation.objects.select_related(
@@ -594,15 +595,16 @@ class ParticipantGroupV2ViewSet(CachedListMixin, EventumScopedViewSet):
             ).prefetch_related(
                 'participant__groups',
                 'participant__groups__tags'
-            )
+            ).order_by('id')
         )
         
         # Используем Prefetch для связей групп, хотя они менее критичны
+        # Добавляем order_by для гарантии детерминированного порядка
         group_relations_prefetch = Prefetch(
             'group_relations',
             queryset=ParticipantGroupV2GroupRelation.objects.select_related(
                 'target_group'
-            )
+            ).order_by('id')
         )
         
         return queryset.prefetch_related(
