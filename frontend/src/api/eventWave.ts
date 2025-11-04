@@ -17,29 +17,19 @@ export interface EventWaveEventInfo {
 export interface EventWave {
   id: number;
   name: string;
-  tag: { id: number; name: string; slug: string };
+  eventum: number;
+  registrations: any[]; // EventRegistration[]
   events: EventWaveEventInfo[];
-  whitelist_groups: { id: number; name: string; slug: string }[];
-  whitelist_group_tags: { id: number; name: string; slug: string }[];
-  blacklist_groups: { id: number; name: string; slug: string }[];
-  blacklist_group_tags: { id: number; name: string; slug: string }[];
 }
 
 export interface CreateEventWaveDto {
   name: string;
-  tag_id: number;
-  whitelist_group_ids?: number[];
-  whitelist_group_tag_ids?: number[];
-  blacklist_group_ids?: number[];
-  blacklist_group_tag_ids?: number[];
+  registration_ids?: number[];
 }
 
 export interface UpdateEventWaveDto {
-  name: string;
-  whitelist_group_ids?: number[];
-  whitelist_group_tag_ids?: number[];
-  blacklist_group_ids?: number[];
-  blacklist_group_tag_ids?: number[];
+  name?: string;
+  registration_ids?: number[];
 }
 
 export async function listEventWaves(eventumSlug: string): Promise<EventWave[]> {

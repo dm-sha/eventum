@@ -156,7 +156,7 @@ class ParticipantViewSet(CachedListMixin, EventumScopedViewSet):
     @action(detail=False, methods=['get'])
     @require_authentication
     def my_registrations(self, request, eventum_slug=None):
-        """Получить заявки текущего участника на мероприятия"""
+        """Получить мероприятия, на которые зарегистрирован текущий участник"""
         eventum = self.get_eventum()
         
         try:
@@ -164,20 +164,37 @@ class ParticipantViewSet(CachedListMixin, EventumScopedViewSet):
         except Participant.DoesNotExist:
             return Response({'error': 'User is not a participant in this eventum'}, status=status.HTTP_404_NOT_FOUND)
         
-        # Получаем все заявки участника на мероприятия
-        registrations = EventRegistration.objects.filter(
-            participant=participant
-        ).select_related('event').prefetch_related(
-            'event__locations',
-            'event__tags'
-        ).order_by('-registered_at')
+        # Получаем события, на которые участник зарегистрирован или подал заявку
+        # Для типа button: участник в event_group_v2
+        # Для типа application: участник в applicants
+        from django.db.models import Q, Exists, OuterRef
         
-        serializer = EventRegistrationSerializer(registrations, many=True, context={'request': request})
+        button_events = Event.objects.filter(
+            eventum=eventum,
+            registration__registration_type=EventRegistration.RegistrationType.BUTTON,
+            event_group_v2__participant_relations__participant=participant,
+            event_group_v2__participant_relations__relation_type=ParticipantGroupV2ParticipantRelation.RelationType.INCLUSIVE
+        ).distinct()
+        
+        application_events = Event.objects.filter(
+            eventum=eventum,
+            registration__registration_type=EventRegistration.RegistrationType.APPLICATION,
+            registration__applicants=participant
+        ).distinct()
+        
+        # Объединяем результаты
+        events = (button_events | application_events).distinct().select_related(
+            'eventum', 'event_group_v2'
+        ).prefetch_related(
+            'locations', 'tags', 'registration'
+        ).order_by('-start_time')
+        
+        serializer = EventSerializer(events, many=True, context={'request': request})
         return Response(serializer.data)
     
     @action(detail=True, methods=['get'], permission_classes=[IsEventumOrganizer])
     def registrations(self, request, eventum_slug=None, pk=None):
-        """Получить заявки конкретного участника на мероприятия (только для организаторов)"""
+        """Получить мероприятия, на которые зарегистрирован конкретный участник (только для организаторов)"""
         eventum = self.get_eventum()
         
         try:
@@ -185,15 +202,30 @@ class ParticipantViewSet(CachedListMixin, EventumScopedViewSet):
         except Participant.DoesNotExist:
             return Response({'error': 'Participant not found'}, status=status.HTTP_404_NOT_FOUND)
         
-        # Получаем все заявки участника на мероприятия
-        registrations = EventRegistration.objects.filter(
-            participant=participant
-        ).select_related('event').prefetch_related(
-            'event__locations',
-            'event__tags'
-        ).order_by('-registered_at')
+        # Получаем события, на которые участник зарегистрирован или подал заявку
+        from django.db.models import Q
         
-        serializer = EventRegistrationSerializer(registrations, many=True, context={'request': request})
+        button_events = Event.objects.filter(
+            eventum=eventum,
+            registration__registration_type=EventRegistration.RegistrationType.BUTTON,
+            event_group_v2__participant_relations__participant=participant,
+            event_group_v2__participant_relations__relation_type=ParticipantGroupV2ParticipantRelation.RelationType.INCLUSIVE
+        ).distinct()
+        
+        application_events = Event.objects.filter(
+            eventum=eventum,
+            registration__registration_type=EventRegistration.RegistrationType.APPLICATION,
+            registration__applicants=participant
+        ).distinct()
+        
+        # Объединяем результаты
+        events = (button_events | application_events).distinct().select_related(
+            'eventum', 'event_group_v2'
+        ).prefetch_related(
+            'locations', 'tags', 'registration'
+        ).order_by('-start_time')
+        
+        serializer = EventSerializer(events, many=True, context={'request': request})
         return Response(serializer.data)
     
     @action(detail=False, methods=['post'], permission_classes=[IsEventumOrganizer])
@@ -778,63 +810,39 @@ class EventWaveViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
     def get_queryset(self):
         eventum = self.get_eventum()
         return EventWave.objects.filter(eventum=eventum).select_related(
-            'eventum', 'tag'
+            'eventum'
         ).prefetch_related(
-            'whitelist_groups',
-            'whitelist_group_tags',
-            'blacklist_groups',
-            'blacklist_group_tags',
-            # Оптимизированные prefetch для событий волны с аннотациями
-            Prefetch(
-                'tag__events',
-                queryset=Event.objects.select_related('eventum').prefetch_related(
-                    'tags',
-                    'registrations__participant',
-                    'participants'
-                ).annotate(
-                    registrations_count=Count('registrations', distinct=True),
-                    participants_count=Count('participants', distinct=True)
-                ).order_by('id')
-            ),
+            'registrations__event',
+            'registrations__event__eventum',
+            'registrations__event__locations',
+            'registrations__event__tags',
+            'registrations__allowed_group'
         ).order_by('id')
 
-    @action(detail=True, methods=['post'], permission_classes=[IsEventumParticipant])
-    def check_availability(self, request, eventum_slug=None, pk=None):
-        """
-        Проверяет доступность волны для участника.
-        Ожидает participant_id в теле запроса.
-        """
-        try:
-            participant_id = request.data.get('participant_id')
-            if not participant_id:
-                return Response(
-                    {'error': 'participant_id is required'}, 
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
-            # Получаем волну и участника
-            wave = self.get_object()
-            participant = get_object_or_404(
-                Participant, 
-                id=participant_id, 
-                eventum=wave.eventum
-            )
-            
-            # Проверяем доступность
-            is_available = wave.is_available_for_participant(participant)
-            
-            return Response({
-                'is_available': is_available,
-                'participant_id': participant_id,
-                'wave_id': wave.id,
-                'wave_name': wave.name
-            })
-            
-        except Exception as e:
-            return Response(
-                {'error': str(e)}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+
+class EventRegistrationViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
+    """ViewSet для управления регистрациями на мероприятия"""
+    queryset = EventRegistration.objects.all()
+    serializer_class = EventRegistrationSerializer
+    permission_classes = [IsEventumOrganizerOrReadOnly]
+
+    def get_queryset(self):
+        eventum = self.get_eventum()
+        return EventRegistration.objects.filter(
+            event__eventum=eventum
+        ).select_related(
+            'event',
+            'event__eventum',
+            'allowed_group'
+        ).prefetch_related(
+            'event__locations',
+            'event__tags',
+            'applicants'
+        ).order_by('-id')
+    
+    def perform_create(self, serializer):
+        """Переопределяем, чтобы не передавать eventum (его нет в модели EventRegistration)"""
+        serializer.save()
 
 
 @csrf_exempt_class_api
@@ -853,7 +861,6 @@ class EventViewSet(CachedListMixin, EventumScopedViewSet, viewsets.ModelViewSet)
         queryset = Event.objects.filter(eventum=eventum).select_related(
             'eventum'
         ).annotate(
-            registrations_count=Count('registrations', distinct=True),
             participants_count=Count('participants', distinct=True)
         )
         
@@ -871,9 +878,9 @@ class EventViewSet(CachedListMixin, EventumScopedViewSet, viewsets.ModelViewSet)
             queryset = queryset.prefetch_related(
                 'participants',
                 'participants__user',
-                'registrations',
-                'registrations__participant',
-                'registrations__participant__user',
+                'registration',
+                'registration__applicants',
+                'registration__applicants__user',
             )
         
         return queryset
@@ -960,7 +967,7 @@ class EventViewSet(CachedListMixin, EventumScopedViewSet, viewsets.ModelViewSet)
 
     @action(detail=True, methods=['post'], permission_classes=[IsEventumParticipant])
     def register(self, request, eventum_slug=None, pk=None):
-        """Подать заявку на мероприятие"""
+        """Зарегистрироваться на мероприятие или подать заявку"""
         from django.db import transaction
         
         eventum = self.get_eventum()
@@ -975,33 +982,68 @@ class EventViewSet(CachedListMixin, EventumScopedViewSet, viewsets.ModelViewSet)
         if not eventum.registration_open:
             return Response({'error': 'Registration is currently closed'}, status=status.HTTP_400_BAD_REQUEST)
         
-        # Проверяем, что мероприятие имеет тип "По записи"
-        if event.participant_type != Event.ParticipantType.REGISTRATION:
-            return Response({'error': 'Registration is only available for events with registration type'}, status=status.HTTP_400_BAD_REQUEST)
+        # Проверяем, есть ли настройка регистрации для мероприятия
+        try:
+            registration = event.registration
+        except EventRegistration.DoesNotExist:
+            return Response({'error': 'Event registration is not configured'}, status=status.HTTP_400_BAD_REQUEST)
         
-        # Атомарная операция: создаем регистрацию или получаем ошибку дублирования
+        # Проверяем allowed_group (если указана)
+        if registration.allowed_group:
+            allowed_participants = registration.allowed_group.get_participants()
+            if not allowed_participants.filter(id=participant.id).exists():
+                return Response({'error': 'You are not allowed to register for this event'}, status=status.HTTP_403_FORBIDDEN)
+        
+        # Атомарная операция регистрации
         try:
             with transaction.atomic():
-                # Используем get_or_create для атомарности и избежания race conditions
-                registration, created = EventRegistration.objects.get_or_create(
-                    participant=participant, 
-                    event=event,
-                    defaults={'registered_at': timezone.now()}
-                )
+                if registration.registration_type == EventRegistration.RegistrationType.BUTTON:
+                    # Для типа button: добавляем участника в event_group_v2
+                    if not event.event_group_v2:
+                        return Response({'error': 'Event group is not configured'}, status=status.HTTP_400_BAD_REQUEST)
+                    
+                    # Проверяем, не переполнена ли регистрация
+                    if registration.is_full():
+                        return Response({'error': 'Event registration is full'}, status=status.HTTP_400_BAD_REQUEST)
+                    
+                    # Проверяем, не зарегистрирован ли уже
+                    if event.event_group_v2.get_participants().filter(id=participant.id).exists():
+                        return Response({'error': 'Already registered for this event'}, status=status.HTTP_400_BAD_REQUEST)
+                    
+                    # Добавляем участника в группу через ParticipantGroupV2ParticipantRelation
+                    ParticipantGroupV2ParticipantRelation.objects.get_or_create(
+                        group=event.event_group_v2,
+                        participant=participant,
+                        defaults={'relation_type': ParticipantGroupV2ParticipantRelation.RelationType.INCLUSIVE}
+                    )
+                    
+                    return Response({'status': 'success', 'message': 'Successfully registered for event'}, status=status.HTTP_201_CREATED)
                 
-                if not created:
-                    return Response({'error': 'Already registered for this event'}, status=status.HTTP_400_BAD_REQUEST)
-                
-                return Response({'status': 'success', 'message': 'Successfully registered for event'}, status=status.HTTP_201_CREATED)
+                else:  # APPLICATION
+                    # Для типа application: добавляем участника в applicants
+                    # Проверяем, не переполнена ли регистрация
+                    if registration.is_full():
+                        return Response({'error': 'Event registration is full'}, status=status.HTTP_400_BAD_REQUEST)
+                    
+                    # Проверяем, не подал ли уже заявку
+                    if registration.applicants.filter(id=participant.id).exists():
+                        return Response({'error': 'Application already submitted'}, status=status.HTTP_400_BAD_REQUEST)
+                    
+                    # Добавляем участника в applicants
+                    registration.applicants.add(participant)
+                    
+                    return Response({'status': 'success', 'message': 'Application submitted successfully'}, status=status.HTTP_201_CREATED)
                 
         except Exception as e:
             # Логируем ошибку для отладки
+            import logging
+            logger = logging.getLogger(__name__)
             logger.error(f"Error during event registration: {str(e)}")
             return Response({'error': 'Failed to register for event'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=True, methods=['delete'], permission_classes=[IsEventumParticipant])
     def unregister(self, request, eventum_slug=None, pk=None):
-        """Отписаться от мероприятия"""
+        """Отписаться от мероприятия или отозвать заявку"""
         from django.db import transaction
         
         eventum = self.get_eventum()
@@ -1012,21 +1054,49 @@ class EventViewSet(CachedListMixin, EventumScopedViewSet, viewsets.ModelViewSet)
         if error_response:
             return error_response
         
-        # Атомарная операция удаления
+        # Проверяем, есть ли настройка регистрации для мероприятия
+        try:
+            registration = event.registration
+        except EventRegistration.DoesNotExist:
+            return Response({'error': 'Event registration is not configured'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Атомарная операция отписки
         try:
             with transaction.atomic():
-                deleted_count, _ = EventRegistration.objects.filter(
-                    participant=participant, 
-                    event=event
-                ).delete()
+                if registration.registration_type == EventRegistration.RegistrationType.BUTTON:
+                    # Для типа button: удаляем участника из event_group_v2
+                    if not event.event_group_v2:
+                        return Response({'error': 'Not registered for this event'}, status=status.HTTP_404_NOT_FOUND)
+                    
+                    # Проверяем, зарегистрирован ли
+                    if not event.event_group_v2.get_participants().filter(id=participant.id).exists():
+                        return Response({'error': 'Not registered for this event'}, status=status.HTTP_404_NOT_FOUND)
+                    
+                    # Удаляем связь участника с группой
+                    deleted_count, _ = ParticipantGroupV2ParticipantRelation.objects.filter(
+                        group=event.event_group_v2,
+                        participant=participant
+                    ).delete()
+                    
+                    if deleted_count == 0:
+                        return Response({'error': 'Not registered for this event'}, status=status.HTTP_404_NOT_FOUND)
+                    
+                    return Response({'status': 'success', 'message': 'Successfully unregistered from event'}, status=status.HTTP_200_OK)
                 
-                if deleted_count == 0:
-                    return Response({'error': 'Not registered for this event'}, status=status.HTTP_404_NOT_FOUND)
-                
-                return Response({'status': 'success', 'message': 'Successfully unregistered from event'}, status=status.HTTP_200_OK)
+                else:  # APPLICATION
+                    # Для типа application: удаляем участника из applicants
+                    if not registration.applicants.filter(id=participant.id).exists():
+                        return Response({'error': 'Application not found'}, status=status.HTTP_404_NOT_FOUND)
+                    
+                    # Удаляем участника из applicants
+                    registration.applicants.remove(participant)
+                    
+                    return Response({'status': 'success', 'message': 'Application withdrawn successfully'}, status=status.HTTP_200_OK)
                 
         except Exception as e:
             # Логируем ошибку для отладки
+            import logging
+            logger = logging.getLogger(__name__)
             logger.error(f"Error during event unregistration: {str(e)}")
             return Response({'error': 'Failed to unregister from event'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
@@ -1609,9 +1679,23 @@ def eventum_registration_stats(request, slug=None):
     eventum = request.eventum
     
     # Подсчитываем количество участников, которые зарегистрировались хотя бы на одно мероприятие
-    registered_participants_count = EventRegistration.objects.filter(
-        participant__eventum=eventum
-    ).values('participant').distinct().count()
+    # Подсчитываем уникальных участников, зарегистрированных на мероприятия через новую схему
+    # Для типа button: участники в event_group_v2
+    # Для типа application: участники в applicants
+    from django.db.models import Count
+    button_participants = Participant.objects.filter(
+        eventum=eventum,
+        group_v2_relations__group__event_relations__event__registration__registration_type=EventRegistration.RegistrationType.BUTTON,
+        group_v2_relations__relation_type=ParticipantGroupV2ParticipantRelation.RelationType.INCLUSIVE
+    ).distinct()
+    
+    application_participants = Participant.objects.filter(
+        eventum=eventum,
+        event_applications__registration__registration_type=EventRegistration.RegistrationType.APPLICATION
+    ).distinct()
+    
+    # Объединяем и считаем уникальных
+    registered_participants_count = (button_participants | application_participants).distinct().count()
     
     return Response({
         'registered_participants_count': registered_participants_count
@@ -1804,10 +1888,21 @@ def participant_calendar_ics(request, eventum_slug=None, participant_id=None):
         from django.db.models import Q, Exists, OuterRef
         
         # Создаем подзапросы для проверки участия
+        # Для новой схемы регистрации проверяем:
+        # - Для типа button: участник в event_group_v2
+        # - Для типа application: участник в applicants
         participant_registration_exists = Exists(
-            EventRegistration.objects.filter(
-                event=OuterRef('pk'),
-                participant_id=participant_id
+            Event.objects.filter(
+                pk=OuterRef('pk')
+            ).filter(
+                Q(
+                    registration__registration_type=EventRegistration.RegistrationType.BUTTON,
+                    event_group_v2__participant_relations__participant_id=participant_id,
+                    event_group_v2__participant_relations__relation_type=ParticipantGroupV2ParticipantRelation.RelationType.INCLUSIVE
+                ) | Q(
+                    registration__registration_type=EventRegistration.RegistrationType.APPLICATION,
+                    registration__applicants__id=participant_id
+                )
             )
         )
         
@@ -1838,8 +1933,16 @@ def participant_calendar_ics(request, eventum_slug=None, participant_id=None):
         ).filter(
             # События для всех участников
             Q(participant_type=Event.ParticipantType.ALL) |
-            # События по записи, где участник подал заявку
-            Q(participant_type=Event.ParticipantType.REGISTRATION, registrations__participant_id=participant_id) |
+            # События по записи, где участник зарегистрирован (новая схема)
+            Q(
+                registration__registration_type=EventRegistration.RegistrationType.BUTTON,
+                event_group_v2__participant_relations__participant_id=participant_id,
+                event_group_v2__participant_relations__relation_type=ParticipantGroupV2ParticipantRelation.RelationType.INCLUSIVE
+            ) |
+            Q(
+                registration__registration_type=EventRegistration.RegistrationType.APPLICATION,
+                registration__applicants__id=participant_id
+            ) |
             # События вручную с прямым назначением
             Q(participant_type=Event.ParticipantType.MANUAL, participants__id=participant_id) |
             # События вручную через группы участника

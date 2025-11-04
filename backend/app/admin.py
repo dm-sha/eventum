@@ -7,7 +7,8 @@ from import_export.admin import ImportExportModelAdmin
 # Импортируем все модели
 from .models import (
     Eventum, Participant, ParticipantGroup,
-    GroupTag, Event, EventTag, UserProfile, UserRole, Location
+    GroupTag, Event, EventTag, UserProfile, UserRole, Location,
+    EventRegistration, ParticipantGroupV2
 )
 
 # Импортируем все ресурсы, которые мы определили в resources.py
@@ -308,4 +309,31 @@ class UserRoleAdmin(admin.ModelAdmin):
     search_fields = ('user__name', 'user__vk_id', 'eventum__name')
     readonly_fields = ('created_at',)
     autocomplete_fields = ('user', 'eventum')
+
+
+# --- ParticipantGroupV2Admin ---
+@admin.register(ParticipantGroupV2)
+class ParticipantGroupV2Admin(admin.ModelAdmin):
+    list_display = ('name', 'eventum', 'is_event_group')
+    list_filter = ('eventum', 'is_event_group')
+    search_fields = ('name', 'eventum__name')
+    autocomplete_fields = ('eventum',)
+
+
+# --- EventRegistrationAdmin ---
+@admin.register(EventRegistration)
+class EventRegistrationAdmin(admin.ModelAdmin):
+    list_display = ('event', 'registration_type', 'max_participants', 'allowed_group', 'registered_count')
+    list_filter = ('registration_type', 'event__eventum')
+    search_fields = ('event__name',)
+    autocomplete_fields = ('event', 'allowed_group')
+    filter_horizontal = ('applicants',)
+    fields = ('event', 'registration_type', 'max_participants', 'allowed_group', 'applicants')
+    
+    def registered_count(self, obj):
+        """Показывает количество зарегистрированных участников"""
+        if obj.pk:
+            return obj.get_registered_count()
+        return 0
+    registered_count.short_description = 'Зарегистрировано'
 

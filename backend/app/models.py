@@ -749,38 +749,14 @@ class Location(models.Model):
 
 
 class EventWave(models.Model):
-    """Волна мероприятий - группа мероприятий, проходящих в одно время"""
+    """Волна мероприятий - группа регистраций на мероприятия"""
     eventum = models.ForeignKey(Eventum, on_delete=models.CASCADE, related_name='event_waves')
     name = models.CharField(max_length=200, help_text="Название волны мероприятий")
-    tag = models.OneToOneField(
-        EventTag, 
-        on_delete=models.CASCADE, 
-        related_name='event_wave',
-        help_text="Тег, связанный с волной (1 к 1)"
-    )
-    whitelist_groups = models.ManyToManyField(
-        ParticipantGroup,
-        related_name='whitelisted_waves',
+    registrations = models.ManyToManyField(
+        'EventRegistration',
+        related_name='waves',
         blank=True,
-        help_text="Группы участников, которые могут записываться на волну (если пуст - доступны все группы)"
-    )
-    whitelist_group_tags = models.ManyToManyField(
-        GroupTag,
-        related_name='whitelisted_waves',
-        blank=True,
-        help_text="Теги групп участников, которые могут записываться на волну (если пуст - доступны все теги)"
-    )
-    blacklist_groups = models.ManyToManyField(
-        ParticipantGroup,
-        related_name='blacklisted_waves',
-        blank=True,
-        help_text="Группы участников, которые НЕ могут записываться на волну"
-    )
-    blacklist_group_tags = models.ManyToManyField(
-        GroupTag,
-        related_name='blacklisted_waves',
-        blank=True,
-        help_text="Теги групп участников, которые НЕ могут записываться на волну"
+        help_text="Регистрации на мероприятия, входящие в эту волну"
     )
     
     class Meta:
@@ -793,39 +769,14 @@ class EventWave(models.Model):
         ]
     
     def clean(self):
-        pass
-    
-    def is_available_for_participant(self, participant):
-        """
-        Проверяет, может ли участник записываться на волну.
-        Условие: участник либо находится в whitelist (если он не пуст) 
-        и не находится в blacklist (если он не пуст).
-        """
-        # Получаем все группы участника
-        participant_groups = participant.groups.all()
-        participant_group_tags = set()
-        for group in participant_groups:
-            participant_group_tags.update(group.tags.all())
-        
-        # Проверяем blacklist - если участник в blacklist, он не может подать заявку
-        if self.blacklist_groups.exists():
-            if participant_groups.filter(id__in=self.blacklist_groups.values_list('id', flat=True)).exists():
-                return False
-        
-        if self.blacklist_group_tags.exists():
-            if participant_group_tags.intersection(set(self.blacklist_group_tags.all())):
-                return False
-        
-        # Проверяем whitelist - если он не пуст, участник должен быть в нем
-        if self.whitelist_groups.exists():
-            if not participant_groups.filter(id__in=self.whitelist_groups.values_list('id', flat=True)).exists():
-                return False
-        
-        if self.whitelist_group_tags.exists():
-            if not participant_group_tags.intersection(set(self.whitelist_group_tags.all())):
-                return False
-        
-        return True
+        # Валидация: все регистрации должны принадлежать тому же eventum
+        if self.pk:  # Проверяем только для сохраненных объектов
+            invalid_registrations = self.registrations.exclude(event__eventum=self.eventum)
+            if invalid_registrations.exists():
+                invalid_names = list(invalid_registrations.values_list('event__name', flat=True))
+                raise ValidationError(
+                    f"Регистрации на мероприятия {', '.join(invalid_names)} принадлежат другому eventum"
+                )
     
     def save(self, *args, **kwargs):
         self.full_clean()
@@ -836,49 +787,148 @@ class EventWave(models.Model):
 
 
 class EventRegistration(models.Model):
-    """Заявка участника на мероприятие"""
-    participant = models.ForeignKey(
-        Participant, 
-        on_delete=models.CASCADE, 
-        related_name='event_registrations'
+    """Настройка регистрации на мероприятие (одна регистрация на одно мероприятие)"""
+    class RegistrationType(models.TextChoices):
+        BUTTON = 'button', 'Запись по кнопке'
+        APPLICATION = 'application', 'По заявкам'
+    
+    event = models.OneToOneField(
+        Event,
+        on_delete=models.CASCADE,
+        related_name='registration',
+        help_text="Одно мероприятие может иметь только одну настройку регистрации"
     )
-    event = models.ForeignKey(
-        Event, 
-        on_delete=models.CASCADE, 
-        related_name='registrations'
+    max_participants = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Максимальное количество участников, которое может попасть на мероприятие через регистрацию"
     )
-    registered_at = models.DateTimeField(auto_now_add=True)
+    allowed_group = models.ForeignKey(
+        ParticipantGroupV2,
+        on_delete=models.CASCADE,
+        related_name='event_registrations',
+        null=True,
+        blank=True,
+        help_text="Группа участников, которым доступна запись на это мероприятие. Если не указана, доступна всем участникам eventum."
+    )
+    registration_type = models.CharField(
+        max_length=20,
+        choices=RegistrationType.choices,
+        default=RegistrationType.BUTTON,
+        help_text="Тип добавления участников: 'button' - сразу попадают в группу, 'application' - сохраняются заявки"
+    )
+    applicants = models.ManyToManyField(
+        Participant,
+        related_name='event_applications',
+        blank=True,
+        help_text="Участники, подавшие заявки (используется при типе 'application')"
+    )
     
     class Meta:
-        unique_together = ('participant', 'event')
         verbose_name = 'Event Registration'
         verbose_name_plural = 'Event Registrations'
         indexes = [
-            models.Index(fields=['participant']),
             models.Index(fields=['event']),
-            models.Index(fields=['registered_at']),
+            models.Index(fields=['allowed_group']),
+            models.Index(fields=['registration_type']),
         ]
     
     def clean(self):
-        # Валидация: участник и мероприятие должны принадлежать одному eventum
-        if self.participant_id and self.event_id:
-            if self.participant.eventum != self.event.eventum:
+        # Валидация: группа должна принадлежать тому же eventum, что и мероприятие
+        if self.allowed_group_id and self.event_id:
+            if self.allowed_group.eventum != self.event.eventum:
                 raise ValidationError(
-                    f"Участник {self.participant.name} и мероприятие {self.event.name} "
+                    f"Группа {self.allowed_group.name} и мероприятие {self.event.name} "
                     f"должны принадлежать одному мероприятию (eventum)"
                 )
         
-        # Удалено: валидация что можно подавать заявки только на мероприятия с типом "По записи"
-        
-        # Примечание: лимит участников (max_participants) используется только для отображения
-        # и распределения мест, но не блокирует подачу заявок
+        # Валидация: для типа BUTTON должно быть создано event_group_v2 у мероприятия
+        if self.registration_type == self.RegistrationType.BUTTON:
+            if self.event_id and not self.event.event_group_v2_id:
+                raise ValidationError(
+                    "Для типа регистрации 'Запись по кнопке' у мероприятия должна быть создана группа event_group_v2"
+                )
     
     def save(self, *args, **kwargs):
         self.full_clean()
         super().save(*args, **kwargs)
     
     def __str__(self):
-        return f"{self.participant.name} → {self.event.name}"
+        return f"Регистрация на {self.event.name}"
+    
+    def get_registered_count(self):
+        """Получить количество зарегистрированных участников"""
+        if self.registration_type == self.RegistrationType.BUTTON:
+            # Для типа button считаем участников в event_group_v2
+            if self.event.event_group_v2:
+                return self.event.event_group_v2.get_participants().count()
+            return 0
+        else:
+            # Для типа application считаем заявки
+            return self.applicants.count()
+    
+    def is_full(self):
+        """Проверить, заполнена ли регистрация"""
+        if not self.max_participants:
+            return False
+        return self.get_registered_count() >= self.max_participants
+
+
+class EventRegistrationApplication(models.Model):
+    """Заявка участника на мероприятие (используется при типе регистрации 'application')"""
+    registration = models.ForeignKey(
+        EventRegistration,
+        on_delete=models.CASCADE,
+        related_name='applications'
+    )
+    participant = models.ForeignKey(
+        Participant,
+        on_delete=models.CASCADE,
+        related_name='registration_applications'
+    )
+    applied_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        unique_together = ('registration', 'participant')
+        verbose_name = 'Event Registration Application'
+        verbose_name_plural = 'Event Registration Applications'
+        indexes = [
+            models.Index(fields=['registration']),
+            models.Index(fields=['participant']),
+            models.Index(fields=['applied_at']),
+        ]
+    
+    def clean(self):
+        # Валидация: участник и мероприятие должны принадлежать одному eventum
+        if self.participant_id and self.registration_id and self.registration.event_id:
+            if self.participant.eventum != self.registration.event.eventum:
+                raise ValidationError(
+                    f"Участник {self.participant.name} и мероприятие {self.registration.event.name} "
+                    f"должны принадлежать одному мероприятию (eventum)"
+                )
+        
+        # Валидация: тип регистрации должен быть 'application'
+        if self.registration_id and self.registration.registration_type != EventRegistration.RegistrationType.APPLICATION:
+            raise ValidationError(
+                "Заявки можно создавать только для регистраций с типом 'application'"
+            )
+        
+        # Валидация: участник должен быть в allowed_group (если она указана)
+        if self.registration_id and self.registration.allowed_group_id:
+            if self.participant_id:
+                allowed_participants = self.registration.allowed_group.get_participants()
+                if not allowed_participants.filter(id=self.participant_id).exists():
+                    raise ValidationError(
+                        f"Участник {self.participant.name} не входит в группу, "
+                        f"которой разрешена регистрация на это мероприятие"
+                    )
+    
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+    
+    def __str__(self):
+        return f"{self.participant.name} → {self.registration.event.name} (заявка)"
 
 
 class UserRole(models.Model):

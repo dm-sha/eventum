@@ -9,6 +9,7 @@ from .views import (
     EventViewSet,
     EventTagViewSet,
     EventWaveViewSet,
+    EventRegistrationViewSet,
     LocationViewSet,
     UserViewSet,
     VKAuthView,
@@ -46,6 +47,7 @@ eventum_scoped_router.register(r'group-tags', GroupTagViewSet, basename='groupta
 eventum_scoped_router.register(r'events', EventViewSet, basename='event')
 eventum_scoped_router.register(r'event-tags', EventTagViewSet, basename='eventtag')
 eventum_scoped_router.register(r'event-waves', EventWaveViewSet, basename='eventwave')
+eventum_scoped_router.register(r'event-registrations', EventRegistrationViewSet, basename='eventregistration')
 eventum_scoped_router.register(r'locations', LocationViewSet, basename='location')
 
 urlpatterns = [
