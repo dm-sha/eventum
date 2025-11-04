@@ -623,19 +623,22 @@ class ParticipantGroupV2ViewSet(CachedListMixin, EventumScopedViewSet):
             return super().list(request, *args, **kwargs)
         
         eventum_slug = kwargs.get('eventum_slug')
-        cache_key = f"groups_v2_list_{eventum_slug}"
+        # Учитываем параметр include_event_groups в кэш-ключе
+        show_event_groups = request.query_params.get('include_event_groups', 'false').lower() == 'true'
+        include_flag = 'true' if show_event_groups else 'false'
+        cache_key = f"groups_v2_list_{eventum_slug}_include_event_groups_{include_flag}"
         
         cached_data = cache.get(cache_key)
         if cached_data is not None:
-            logger.info(f"Данные групп V2 получены из кэша для {eventum_slug}")
+            logger.info(f"Данные групп V2 получены из кэша для {eventum_slug} (include_event_groups={include_flag})")
             return Response(cached_data)
         
-        logger.info(f"Загрузка групп V2 из БД для {eventum_slug}")
+        logger.info(f"Загрузка групп V2 из БД для {eventum_slug} (include_event_groups={include_flag})")
         queryset = self.filter_queryset(self.get_queryset())
         serializer = self.get_serializer(queryset, many=True)
         
         cache.set(cache_key, serializer.data, 300)
-        logger.info(f"Кэшировано {len(serializer.data)} групп V2 для {eventum_slug}")
+        logger.info(f"Кэшировано {len(serializer.data)} групп V2 для {eventum_slug} (include_event_groups={include_flag})")
         
         return Response(serializer.data)
     
@@ -643,22 +646,25 @@ class ParticipantGroupV2ViewSet(CachedListMixin, EventumScopedViewSet):
         """Переопределяем для инвалидации кэша при создании"""
         super().perform_create(serializer)
         eventum_slug = self.kwargs.get('eventum_slug')
-        cache_key = f"groups_v2_list_{eventum_slug}"
-        cache.delete(cache_key)
+        # Инвалидируем кэш для обоих вариантов (с include_event_groups и без)
+        cache.delete(f"groups_v2_list_{eventum_slug}_include_event_groups_true")
+        cache.delete(f"groups_v2_list_{eventum_slug}_include_event_groups_false")
     
     def perform_update(self, serializer):
         """Переопределяем для инвалидации кэша при обновлении"""
         super().perform_update(serializer)
         eventum_slug = self.kwargs.get('eventum_slug')
-        cache_key = f"groups_v2_list_{eventum_slug}"
-        cache.delete(cache_key)
+        # Инвалидируем кэш для обоих вариантов (с include_event_groups и без)
+        cache.delete(f"groups_v2_list_{eventum_slug}_include_event_groups_true")
+        cache.delete(f"groups_v2_list_{eventum_slug}_include_event_groups_false")
     
     def perform_destroy(self, instance):
         """Переопределяем для инвалидации кэша при удалении"""
         eventum_slug = self.kwargs.get('eventum_slug')
         super().perform_destroy(instance)
-        cache_key = f"groups_v2_list_{eventum_slug}"
-        cache.delete(cache_key)
+        # Инвалидируем кэш для обоих вариантов (с include_event_groups и без)
+        cache.delete(f"groups_v2_list_{eventum_slug}_include_event_groups_true")
+        cache.delete(f"groups_v2_list_{eventum_slug}_include_event_groups_false")
 
 
 class ParticipantGroupV2ParticipantRelationViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
@@ -693,7 +699,7 @@ class ParticipantGroupV2ParticipantRelationViewSet(EventumScopedViewSet, viewset
         return context
     
     def perform_create(self, serializer):
-        """Переопределяем для валидации группы"""
+        """Переопределяем для валидации группы и инвалидации кэша"""
         eventum = self.get_eventum()
         # group_id должен быть передан в данных запроса
         validated_data = serializer.validated_data
@@ -703,6 +709,24 @@ class ParticipantGroupV2ParticipantRelationViewSet(EventumScopedViewSet, viewset
             raise ValidationError("Group must belong to the same eventum")
         
         serializer.save()
+        # Инвалидируем кэш списка групп при изменении связей
+        eventum_slug = self.kwargs.get('eventum_slug')
+        cache.delete(f"groups_v2_list_{eventum_slug}_include_event_groups_true")
+        cache.delete(f"groups_v2_list_{eventum_slug}_include_event_groups_false")
+    
+    def perform_update(self, serializer):
+        """Переопределяем для инвалидации кэша"""
+        super().perform_update(serializer)
+        eventum_slug = self.kwargs.get('eventum_slug')
+        cache.delete(f"groups_v2_list_{eventum_slug}_include_event_groups_true")
+        cache.delete(f"groups_v2_list_{eventum_slug}_include_event_groups_false")
+    
+    def perform_destroy(self, instance):
+        """Переопределяем для инвалидации кэша"""
+        eventum_slug = self.kwargs.get('eventum_slug')
+        super().perform_destroy(instance)
+        cache.delete(f"groups_v2_list_{eventum_slug}_include_event_groups_true")
+        cache.delete(f"groups_v2_list_{eventum_slug}_include_event_groups_false")
 
 
 class ParticipantGroupV2GroupRelationViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
@@ -735,7 +759,7 @@ class ParticipantGroupV2GroupRelationViewSet(EventumScopedViewSet, viewsets.Mode
         return context
     
     def perform_create(self, serializer):
-        """Переопределяем для валидации группы"""
+        """Переопределяем для валидации группы и инвалидации кэша"""
         eventum = self.get_eventum()
         # group_id должен быть передан в данных запроса
         validated_data = serializer.validated_data
@@ -745,6 +769,24 @@ class ParticipantGroupV2GroupRelationViewSet(EventumScopedViewSet, viewsets.Mode
             raise ValidationError("Group must belong to the same eventum")
         
         serializer.save()
+        # Инвалидируем кэш списка групп при изменении связей
+        eventum_slug = self.kwargs.get('eventum_slug')
+        cache.delete(f"groups_v2_list_{eventum_slug}_include_event_groups_true")
+        cache.delete(f"groups_v2_list_{eventum_slug}_include_event_groups_false")
+    
+    def perform_update(self, serializer):
+        """Переопределяем для инвалидации кэша"""
+        super().perform_update(serializer)
+        eventum_slug = self.kwargs.get('eventum_slug')
+        cache.delete(f"groups_v2_list_{eventum_slug}_include_event_groups_true")
+        cache.delete(f"groups_v2_list_{eventum_slug}_include_event_groups_false")
+    
+    def perform_destroy(self, instance):
+        """Переопределяем для инвалидации кэша"""
+        eventum_slug = self.kwargs.get('eventum_slug')
+        super().perform_destroy(instance)
+        cache.delete(f"groups_v2_list_{eventum_slug}_include_event_groups_true")
+        cache.delete(f"groups_v2_list_{eventum_slug}_include_event_groups_false")
 
 
 class ParticipantGroupV2EventRelationViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
@@ -782,7 +824,7 @@ class ParticipantGroupV2EventRelationViewSet(EventumScopedViewSet, viewsets.Mode
         return context
     
     def perform_create(self, serializer):
-        """Переопределяем для валидации группы и события"""
+        """Переопределяем для валидации группы и события и инвалидации кэша"""
         eventum = self.get_eventum()
         validated_data = serializer.validated_data
         group = validated_data.get('group')
@@ -795,6 +837,24 @@ class ParticipantGroupV2EventRelationViewSet(EventumScopedViewSet, viewsets.Mode
             raise ValidationError("Event must belong to the same eventum")
         
         serializer.save()
+        # Инвалидируем кэш списка групп при изменении связей
+        eventum_slug = self.kwargs.get('eventum_slug')
+        cache.delete(f"groups_v2_list_{eventum_slug}_include_event_groups_true")
+        cache.delete(f"groups_v2_list_{eventum_slug}_include_event_groups_false")
+    
+    def perform_update(self, serializer):
+        """Переопределяем для инвалидации кэша"""
+        super().perform_update(serializer)
+        eventum_slug = self.kwargs.get('eventum_slug')
+        cache.delete(f"groups_v2_list_{eventum_slug}_include_event_groups_true")
+        cache.delete(f"groups_v2_list_{eventum_slug}_include_event_groups_false")
+    
+    def perform_destroy(self, instance):
+        """Переопределяем для инвалидации кэша"""
+        eventum_slug = self.kwargs.get('eventum_slug')
+        super().perform_destroy(instance)
+        cache.delete(f"groups_v2_list_{eventum_slug}_include_event_groups_true")
+        cache.delete(f"groups_v2_list_{eventum_slug}_include_event_groups_false")
 
 
 class EventTagViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
