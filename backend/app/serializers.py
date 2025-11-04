@@ -1259,6 +1259,16 @@ class EventSerializer(serializers.ModelSerializer):
         allow_empty=True,
         select_related="eventum",
     )
+    # Поле для чтения связанной группы V2 (упрощенно: id и name)
+    event_group_v2 = serializers.SerializerMethodField(read_only=True)
+    # Поле для записи id связанной группы V2
+    event_group_v2_id = serializers.PrimaryKeyRelatedField(
+        write_only=True,
+        required=False,
+        allow_null=True,
+        source='event_group_v2',
+        queryset=ParticipantGroupV2.objects.all()
+    )
     registrations_count = serializers.SerializerMethodField()
     is_registered = serializers.SerializerMethodField()
     
@@ -1272,7 +1282,8 @@ class EventSerializer(serializers.ModelSerializer):
             'id', 'name', 'description', 'start_time', 'end_time',
             'participant_type', 'max_participants', 'image_url',
             'participants', 'groups', 'tags', 'tag_ids', 'group_tags', 'group_tag_ids', 
-            'locations', 'location_ids', 'registrations_count', 'is_registered'
+            'locations', 'location_ids', 'event_group_v2', 'event_group_v2_id',
+            'registrations_count', 'is_registered'
         ]
 
     def update(self, instance, validated_data):
@@ -1283,6 +1294,8 @@ class EventSerializer(serializers.ModelSerializer):
         tags = validated_data.pop('tags', None)
         group_tags = validated_data.pop('group_tags', None)
         locations = validated_data.pop('locations', None)
+        # One-to-one поле
+        event_group_v2 = validated_data.pop('event_group_v2', 'NOT_PROVIDED')
         
         # Обновляем обычные поля
         for attr, value in validated_data.items():
@@ -1302,6 +1315,10 @@ class EventSerializer(serializers.ModelSerializer):
             instance.group_tags.set(group_tags)
         if locations is not None:
             instance.locations.set(locations)
+        # Обновляем связь 1:1
+        if event_group_v2 != 'NOT_PROVIDED':
+            instance.event_group_v2 = event_group_v2
+            instance.save(update_fields=['event_group_v2'])
         
         return instance
 
@@ -1507,6 +1524,27 @@ class EventSerializer(serializers.ModelSerializer):
         # Удалено: проверка что мероприятие с типом "не по записи" не добавляется к тегам с волнами
 
         return value
+
+    def validate_event_group_v2_id(self, value):
+        """Группа V2 должна принадлежать тому же eventum"""
+        if value is None:
+            return value
+        eventum = self.context.get('eventum')
+        if eventum:
+            eventum_id = getattr(eventum, 'id', eventum)
+            if value.eventum_id != eventum_id:
+                raise serializers.ValidationError(
+                    "Группа V2 не принадлежит данному eventum"
+                )
+        return value
+
+    def get_event_group_v2(self, obj):
+        if getattr(obj, 'event_group_v2_id', None):
+            return {
+                'id': obj.event_group_v2_id,
+                'name': obj.event_group_v2.name,
+            }
+        return None
 
 
 class UserProfileSerializer(serializers.ModelSerializer):

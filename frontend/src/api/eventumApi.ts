@@ -164,8 +164,14 @@ export const groupsApi = {
 
 export const groupsV2Api = {
   // Получить все группы V2
-  getAll: (eventumSlug?: string) => 
-    createApiRequest<ParticipantGroupV2[]>('GET', '/groups-v2/', getEventumSlugForRequest(eventumSlug)),
+  getAll: (eventumSlug?: string, options?: { includeEventGroups?: boolean }) => {
+    const include = options?.includeEventGroups ? '?include_event_groups=true' : '';
+    return createApiRequest<ParticipantGroupV2[]>(
+      'GET',
+      `/groups-v2/${include}`,
+      getEventumSlugForRequest(eventumSlug)
+    );
+  },
   
   // Создать группу V2
   create: (data: CreateParticipantGroupV2Data, eventumSlug?: string) => 
@@ -173,11 +179,20 @@ export const groupsV2Api = {
   
   // Обновить группу V2
   update: (id: number, data: UpdateParticipantGroupV2Data, eventumSlug?: string) => 
-    createApiRequest<ParticipantGroupV2>('PATCH', `/groups-v2/${id}/`, getEventumSlugForRequest(eventumSlug), data),
+    createApiRequest<ParticipantGroupV2>('PATCH', `/groups-v2/${id}/?include_event_groups=true`, getEventumSlugForRequest(eventumSlug), data),
   
   // Удалить группу V2
   delete: (id: number, eventumSlug?: string) => 
-    createApiRequest<void>('DELETE', `/groups-v2/${id}/`, getEventumSlugForRequest(eventumSlug))
+    createApiRequest<void>('DELETE', `/groups-v2/${id}/?include_event_groups=true`, getEventumSlugForRequest(eventumSlug))
+};
+
+// ============= EVENT RELATIONS V2 API =============
+
+export const eventRelationsV2Api = {
+  // Создать связь группа↔событие V2 (one-to-one предполагается с нашей стороны)
+  create: (params: { group_id: number; event_id: number }, eventumSlug?: string) =>
+    createApiRequest<{ id: number }>('POST', '/event-relations-v2/', getEventumSlugForRequest(eventumSlug), params),
+  // Примечание: удаление/получение существующей связи добавим отдельно при необходимости
 };
 
 // ============= EVENTS API =============

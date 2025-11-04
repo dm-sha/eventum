@@ -488,6 +488,15 @@ class Event(models.Model):
         related_name='events',
         blank=True
     )
+    # Опциональная связь 1:1 с группой V2 (участники события = участники группы)
+    event_group_v2 = models.OneToOneField(
+        ParticipantGroupV2,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='linked_event',
+        help_text="Опциональная связь 1:1 с группой V2"
+    )
     
     def save(self, *args, **kwargs):
         # Валидация происходит в сериализаторе
@@ -578,6 +587,10 @@ class Event(models.Model):
                 raise ValidationError(
                     f"Locations {', '.join(location_names)} belong to a different eventum"
                 )
+
+        # Валидация: если указана группа V2, она должна принадлежать тому же eventum
+        if self.event_group_v2 and self.event_group_v2.eventum_id != self.eventum_id:
+            raise ValidationError("Event group V2 must belong to the same eventum as the event")
     
     def __str__(self):
         return f"{self.name} ({self.eventum.name})"

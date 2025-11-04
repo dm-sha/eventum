@@ -30,6 +30,14 @@ interface ParticipantGroupV2EditorProps {
   isModal?: boolean;
   isSaving?: boolean;
   isUpdating?: boolean;
+  nameOverride?: string;
+  hideNameField?: boolean;
+  hideActions?: boolean;
+  onChange?: (data: {
+    name: string;
+    participant_relations: { participant_id: number; relation_type: RelationType }[];
+    group_relations: { target_group_id: number; relation_type: RelationType }[];
+  }) => void;
 }
 
 const ParticipantGroupV2Editor: React.FC<ParticipantGroupV2EditorProps> = ({
@@ -40,9 +48,13 @@ const ParticipantGroupV2Editor: React.FC<ParticipantGroupV2EditorProps> = ({
   onCancel,
   isModal = false,
   isSaving = false,
-  isUpdating = false
+  isUpdating = false,
+  nameOverride,
+  hideNameField = false,
+  hideActions = false,
+  onChange
 }) => {
-  const [name, setName] = useState(group?.name || '');
+  const [name, setName] = useState(nameOverride ?? group?.name ?? '');
   const [allParticipants, setAllParticipants] = useState<Participant[]>([]);
   const [participantQuery, setParticipantQuery] = useState('');
   const [groupQuery, setGroupQuery] = useState('');
@@ -50,11 +62,11 @@ const ParticipantGroupV2Editor: React.FC<ParticipantGroupV2EditorProps> = ({
   const [groupRelations, setGroupRelations] = useState<GroupRelation[]>([]);
 
   useEffect(() => {
-    if (group) {
-      setName(group.name || '');
+    if (group || nameOverride !== undefined) {
+      setName(nameOverride ?? group?.name ?? '');
       // Инициализируем связи участников
       // Если participant_id отсутствует, извлекаем его из participant
-      const participantRels: ParticipantRelation[] = group.participant_relations.map(rel => ({
+      const participantRels: ParticipantRelation[] = (group?.participant_relations || []).map(rel => ({
         participant_id: rel.participant_id || rel.participant?.id || 0,
         participant: rel.participant,
         relation_type: rel.relation_type
@@ -63,7 +75,7 @@ const ParticipantGroupV2Editor: React.FC<ParticipantGroupV2EditorProps> = ({
       
       // Инициализируем связи групп
       // Если target_group_id отсутствует, извлекаем его из target_group
-      const groupRels: GroupRelation[] = group.group_relations.map(rel => ({
+      const groupRels: GroupRelation[] = (group?.group_relations || []).map(rel => ({
         target_group_id: rel.target_group_id || rel.target_group?.id || 0,
         target_group: rel.target_group,
         relation_type: rel.relation_type
@@ -81,7 +93,7 @@ const ParticipantGroupV2Editor: React.FC<ParticipantGroupV2EditorProps> = ({
       }
     };
     loadParticipants();
-  }, [group, eventumSlug]);
+  }, [group, eventumSlug, nameOverride]);
 
   const participantSuggestions = participantQuery
     ? allParticipants
@@ -153,10 +165,11 @@ const ParticipantGroupV2Editor: React.FC<ParticipantGroupV2EditorProps> = ({
   };
 
   const handleSave = async () => {
-    if (!name.trim()) return;
+    const effectiveName = (nameOverride ?? name).trim();
+    if (!effectiveName) return;
 
     const data: CreateParticipantGroupV2Data | UpdateParticipantGroupV2Data = {
-      name: name.trim(),
+      name: effectiveName,
       participant_relations: participantRelations.map(rel => ({
         participant_id: rel.participant_id,
         relation_type: rel.relation_type
@@ -170,22 +183,35 @@ const ParticipantGroupV2Editor: React.FC<ParticipantGroupV2EditorProps> = ({
     await onSave(data);
   };
 
+  // Сообщаем наверх об изменениях (для инлайнового режима в форме события)
+  useEffect(() => {
+    if (!onChange) return;
+    const effectiveName = (nameOverride ?? name).trim();
+    onChange({
+      name: effectiveName,
+      participant_relations: participantRelations.map(r => ({ participant_id: r.participant_id, relation_type: r.relation_type })),
+      group_relations: groupRelations.map(r => ({ target_group_id: r.target_group_id, relation_type: r.relation_type }))
+    });
+  }, [name, nameOverride, participantRelations, groupRelations, onChange]);
+
   return (
     <div className={isModal ? '' : 'rounded-2xl border border-gray-200 bg-white p-4 shadow-sm'}>
       <div className="space-y-4">
         {/* Название группы */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Название группы
-          </label>
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            placeholder="Введите название группы"
-          />
-        </div>
+        {!hideNameField ? (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Название группы
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              placeholder="Введите название группы"
+            />
+          </div>
+        ) : null}
 
         {/* Добавление участников */}
         <div>
@@ -313,26 +339,28 @@ const ParticipantGroupV2Editor: React.FC<ParticipantGroupV2EditorProps> = ({
           )}
         </div>
 
-        {/* Кнопки действий */}
-        <div className="flex gap-2 pt-2">
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={!name.trim() || isSaving || isUpdating}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
-          >
-            {isSaving || isUpdating 
-              ? (group ? 'Сохранение...' : 'Создание...') 
-              : (group ? 'Сохранить' : 'Создать')}
-          </button>
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-          >
-            Отмена
-          </button>
-        </div>
+        {/* Кнопки действий (скрываем в инлайновом режиме) */}
+        {!hideActions && (
+          <div className="flex gap-2 pt-2">
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={!((nameOverride ?? name).trim()) || isSaving || isUpdating}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+            >
+              {isSaving || isUpdating 
+                ? (group ? 'Сохранение...' : 'Создание...') 
+                : (group ? 'Сохранить' : 'Создать')}
+            </button>
+            <button
+              type="button"
+              onClick={onCancel}
+              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+            >
+              Отмена
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

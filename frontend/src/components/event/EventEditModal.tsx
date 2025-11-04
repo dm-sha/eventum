@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useEventumSlug } from "../../hooks/useEventumSlug";
-import type { Event, EventTag, GroupTag, Location, Participant, ParticipantGroup, ParticipantType, ValidationError } from "../../types";
+import type { Event as EventModel, EventTag, GroupTag, Location, Participant, ParticipantGroup, ParticipantType, ValidationError, ParticipantGroupV2, CreateParticipantGroupV2Data, UpdateParticipantGroupV2Data } from "../../types";
+import ParticipantGroupV2Editor from "../participantGroupV2/ParticipantGroupV2Editor";
+import { groupsV2Api } from "../../api/eventumApi";
 import { MultiLocationSelector } from "../location/MultiLocationSelector";
 
 // Компонент для вкладки "Общее"
@@ -218,6 +220,10 @@ const GeneralTab = ({
 const ParticipantsTab = ({
   eventForm,
   setEventForm,
+  eventumSlug,
+  eventGroupV2,
+  setEventGroupV2,
+  setSelectedEventGroupV2Id,
   participantSearchQuery,
   setParticipantSearchQuery,
   groupSearchQuery,
@@ -248,10 +254,16 @@ const ParticipantsTab = ({
   groupTagInputRef,
   checkParticipantTypeValidation,
   participantTypeError,
-  setParticipantTypeError
+  setParticipantTypeError,
+  onEventGroupDraftChange,
+  availableGroupsV2,
 }: {
   eventForm: any;
   setEventForm: any;
+  eventumSlug: string | undefined;
+  eventGroupV2: ParticipantGroupV2 | null;
+  setEventGroupV2: (g: ParticipantGroupV2 | null) => void;
+  setSelectedEventGroupV2Id: (id: number | null) => void;
   participantSearchQuery: string;
   setParticipantSearchQuery: (query: string) => void;
   groupSearchQuery: string;
@@ -283,271 +295,26 @@ const ParticipantsTab = ({
   checkParticipantTypeValidation: (newParticipantType: ParticipantType) => string | null;
   participantTypeError: string | null;
   setParticipantTypeError: (error: string | null) => void;
+  onEventGroupDraftChange: (draft: { name: string; participant_relations: any[]; group_relations: any[] }) => void;
+  availableGroupsV2: ParticipantGroupV2[];
 }) => (
   <div className="space-y-4">
-    {/* Выбор типа участников */}
-    <div>
-      <div className="space-y-2">
-        <label className="flex items-center">
-          <input
-            type="checkbox"
-            name="participant_type_all"
-            checked={eventForm.participant_type === 'all'}
-            onChange={(e) => {
-              const isAll = e.target.checked;
-              if (isAll) {
-                const newType: ParticipantType = 'all';
-                const error = checkParticipantTypeValidation(newType);
-                if (error) {
-                  setParticipantTypeError("Нельзя изменить тип участников, пока не удалены все связи с участниками, группами или тегами групп");
-                  return;
-                }
-                setParticipantTypeError(null);
-                setEventForm((prev: any) => ({
-                  ...prev,
-                  participant_type: 'all',
-                  max_participants: undefined,
-                  participants: [],
-                  groups: [],
-                  group_tags: []
-                }));
-              } else {
-                setParticipantTypeError(null);
-                setEventForm((prev: any) => ({
-                  ...prev,
-                  participant_type: 'manual',
-                  max_participants: undefined
-                }));
-              }
-            }}
-            className="mr-2"
-          />
-          <span className="text-sm">Для всех</span>
-        </label>
-        {/* Если чекбокс не выбран — показываем поведение как для "Вручную" */}
-      </div>
-      
-      {/* Отображение ошибки валидации для participant_type */}
-      {participantTypeError && (
-        <div className="text-sm text-red-600 mt-2">
-          {participantTypeError}
-        </div>
-      )}
+    {/* Информация о количестве участников (оценка): если нет включающих связей — участвуют все */}
+    {/* Рендерим сам редактор групп V2 без собственных кнопок */}
+    <div className="rounded-lg border border-gray-200 p-3">
+      <ParticipantGroupV2Editor
+        group={eventGroupV2}
+        eventumSlug={eventumSlug || ''}
+        nameOverride={(event as any) ? `Участники \"${(event as any).name}\"` : (eventForm.name ? `Участники \"${eventForm.name}\"` : '')}
+        hideNameField
+        hideActions
+        onChange={onEventGroupDraftChange}
+        onSave={async () => { /* сохранение выполняется кнопкой "Сохранить" модалки */ }}
+        onCancel={() => { /* no-op */ }}
+        isModal
+        availableGroups={availableGroupsV2}
+      />
     </div>
-
-    {/* Убран режим "По записи" и его поле максимального количества участников */}
-
-    {/* Информация о количестве участников для ручного режима */}
-    {eventForm.participant_type === 'manual' && (
-      <div className="p-3 bg-gray-50 rounded-lg">
-        <div className="text-sm text-gray-600">
-          <strong>Общее количество участников:</strong> {getTotalParticipantsCount()}
-        </div>
-      </div>
-    )}
-
-    {/* Поля для ручного режима */}
-    {eventForm.participant_type === 'manual' && (
-      <>
-        {/* Выбор участников по прямой связи */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Участники
-          </label>
-          
-          <div ref={participantInputRef} className="relative mb-3">
-            <input
-              type="text"
-              value={participantSearchQuery}
-              onChange={(e) => setParticipantSearchQuery(e.target.value)}
-              onFocus={() => setShowParticipantSuggestions(true)}
-              onClick={() => setShowParticipantSuggestions(true)}
-              onKeyDown={(e) => {
-                if (e.key === 'Escape') {
-                  setShowParticipantSuggestions(false);
-                }
-              }}
-              placeholder="Выбрать участников..."
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-            />
-            
-            {showParticipantSuggestions && (
-              <div className="absolute z-10 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg max-h-32 overflow-y-auto">
-                {getParticipantSuggestions().length > 0 ? (
-                  getParticipantSuggestions().map((participant) => (
-                    <button
-                      key={participant.id}
-                      type="button"
-                      onClick={() => addParticipantToForm(participant)}
-                      className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50"
-                    >
-                      {participant.name}
-                    </button>
-                  ))
-                ) : (
-                  <div className="px-3 py-2 text-sm text-gray-500">Нет доступных участников</div>
-                )}
-              </div>
-            )}
-          </div>
-          
-          {eventForm.participants.length > 0 && (
-            <div className="flex flex-wrap gap-1">
-              {eventForm.participants.map((participantId: number) => {
-                const participant = participants.find(p => p.id === participantId);
-                return participant ? (
-                  <span
-                    key={participantId}
-                    className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800"
-                  >
-                    {participant.name}
-                    <button
-                      type="button"
-                      onClick={() => removeParticipantFromForm(participantId)}
-                      className="ml-1 text-purple-600 hover:text-purple-800"
-                    >
-                      ×
-                    </button>
-                  </span>
-                ) : null;
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Выбор групп */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Группы участников
-          </label>
-          
-          <div ref={groupInputRef} className="relative mb-3">
-            <input
-              type="text"
-              value={groupSearchQuery}
-              onChange={(e) => setGroupSearchQuery(e.target.value)}
-              onFocus={() => setShowGroupSuggestions(true)}
-              onClick={() => setShowGroupSuggestions(true)}
-              onKeyDown={(e) => {
-                if (e.key === 'Escape') {
-                  setShowGroupSuggestions(false);
-                }
-              }}
-              placeholder="Выбрать группы..."
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-            />
-            
-            {showGroupSuggestions && (
-              <div className="absolute z-10 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg max-h-32 overflow-y-auto">
-                {getGroupSuggestions().length > 0 ? (
-                  getGroupSuggestions().map((group) => (
-                    <button
-                      key={group.id}
-                      type="button"
-                      onClick={() => addGroupToForm(group)}
-                      className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50"
-                    >
-                      {group.name}
-                    </button>
-                  ))
-                ) : (
-                  <div className="px-3 py-2 text-sm text-gray-500">Нет доступных групп</div>
-                )}
-              </div>
-            )}
-          </div>
-          
-          {eventForm.groups.length > 0 && (
-            <div className="flex flex-wrap gap-1">
-              {eventForm.groups.map((groupId: number) => {
-                const group = participantGroups.find(g => g.id === groupId);
-                return group ? (
-                  <span
-                    key={groupId}
-                    className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800"
-                  >
-                    {group.name}
-                    <button
-                      type="button"
-                      onClick={() => removeGroupFromForm(groupId)}
-                      className="ml-1 text-orange-600 hover:text-orange-800"
-                    >
-                      ×
-                    </button>
-                  </span>
-                ) : null;
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Теги групп */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Теги групп
-          </label>
-          
-          <div ref={groupTagInputRef} className="relative mb-3">
-            <input
-              type="text"
-              value={groupTagSearchQuery}
-              onChange={(e) => setGroupTagSearchQuery(e.target.value)}
-              onFocus={() => setShowGroupTagSuggestions(true)}
-              onClick={() => setShowGroupTagSuggestions(true)}
-              onKeyDown={(e) => {
-                if (e.key === 'Escape') {
-                  setShowGroupTagSuggestions(false);
-                }
-              }}
-              placeholder="Выбрать теги групп..."
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-            />
-            
-            {showGroupTagSuggestions && (
-              <div className="absolute z-10 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg max-h-32 overflow-y-auto">
-                {getGroupTagSuggestions().length > 0 ? (
-                  getGroupTagSuggestions().map((groupTag) => (
-                    <button
-                      key={groupTag.id}
-                      type="button"
-                      onClick={() => addGroupTagToForm(groupTag)}
-                      className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50"
-                    >
-                      {groupTag.name}
-                    </button>
-                  ))
-                ) : (
-                  <div className="px-3 py-2 text-sm text-gray-500">Нет доступных тегов групп</div>
-                )}
-              </div>
-            )}
-          </div>
-          
-          {eventForm.group_tags.length > 0 && (
-            <div className="flex flex-wrap gap-1">
-              {eventForm.group_tags.map((groupTagId: number) => {
-                const groupTag = groupTags.find(gt => gt.id === groupTagId);
-                return groupTag ? (
-                  <span
-                    key={groupTagId}
-                    className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800"
-                  >
-                    {groupTag.name}
-                    <button
-                      type="button"
-                      onClick={() => removeGroupTagFromForm(groupTagId)}
-                      className="ml-1 text-green-600 hover:text-green-800"
-                    >
-                      ×
-                    </button>
-                  </span>
-                ) : null;
-              })}
-            </div>
-          )}
-        </div>
-      </>
-    )}
   </div>
 );
 
@@ -570,7 +337,7 @@ interface EventEditModalProps {
     group_tag_ids?: number[];
     location_ids?: number[];
   }) => Promise<void>;
-  event?: Event | null;
+  event?: EventModel | null;
   eventTags: EventTag[];
   groupTags: GroupTag[];
   participants: Participant[];
@@ -619,6 +386,14 @@ const EventEditModal = ({
   const [validationErrors, setValidationErrors] = useState<ValidationError>({});
   const [participantTypeError, setParticipantTypeError] = useState<string | null>(null);
   const [hasUserEditedEndTime, setHasUserEditedEndTime] = useState(false);
+  const [eventGroupV2, setEventGroupV2] = useState<ParticipantGroupV2 | null>(null);
+  const [selectedEventGroupV2Id, setSelectedEventGroupV2Id] = useState<number | null>(null);
+  const [eventGroupDraft, setEventGroupDraft] = useState<{
+    name: string;
+    participant_relations: { participant_id: number; relation_type: any }[];
+    group_relations: { target_group_id: number; relation_type: any }[];
+  } | null>(null);
+  const [allGroupsV2, setAllGroupsV2] = useState<ParticipantGroupV2[]>([]);
   const tagInputRef = useRef<HTMLDivElement>(null);
   const groupTagInputRef = useRef<HTMLDivElement>(null);
   const participantInputRef = useRef<HTMLDivElement>(null);
@@ -675,6 +450,35 @@ const EventEditModal = ({
           group_tags: groupTagIds,
           location_ids: locationIds
         });
+        // Устанавливаем связанную V2 группу, если она есть в событии
+        try {
+          const evAny: any = event as any;
+          if (evAny.event_group_v2 && evAny.event_group_v2.id) {
+            const gid = evAny.event_group_v2.id as number;
+            setSelectedEventGroupV2Id(gid);
+            // Загружаем полную группу (c relations) из списка
+            (async () => {
+              try {
+                if (eventumSlug) {
+                  const resp = await groupsV2Api.getAll(eventumSlug, { includeEventGroups: true });
+                  const groups = (resp as any).data ?? resp;
+                  const found = (groups as any[]).find(g => g.id === gid) || null;
+                  setEventGroupV2(found);
+                } else {
+                  setEventGroupV2(null);
+                }
+              } catch {
+                setEventGroupV2(null);
+              }
+            })();
+          } else {
+            setEventGroupV2(null);
+            setSelectedEventGroupV2Id(null);
+          }
+        } catch {
+          setEventGroupV2(null);
+          setSelectedEventGroupV2Id(null);
+        }
       } else {
         // Попытаться подставить дату и время последнего созданного мероприятия из localStorage
         let start = getDefaultDateTime();
@@ -714,6 +518,8 @@ const EventEditModal = ({
           group_tags: [],
           location_ids: []
         });
+        setEventGroupV2(null);
+        setSelectedEventGroupV2Id(null);
       }
       setTagSearchQuery("");
       setGroupTagSearchQuery("");
@@ -726,6 +532,20 @@ const EventEditModal = ({
       setValidationErrors({});
       setParticipantTypeError(null);
       setHasUserEditedEndTime(false);
+      // Подгружаем все группы V2 для подсчета участников
+      (async () => {
+        try {
+          if (eventumSlug) {
+            const resp = await groupsV2Api.getAll(eventumSlug, { includeEventGroups: true });
+            const groups = (resp as any).data ?? resp;
+            setAllGroupsV2(groups as ParticipantGroupV2[]);
+          } else {
+            setAllGroupsV2([]);
+          }
+        } catch {
+          setAllGroupsV2([]);
+        }
+      })();
     }
   }, [isOpen, event]);
 
@@ -970,7 +790,47 @@ const EventEditModal = ({
     
     setIsSaving(true);
     try {
-      // Преобразуем tags в tag_ids для backend
+      // Обеспечиваем сохранение/обновление группы V2 перед сохранением мероприятия
+      let ensuredEventGroupId: number | null = selectedEventGroupV2Id;
+      if (eventForm.participant_type !== 'all') {
+        const draft = eventGroupDraft;
+        const effectiveName = ((event as any) ? `Участники \"${(event as any).name}\"` : (eventForm.name ? `Участники \"${eventForm.name}\"` : '')).trim();
+        if (effectiveName) {
+          // Есть существующая группа — обновляем её, иначе создаём новую (если есть черновик или нужно пустую по умолчанию)
+          if (eventGroupV2?.id) {
+            const payload: any = { name: effectiveName };
+            if (draft) {
+              payload.participant_relations = draft.participant_relations;
+              payload.group_relations = draft.group_relations;
+            }
+            try {
+              const updatedResp = await groupsV2Api.update(eventGroupV2.id, { ...payload, is_event_group: true }, eventumSlug || undefined);
+              const updated = (updatedResp as any).data ?? updatedResp;
+              ensuredEventGroupId = (updated as any).id;
+              setEventGroupV2(updated as any);
+            } catch (e) {
+              console.error('Ошибка обновления группы V2:', e);
+            }
+          } else {
+            const createPayload: any = { name: effectiveName, is_event_group: true };
+            if (draft) {
+              createPayload.participant_relations = draft.participant_relations;
+              createPayload.group_relations = draft.group_relations;
+            }
+            try {
+              const createdResp = await groupsV2Api.create(createPayload, eventumSlug || undefined);
+              const created = (createdResp as any).data ?? createdResp;
+              ensuredEventGroupId = (created as any).id;
+              setEventGroupV2(created as any);
+              setSelectedEventGroupV2Id(ensuredEventGroupId);
+            } catch (e) {
+              console.error('Ошибка создания группы V2:', e);
+            }
+          }
+        }
+      }
+
+        // Преобразуем tags в tag_ids для backend
       const eventData = {
         name: eventForm.name,
         description: eventForm.description,
@@ -983,7 +843,9 @@ const EventEditModal = ({
         groups: eventForm.groups,
         location_ids: eventForm.location_ids,
         tag_ids: eventForm.tags,
-        group_tag_ids: eventForm.group_tags
+        group_tag_ids: eventForm.group_tags,
+          // Если выбрана/создана группа V2 — передаем её ID для привязки после сохранения события
+          event_group_v2_id: ensuredEventGroupId || undefined
       };
       await onSave(eventData);
 
@@ -1065,6 +927,84 @@ const EventEditModal = ({
     eventForm.end_time &&
     new Date(eventForm.end_time) > new Date(eventForm.start_time);
 
+  // ===== Подсчет количества участников по черновику/группе V2 =====
+  const getGroupV2ById = useCallback((id: number) => allGroupsV2.find(g => g.id === id) || null, [allGroupsV2]);
+
+  const collectParticipantsFromGroup = useCallback((groupId: number, visited: Set<number>): Set<number> => {
+    const result = new Set<number>();
+    const group = getGroupV2ById(groupId);
+    if (!group || visited.has(groupId)) return result;
+    visited.add(groupId);
+
+    const inclusivePR = group.participant_relations.filter(r => r.relation_type === 'inclusive');
+    const inclusiveGR = group.group_relations.filter(r => r.relation_type === 'inclusive');
+    const exclusivePR = group.participant_relations.filter(r => r.relation_type === 'exclusive');
+    const exclusiveGR = group.group_relations.filter(r => r.relation_type === 'exclusive');
+
+    let base = new Set<number>();
+    if (inclusivePR.length === 0 && inclusiveGR.length === 0) {
+      // Все участники eventum как базовый набор
+      participants.forEach(p => base.add(p.id));
+      // Минус исключенные
+      exclusivePR.forEach(r => base.delete(r.participant_id));
+      exclusiveGR.forEach(r => {
+        const sub = collectParticipantsFromGroup(r.target_group_id, new Set(visited));
+        sub.forEach(pid => base.delete(pid));
+      });
+      return base;
+    }
+
+    // Иначе включения минус исключения
+    inclusivePR.forEach(r => base.add(r.participant_id));
+    inclusiveGR.forEach(r => {
+      const sub = collectParticipantsFromGroup(r.target_group_id, new Set(visited));
+      sub.forEach(pid => base.add(pid));
+    });
+    exclusivePR.forEach(r => base.delete(r.participant_id));
+    exclusiveGR.forEach(r => {
+      const sub = collectParticipantsFromGroup(r.target_group_id, new Set(visited));
+      sub.forEach(pid => base.delete(pid));
+    });
+    return base;
+  }, [participants, getGroupV2ById]);
+
+  const collectParticipantsFromDraft = useCallback((): Set<number> => {
+    if (!eventGroupDraft) return new Set<number>(participants.map(p => p.id));
+    const inclusivePR = eventGroupDraft.participant_relations.filter(r => r.relation_type === 'inclusive');
+    const inclusiveGR = eventGroupDraft.group_relations.filter(r => r.relation_type === 'inclusive');
+    const exclusivePR = eventGroupDraft.participant_relations.filter(r => r.relation_type === 'exclusive');
+    const exclusiveGR = eventGroupDraft.group_relations.filter(r => r.relation_type === 'exclusive');
+
+    let base = new Set<number>();
+    if (inclusivePR.length === 0 && inclusiveGR.length === 0) {
+      participants.forEach(p => base.add(p.id));
+      exclusivePR.forEach(r => base.delete(r.participant_id));
+      exclusiveGR.forEach(r => {
+        const sub = collectParticipantsFromGroup(r.target_group_id, new Set());
+        sub.forEach(pid => base.delete(pid));
+      });
+      return base;
+    }
+
+    inclusivePR.forEach(r => base.add(r.participant_id));
+    inclusiveGR.forEach(r => {
+      const sub = collectParticipantsFromGroup(r.target_group_id, new Set());
+      sub.forEach(pid => base.add(pid));
+    });
+    exclusivePR.forEach(r => base.delete(r.participant_id));
+    exclusiveGR.forEach(r => {
+      const sub = collectParticipantsFromGroup(r.target_group_id, new Set());
+      sub.forEach(pid => base.delete(pid));
+    });
+    return base;
+  }, [eventGroupDraft, participants, collectParticipantsFromGroup]);
+
+  const participantsCount = (() => {
+    if (eventGroupDraft) return collectParticipantsFromDraft().size;
+    if (eventGroupV2?.id) return collectParticipantsFromGroup(eventGroupV2.id, new Set()).size;
+    return participants.length; // по умолчанию: все
+  })();
+
 
 
   if (!isOpen) return null;
@@ -1105,6 +1045,9 @@ const EventEditModal = ({
               </nav>
             </div>
           </div>
+          {activeTab === 'participants' && (
+            <div className="text-sm text-gray-600 mb-2">Участников: {participantsCount}</div>
+          )}
         </div>
         
         {/* Прокручиваемое содержимое */}
@@ -1132,6 +1075,10 @@ const EventEditModal = ({
             <ParticipantsTab 
               eventForm={eventForm}
               setEventForm={setEventForm}
+              eventumSlug={eventumSlug}
+              eventGroupV2={eventGroupV2}
+              setEventGroupV2={setEventGroupV2}
+              setSelectedEventGroupV2Id={setSelectedEventGroupV2Id}
               participantSearchQuery={participantSearchQuery}
               setParticipantSearchQuery={setParticipantSearchQuery}
               groupSearchQuery={groupSearchQuery}
@@ -1163,6 +1110,8 @@ const EventEditModal = ({
               checkParticipantTypeValidation={checkParticipantTypeValidation}
               participantTypeError={participantTypeError}
               setParticipantTypeError={setParticipantTypeError}
+              onEventGroupDraftChange={setEventGroupDraft}
+              availableGroupsV2={allGroupsV2}
             />
           )}
           

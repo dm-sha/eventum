@@ -203,6 +203,8 @@ const AdminEventsPage = () => {
     group_tags?: number[];
     group_tag_ids?: number[];
     location_ids?: number[];
+    // Новое: опциональная привязка к группе V2 (если указано — создадим связь после сохранения события)
+    event_group_v2_id?: number | null;
   }) => {
     if (!eventumSlug) return;
     
