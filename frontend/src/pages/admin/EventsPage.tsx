@@ -1,11 +1,9 @@
 import { useEffect, useState } from "react";
 import { getEventsForEventum, createEvent, updateEvent, deleteEvent } from "../../api/event";
 import { eventTagApi } from "../../api/eventTag";
-import { groupTagApi } from "../../api/groupTag";
 import { getLocationsForEventum } from "../../api/location";
 import { getParticipantsForEventum } from "../../api/participant";
-import { getGroupsForEventum } from "../../api/group";
-import type { Event, EventTag, GroupTag, Location, Participant, ParticipantGroup } from "../../types";
+import type { Event, EventTag, Location, Participant, GroupTag } from "../../types";
 import {
   IconPencil,
   IconTrash,
@@ -27,10 +25,8 @@ const AdminEventsPage = () => {
   const eventumSlug = useEventumSlug();
   const [events, setEvents] = useState<EventWithTags[]>([]);
   const [eventTags, setEventTags] = useState<EventTag[]>([]);
-  const [groupTags, setGroupTags] = useState<GroupTag[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
   const [participants, setParticipants] = useState<Participant[]>([]);
-  const [participantGroups, setParticipantGroups] = useState<ParticipantGroup[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTags, setSelectedTags] = useState<number[]>([]);
@@ -56,10 +52,9 @@ const AdminEventsPage = () => {
       const eventsData = await getEventsForEventum(eventumSlug);
       
       let tagsData: EventTag[] = [];
-      let groupTagsData: GroupTag[] = [];
+      
       let locationsData: Location[] = [];
       let participantsData: Participant[] = [];
-      let participantGroupsData: ParticipantGroup[] = [];
       
       try {
         tagsData = await eventTagApi.getEventTags(eventumSlug);
@@ -69,25 +64,12 @@ const AdminEventsPage = () => {
       }
       
       try {
-        groupTagsData = await groupTagApi.getGroupTags(eventumSlug);
-      } catch (groupTagError) {
-        console.error('Ошибка загрузки тегов групп:', groupTagError);
-        // Продолжаем работу без тегов групп
-      }
-      
-      try {
         participantsData = await getParticipantsForEventum(eventumSlug);
       } catch (participantError) {
         console.error('Ошибка загрузки участников:', participantError);
         // Продолжаем работу без участников
       }
       
-      try {
-        participantGroupsData = await getGroupsForEventum(eventumSlug);
-      } catch (groupError) {
-        console.error('Ошибка загрузки групп участников:', groupError);
-        // Продолжаем работу без групп
-      }
       
       try {
         locationsData = await getLocationsForEventum(eventumSlug);
@@ -108,10 +90,8 @@ const AdminEventsPage = () => {
       
       setEvents(eventsWithTags);
       setEventTags(tagsData);
-      setGroupTags(groupTagsData);
       setLocations(locationsData);
       setParticipants(participantsData);
-      setParticipantGroups(participantGroupsData);
     } catch (error) {
       console.error('Ошибка загрузки данных:', error);
     } finally {
@@ -500,9 +480,7 @@ const AdminEventsPage = () => {
         onSave={handleSaveEvent}
         event={editingEvent}
         eventTags={eventTags}
-        groupTags={groupTags}
         participants={participants}
-        participantGroups={participantGroups}
         locations={locations}
       />
     </div>
