@@ -62,8 +62,12 @@ const ParticipantGroupV2Editor: React.FC<ParticipantGroupV2EditorProps> = ({
   const [groupRelations, setGroupRelations] = useState<GroupRelation[]>([]);
   const [participantFocused, setParticipantFocused] = useState(false);
   const [groupFocused, setGroupFocused] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true);
 
   useEffect(() => {
+    // Флаг для предотвращения вызова onChange при первой инициализации
+    setIsInitializing(true);
+    
     if (group || nameOverride !== undefined) {
       setName(nameOverride ?? group?.name ?? '');
       // Инициализируем связи участников
@@ -95,6 +99,11 @@ const ParticipantGroupV2Editor: React.FC<ParticipantGroupV2EditorProps> = ({
       }
     };
     loadParticipants();
+    
+    // Сбрасываем флаг инициализации после небольшой задержки
+    setTimeout(() => {
+      setIsInitializing(false);
+    }, 100);
   }, [group, eventumSlug, nameOverride]);
 
   const participantSuggestions = (() => {
@@ -189,15 +198,16 @@ const ParticipantGroupV2Editor: React.FC<ParticipantGroupV2EditorProps> = ({
   };
 
   // Сообщаем наверх об изменениях (для инлайнового режима в форме события)
+  // НЕ вызываем onChange при первой инициализации, чтобы не перезаписать данные из пропсов
   useEffect(() => {
-    if (!onChange) return;
+    if (!onChange || isInitializing) return;
     const effectiveName = (nameOverride ?? name).trim();
     onChange({
       name: effectiveName,
       participant_relations: participantRelations.map(r => ({ participant_id: r.participant_id, relation_type: r.relation_type })),
       group_relations: groupRelations.map(r => ({ target_group_id: r.target_group_id, relation_type: r.relation_type }))
     });
-  }, [name, nameOverride, participantRelations, groupRelations, onChange]);
+  }, [name, nameOverride, participantRelations, groupRelations, onChange, isInitializing]);
 
   return (
     <div className={isModal ? '' : 'rounded-2xl border border-gray-200 bg-white p-4 shadow-sm'}>

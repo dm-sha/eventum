@@ -223,30 +223,45 @@ const ParticipantsTab = ({
   eventGroupV2,
   onEventGroupDraftChange,
   availableGroupsV2,
+  isLoadingGroupV2,
 }: {
   eventForm: any;
   eventumSlug: string | undefined;
   eventGroupV2: ParticipantGroupV2 | null;
   onEventGroupDraftChange: (draft: { name: string; participant_relations: any[]; group_relations: any[] }) => void;
   availableGroupsV2: ParticipantGroupV2[];
+  isLoadingGroupV2: boolean;
 }) => (
   <div className="space-y-4">
-    {/* Информация о количестве участников (оценка): если нет включающих связей — участвуют все */}
-    {/* Рендерим сам редактор групп V2 без собственных кнопок */}
-    <div className="rounded-lg border border-gray-200 p-3">
-      <ParticipantGroupV2Editor
-        group={eventGroupV2}
-        eventumSlug={eventumSlug || ''}
-        nameOverride={eventForm.name ? `Участники \"${eventForm.name}\"` : ''}
-        hideNameField
-        hideActions
-        onChange={onEventGroupDraftChange}
-        onSave={async () => { /* сохранение выполняется кнопкой "Сохранить" модалки */ }}
-        onCancel={() => { /* no-op */ }}
-        isModal
-        availableGroups={availableGroupsV2}
-      />
-    </div>
+    {isLoadingGroupV2 ? (
+      <div className="flex items-center justify-center py-12">
+        <div className="flex flex-col items-center gap-3">
+          <div className="relative">
+            <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+          </div>
+          <p className="text-sm text-gray-600">Загрузка данных участников...</p>
+        </div>
+      </div>
+    ) : (
+      <>
+        {/* Информация о количестве участников (оценка): если нет включающих связей — участвуют все */}
+        {/* Рендерим сам редактор групп V2 без собственных кнопок */}
+        <div className="rounded-lg border border-gray-200 p-3">
+          <ParticipantGroupV2Editor
+            group={eventGroupV2}
+            eventumSlug={eventumSlug || ''}
+            nameOverride={eventForm.name ? `Участники \"${eventForm.name}\"` : ''}
+            hideNameField
+            hideActions
+            onChange={onEventGroupDraftChange}
+            onSave={async () => { /* сохранение выполняется кнопкой "Сохранить" модалки */ }}
+            onCancel={() => { /* no-op */ }}
+            isModal
+            availableGroups={availableGroupsV2}
+          />
+        </div>
+      </>
+    )}
   </div>
 );
 
@@ -313,7 +328,9 @@ const EventEditModal = ({
     group_relations: { target_group_id: number; relation_type: any }[];
   } | null>(null);
   const [allGroupsV2, setAllGroupsV2] = useState<ParticipantGroupV2[]>([]);
+  const [isLoadingGroupV2, setIsLoadingGroupV2] = useState(false);
   const tagInputRef = useRef<HTMLDivElement>(null);
+  const groupLoadedRef = useRef<boolean>(false);
   
 
 
@@ -337,6 +354,9 @@ const EventEditModal = ({
   // Инициализация формы при открытии
   useEffect(() => {
     if (isOpen) {
+      // Сбрасываем флаг загрузки при открытии
+      groupLoadedRef.current = false;
+      
       if (event) {
         // Извлекаем ID из объектов тегов, участников, групп и локаций
         const tagIds = event.tags.map(tag => tag.id);
@@ -362,6 +382,7 @@ const EventEditModal = ({
           const evAny: any = event as any;
           if (evAny.event_group_v2 && evAny.event_group_v2.id) {
             const gid = evAny.event_group_v2.id as number;
+            setIsLoadingGroupV2(true);
             // Загружаем полную группу (c relations) из списка
             (async () => {
               try {
@@ -369,23 +390,34 @@ const EventEditModal = ({
                   const resp = await groupsV2Api.getAll(eventumSlug, { includeEventGroups: true });
                   const groups = (resp as any).data ?? resp;
                   const found = (groups as any[]).find(g => g.id === gid) || null;
-                  setEventGroupV2(found);
-                  // Инициализируем eventGroupDraft из загруженной группы, чтобы сохранить существующие связи
-                  // Важно: проверяем, что relations действительно есть в ответе (могут быть массивы или undefined)
+                  
                   if (found) {
+                    // Преобразуем relations в правильный формат
                     const participantRelations = Array.isArray(found.participant_relations) 
-                      ? found.participant_relations 
-                      : (found.participant_relations || []);
+                      ? found.participant_relations.map((rel: any) => ({
+                          participant_id: rel.participant_id || rel.participant?.id || 0,
+                          relation_type: rel.relation_type
+                        })).filter((rel: any) => rel.participant_id > 0)
+                      : [];
                     const groupRelations = Array.isArray(found.group_relations) 
-                      ? found.group_relations 
-                      : (found.group_relations || []);
+                      ? found.group_relations.map((rel: any) => ({
+                          target_group_id: rel.target_group_id || rel.target_group?.id || 0,
+                          relation_type: rel.relation_type
+                        })).filter((rel: any) => rel.target_group_id > 0)
+                      : [];
                     
-                    setEventGroupDraft({
+                    // Устанавливаем группу и draft одновременно
+                    // Редактор будет использовать данные из group при инициализации
+                    const draft = {
                       name: found.name || '',
                       participant_relations: participantRelations,
                       group_relations: groupRelations
-                    });
+                    };
+                    setEventGroupV2(found);
+                    setEventGroupDraft(draft);
+                    groupLoadedRef.current = true;
                   } else {
+                    setEventGroupV2(null);
                     setEventGroupDraft(null);
                   }
                 } else {
@@ -396,15 +428,19 @@ const EventEditModal = ({
                 console.error('Ошибка загрузки группы V2:', error);
                 setEventGroupV2(null);
                 setEventGroupDraft(null);
+              } finally {
+                setIsLoadingGroupV2(false);
               }
             })();
           } else {
             setEventGroupV2(null);
             setEventGroupDraft(null);
+            setIsLoadingGroupV2(false);
           }
         } catch {
           setEventGroupV2(null);
           setEventGroupDraft(null);
+          setIsLoadingGroupV2(false);
         }
       } else {
         // Попытаться подставить дату и время последнего созданного мероприятия из localStorage
@@ -446,6 +482,7 @@ const EventEditModal = ({
         });
         setEventGroupV2(null);
         setEventGroupDraft(null);
+        setIsLoadingGroupV2(false);
       }
       setTagSearchQuery("");
       setShowTagSuggestions(false);
@@ -870,8 +907,12 @@ const EventEditModal = ({
               eventForm={eventForm}
               eventumSlug={eventumSlug}
               eventGroupV2={eventGroupV2}
-              onEventGroupDraftChange={setEventGroupDraft}
+              onEventGroupDraftChange={(draft) => {
+                // Сохраняем draft - редактор больше не вызывает onChange при инициализации
+                setEventGroupDraft(draft);
+              }}
               availableGroupsV2={allGroupsV2}
+              isLoadingGroupV2={isLoadingGroupV2}
             />
           )}
           
