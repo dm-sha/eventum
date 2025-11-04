@@ -60,6 +60,8 @@ const ParticipantGroupV2Editor: React.FC<ParticipantGroupV2EditorProps> = ({
   const [groupQuery, setGroupQuery] = useState('');
   const [participantRelations, setParticipantRelations] = useState<ParticipantRelation[]>([]);
   const [groupRelations, setGroupRelations] = useState<GroupRelation[]>([]);
+  const [participantFocused, setParticipantFocused] = useState(false);
+  const [groupFocused, setGroupFocused] = useState(false);
 
   useEffect(() => {
     if (group || nameOverride !== undefined) {
@@ -95,26 +97,29 @@ const ParticipantGroupV2Editor: React.FC<ParticipantGroupV2EditorProps> = ({
     loadParticipants();
   }, [group, eventumSlug, nameOverride]);
 
-  const participantSuggestions = participantQuery
-    ? allParticipants
-        .filter((p) => {
-          const matchesQuery = p.name.toLowerCase().includes(participantQuery.toLowerCase());
-          const alreadyAdded = participantRelations.some((rel) => rel.participant_id === p.id);
-          return matchesQuery && !alreadyAdded;
-        })
-        .slice(0, 5)
-    : [];
+  const participantSuggestions = (() => {
+    const notAlreadyAdded = allParticipants.filter((p) => !participantRelations.some((rel) => rel.participant_id === p.id));
+    if (participantQuery) {
+      return notAlreadyAdded
+        .filter((p) => p.name.toLowerCase().includes(participantQuery.toLowerCase()))
+        .slice(0, 5);
+    }
+    return participantFocused ? notAlreadyAdded.slice(0, 5) : [];
+  })();
 
-  const groupSuggestions = groupQuery
-    ? availableGroups
-        .filter((g) => {
-          const matchesQuery = g.name.toLowerCase().includes(groupQuery.toLowerCase());
-          const alreadyAdded = groupRelations.some((rel) => rel.target_group_id === g.id);
-          const isCurrentGroup = group && g.id === group.id;
-          return matchesQuery && !alreadyAdded && !isCurrentGroup;
-        })
-        .slice(0, 5)
-    : [];
+  const groupSuggestions = (() => {
+    const notAlreadyAdded = availableGroups.filter((g) => {
+      const alreadyAdded = groupRelations.some((rel) => rel.target_group_id === g.id);
+      const isCurrentGroup = group && g.id === group.id;
+      return !alreadyAdded && !isCurrentGroup;
+    });
+    if (groupQuery) {
+      return notAlreadyAdded
+        .filter((g) => g.name.toLowerCase().includes(groupQuery.toLowerCase()))
+        .slice(0, 5);
+    }
+    return groupFocused ? notAlreadyAdded.slice(0, 5) : [];
+  })();
 
   const addParticipantRelation = (participant: Participant, relationType: RelationType = 'inclusive') => {
     if (!participantRelations.some((rel) => rel.participant_id === participant.id)) {
@@ -223,6 +228,8 @@ const ParticipantGroupV2Editor: React.FC<ParticipantGroupV2EditorProps> = ({
               type="text"
               value={participantQuery}
               onChange={(e) => setParticipantQuery(e.target.value)}
+              onFocus={() => setParticipantFocused(true)}
+              onBlur={() => setParticipantFocused(false)}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               placeholder="Поиск участника..."
             />
@@ -232,6 +239,7 @@ const ParticipantGroupV2Editor: React.FC<ParticipantGroupV2EditorProps> = ({
                   <button
                     key={p.id}
                     type="button"
+                    onMouseDown={(e) => e.preventDefault()}
                     onClick={() => addParticipantRelation(p, 'inclusive')}
                     className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50"
                   >
@@ -286,6 +294,8 @@ const ParticipantGroupV2Editor: React.FC<ParticipantGroupV2EditorProps> = ({
               type="text"
               value={groupQuery}
               onChange={(e) => setGroupQuery(e.target.value)}
+              onFocus={() => setGroupFocused(true)}
+              onBlur={() => setGroupFocused(false)}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               placeholder="Поиск группы..."
             />
@@ -295,6 +305,7 @@ const ParticipantGroupV2Editor: React.FC<ParticipantGroupV2EditorProps> = ({
                   <button
                     key={g.id}
                     type="button"
+                    onMouseDown={(e) => e.preventDefault()}
                     onClick={() => addGroupRelation(g, 'inclusive')}
                     className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50"
                   >
