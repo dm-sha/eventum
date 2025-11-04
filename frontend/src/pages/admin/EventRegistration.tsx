@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { listEventWaves, createEventWave, updateEventWave, deleteEventWave } from '../../api/eventWave';
 import type { EventWave } from '../../api/eventWave';
 import { 
@@ -117,16 +117,11 @@ const RegistrationCard: React.FC<RegistrationCardProps> = ({
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Группа с доступом (опционально)
                 </label>
-                <select
+                <GroupCombobox
+                  groups={groups}
                   value={allowedGroupId}
-                  onChange={(e) => setAllowedGroupId(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                >
-                  <option value="">Все участники</option>
-                  {groups.map((g) => (
-                    <option key={g.id} value={g.id}>{g.name}</option>
-                  ))}
-                </select>
+                  onChange={setAllowedGroupId}
+                />
               </div>
             </div>
           </div>
@@ -184,6 +179,333 @@ const RegistrationCard: React.FC<RegistrationCardProps> = ({
   );
 };
 
+// Компонент combobox для выбора группы
+interface GroupComboboxProps {
+  groups: BasicItem[];
+  value: string;
+  onChange: (groupId: string) => void;
+  placeholder?: string;
+  emptyOptionLabel?: string;
+}
+
+const GroupCombobox: React.FC<GroupComboboxProps> = ({ 
+  groups, 
+  value, 
+  onChange, 
+  placeholder = "Введите название группы для поиска...",
+  emptyOptionLabel = "Все участники"
+}) => {
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [isOpen, setIsOpen] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState<number>(-1);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  const selectedGroup = groups.find(g => g.id === parseInt(value));
+
+  const filteredGroups = groups.filter(group =>
+    group.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+        if (selectedGroup) {
+          setSearchQuery(selectedGroup.name);
+        } else {
+          setSearchQuery('');
+        }
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [selectedGroup]);
+
+  useEffect(() => {
+    if (selectedGroup) {
+      setSearchQuery(selectedGroup.name);
+    } else if (!value) {
+      setSearchQuery('');
+    }
+  }, [selectedGroup, value]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const query = e.target.value;
+    setSearchQuery(query);
+    setIsOpen(true);
+    setHighlightedIndex(-1);
+    // Не сбрасываем значение при вводе, только при полной очистке
+    if (!query && value) {
+      onChange('');
+    }
+  };
+
+  const handleSelectGroup = (group: BasicItem | null) => {
+    if (group) {
+      onChange(group.id.toString());
+      setSearchQuery(group.name);
+    } else {
+      onChange('');
+      setSearchQuery('');
+    }
+    setIsOpen(false);
+    setHighlightedIndex(-1);
+  };
+
+  const handleInputFocus = () => {
+    setIsOpen(true);
+    // Если поле пустое, показываем все группы
+    if (!searchQuery && !value) {
+      setSearchQuery('');
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    const allOptions = [{ id: 0, name: emptyOptionLabel }, ...filteredGroups];
+    
+    if (!isOpen && (e.key === 'ArrowDown' || e.key === 'Enter')) {
+      setIsOpen(true);
+      return;
+    }
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHighlightedIndex(prev => 
+        prev < allOptions.length - 1 ? prev + 1 : prev
+      );
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightedIndex(prev => prev > -1 ? prev - 1 : -1);
+    } else if (e.key === 'Enter' && highlightedIndex >= 0) {
+      e.preventDefault();
+      if (highlightedIndex === 0) {
+        handleSelectGroup(null);
+      } else {
+        handleSelectGroup(allOptions[highlightedIndex]);
+      }
+    } else if (e.key === 'Escape') {
+      setIsOpen(false);
+      inputRef.current?.blur();
+    }
+  };
+
+  useEffect(() => {
+    if (highlightedIndex >= 0 && listRef.current) {
+      const highlightedElement = listRef.current.children[highlightedIndex] as HTMLElement;
+      if (highlightedElement) {
+        highlightedElement.scrollIntoView({ block: 'nearest' });
+      }
+    }
+  }, [highlightedIndex]);
+
+  const allOptions = [{ id: 0, name: emptyOptionLabel }, ...filteredGroups];
+
+  return (
+    <div ref={containerRef} className="relative">
+      <input
+        ref={inputRef}
+        type="text"
+        value={searchQuery}
+        onChange={handleInputChange}
+        onFocus={handleInputFocus}
+        onKeyDown={handleKeyDown}
+        placeholder={placeholder}
+        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+      />
+      {isOpen && (
+        <div className="absolute z-50 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg max-h-60 overflow-auto">
+          {filteredGroups.length === 0 && searchQuery ? (
+            <div className="px-3 py-2 text-sm text-gray-500">
+              Группы не найдены
+            </div>
+          ) : (
+            <>
+              {filteredGroups.length < groups.length && searchQuery && (
+                <div className="px-3 py-2 text-xs text-gray-500 border-b border-gray-100">
+                  Найдено: {filteredGroups.length} из {groups.length}
+                </div>
+              )}
+              <div ref={listRef} className="py-1">
+                {allOptions.map((option, index) => {
+                  const isSelected = index === 0 ? !value : parseInt(value) === option.id;
+                  return (
+                    <button
+                      key={option.id || 'empty'}
+                      type="button"
+                      onClick={() => index === 0 ? handleSelectGroup(null) : handleSelectGroup(option)}
+                      className={`w-full text-left px-3 py-2 text-sm hover:bg-blue-50 focus:bg-blue-50 focus:outline-none ${
+                        index === highlightedIndex ? 'bg-blue-50' : ''
+                      } ${isSelected ? 'font-semibold text-blue-600' : 'text-gray-700'}`}
+                    >
+                      {option.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Компонент combobox для выбора мероприятия
+interface EventComboboxProps {
+  events: Event[];
+  value: string;
+  onChange: (eventId: string) => void;
+  required?: boolean;
+}
+
+const EventCombobox: React.FC<EventComboboxProps> = ({ events, value, onChange, required = false }) => {
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [isOpen, setIsOpen] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState<number>(-1);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  const selectedEvent = events.find(e => e.id === parseInt(value));
+
+  const filteredEvents = events.filter(event =>
+    event.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+        if (selectedEvent) {
+          setSearchQuery(selectedEvent.name);
+        } else {
+          setSearchQuery('');
+        }
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [selectedEvent]);
+
+  useEffect(() => {
+    if (selectedEvent) {
+      setSearchQuery(selectedEvent.name);
+    }
+  }, [selectedEvent]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const query = e.target.value;
+    setSearchQuery(query);
+    setIsOpen(true);
+    setHighlightedIndex(-1);
+    if (!query) {
+      onChange('');
+    }
+  };
+
+  const handleSelectEvent = (event: Event) => {
+    onChange(event.id.toString());
+    setSearchQuery(event.name);
+    setIsOpen(false);
+    setHighlightedIndex(-1);
+  };
+
+  const handleInputFocus = () => {
+    setIsOpen(true);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!isOpen && (e.key === 'ArrowDown' || e.key === 'Enter')) {
+      setIsOpen(true);
+      return;
+    }
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHighlightedIndex(prev => 
+        prev < filteredEvents.length - 1 ? prev + 1 : prev
+      );
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightedIndex(prev => prev > 0 ? prev - 1 : -1);
+    } else if (e.key === 'Enter' && highlightedIndex >= 0) {
+      e.preventDefault();
+      handleSelectEvent(filteredEvents[highlightedIndex]);
+    } else if (e.key === 'Escape') {
+      setIsOpen(false);
+      inputRef.current?.blur();
+    }
+  };
+
+  useEffect(() => {
+    if (highlightedIndex >= 0 && listRef.current) {
+      const highlightedElement = listRef.current.children[highlightedIndex] as HTMLElement;
+      if (highlightedElement) {
+        highlightedElement.scrollIntoView({ block: 'nearest' });
+      }
+    }
+  }, [highlightedIndex]);
+
+  return (
+    <div ref={containerRef} className="relative">
+      <input
+        ref={inputRef}
+        type="text"
+        value={searchQuery}
+        onChange={handleInputChange}
+        onFocus={handleInputFocus}
+        onKeyDown={handleKeyDown}
+        placeholder="Введите название мероприятия для поиска..."
+        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+      />
+      {required && (
+        <input 
+          type="hidden" 
+          name="event" 
+          value={value || ''} 
+          required={required}
+          aria-label="Выбор мероприятия"
+        />
+      )}
+      {isOpen && (
+        <div className="absolute z-50 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg max-h-60 overflow-auto">
+          {filteredEvents.length === 0 ? (
+            <div className="px-3 py-2 text-sm text-gray-500">
+              Мероприятия не найдены
+            </div>
+          ) : (
+            <>
+              {filteredEvents.length < events.length && (
+                <div className="px-3 py-2 text-xs text-gray-500 border-b border-gray-100">
+                  Найдено: {filteredEvents.length} из {events.length}
+                </div>
+              )}
+              <div ref={listRef} className="py-1">
+                {filteredEvents.map((event, index) => (
+                  <button
+                    key={event.id}
+                    type="button"
+                    onClick={() => handleSelectEvent(event)}
+                    className={`w-full text-left px-3 py-2 text-sm hover:bg-blue-50 focus:bg-blue-50 focus:outline-none ${
+                      index === highlightedIndex ? 'bg-blue-50' : ''
+                    } ${parseInt(value) === event.id ? 'font-semibold text-blue-600' : 'text-gray-700'}`}
+                  >
+                    {event.name}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // Компонент формы создания регистрации
 const CreateRegistrationForm: React.FC<{
   onCreate: (data: {
@@ -226,17 +548,12 @@ const CreateRegistrationForm: React.FC<{
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Мероприятие
           </label>
-          <select
+          <EventCombobox
+            events={events}
             value={eventId}
-            onChange={(e) => setEventId(e.target.value)}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+            onChange={setEventId}
             required
-          >
-            <option value="">— выберите мероприятие —</option>
-            {events.map((e) => (
-              <option key={e.id} value={e.id}>{e.name}</option>
-            ))}
-          </select>
+          />
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -267,16 +584,11 @@ const CreateRegistrationForm: React.FC<{
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Группа с доступом (опционально)
           </label>
-          <select
+          <GroupCombobox
+            groups={groups}
             value={allowedGroupId}
-            onChange={(e) => setAllowedGroupId(e.target.value)}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-          >
-            <option value="">Все участники</option>
-            {groups.map((g) => (
-              <option key={g.id} value={g.id}>{g.name}</option>
-            ))}
-          </select>
+            onChange={setAllowedGroupId}
+          />
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
           <button
