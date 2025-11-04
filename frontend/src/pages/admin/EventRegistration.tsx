@@ -697,6 +697,7 @@ const CreateRegistrationForm: React.FC<{
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     if (!canSave) return;
     onCreate({
       event_id: parseInt(eventId),
@@ -1094,7 +1095,11 @@ const CreateWaveForm: React.FC<{
             </label>
             <button
               type="button"
-              onClick={() => setShowCreateRegistration(true)}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setShowCreateRegistration(true);
+              }}
               className="flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
             >
               <IconPlus size={14} />
@@ -1107,18 +1112,6 @@ const CreateWaveForm: React.FC<{
             onChange={setSelectedRegistrationIds}
             placeholder="Выберите регистрации..."
           />
-          {/* Форма создания регистрации */}
-          {showCreateRegistration && (
-            <div className="mt-3">
-              <CreateRegistrationForm
-                onCreate={handleCreateRegistrationInWave}
-                onCancel={() => setShowCreateRegistration(false)}
-                events={events.filter(e => !allRegistrations.some(r => r.event.id === e.id))}
-                groups={groups}
-                isLoading={isCreatingRegistration}
-              />
-            </div>
-          )}
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
           <button
@@ -1139,6 +1132,18 @@ const CreateWaveForm: React.FC<{
           </button>
         </div>
       </form>
+      {/* Форма создания регистрации - вне основной формы */}
+      {showCreateRegistration && (
+        <div className="mt-4">
+          <CreateRegistrationForm
+            onCreate={handleCreateRegistrationInWave}
+            onCancel={() => setShowCreateRegistration(false)}
+            events={events.filter(e => !allRegistrations.some(r => r.event.id === e.id))}
+            groups={groups}
+            isLoading={isCreatingRegistration}
+          />
+        </div>
+      )}
     </div>
   );
 };
