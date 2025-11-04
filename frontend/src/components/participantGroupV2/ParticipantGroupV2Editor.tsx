@@ -87,6 +87,19 @@ const ParticipantGroupV2Editor: React.FC<ParticipantGroupV2EditorProps> = ({
         relation_type: rel.relation_type
       })).filter(rel => rel.target_group_id > 0); // Фильтруем некорректные данные
       setGroupRelations(groupRels);
+      
+      // Если группа загружена и есть relations, даем больше времени на инициализацию
+      const hasRelations = participantRels.length > 0 || groupRels.length > 0;
+      const delay = hasRelations ? 200 : 100;
+      
+      setTimeout(() => {
+        setIsInitializing(false);
+      }, delay);
+    } else {
+      // Если нет группы, сбрасываем флаг быстрее
+      setTimeout(() => {
+        setIsInitializing(false);
+      }, 50);
     }
 
     // Загружаем всех участников
@@ -99,11 +112,6 @@ const ParticipantGroupV2Editor: React.FC<ParticipantGroupV2EditorProps> = ({
       }
     };
     loadParticipants();
-    
-    // Сбрасываем флаг инициализации после небольшой задержки
-    setTimeout(() => {
-      setIsInitializing(false);
-    }, 100);
   }, [group, eventumSlug, nameOverride]);
 
   const participantSuggestions = (() => {

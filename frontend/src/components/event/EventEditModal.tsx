@@ -221,6 +221,7 @@ const ParticipantsTab = ({
   eventForm,
   eventumSlug,
   eventGroupV2,
+  eventGroupDraft,
   onEventGroupDraftChange,
   availableGroupsV2,
   isLoadingGroupV2,
@@ -228,42 +229,48 @@ const ParticipantsTab = ({
   eventForm: any;
   eventumSlug: string | undefined;
   eventGroupV2: ParticipantGroupV2 | null;
+  eventGroupDraft: { name: string; participant_relations: any[]; group_relations: any[] } | null;
   onEventGroupDraftChange: (draft: { name: string; participant_relations: any[]; group_relations: any[] }) => void;
   availableGroupsV2: ParticipantGroupV2[];
   isLoadingGroupV2: boolean;
-}) => (
-  <div className="space-y-4">
-    {isLoadingGroupV2 ? (
-      <div className="flex items-center justify-center py-12">
-        <div className="flex flex-col items-center gap-3">
-          <div className="relative">
-            <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+}) => {
+  // Показываем загрузку, если идет загрузка ИЛИ группа еще не установлена (но ожидается)
+  const showLoading = isLoadingGroupV2 || (eventForm.name && !eventGroupV2 && !eventGroupDraft);
+  
+  return (
+    <div className="space-y-4">
+      {showLoading ? (
+        <div className="flex items-center justify-center py-12">
+          <div className="flex flex-col items-center gap-3">
+            <div className="relative">
+              <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+            </div>
+            <p className="text-sm text-gray-600">Загрузка данных участников...</p>
           </div>
-          <p className="text-sm text-gray-600">Загрузка данных участников...</p>
         </div>
-      </div>
-    ) : (
-      <>
-        {/* Информация о количестве участников (оценка): если нет включающих связей — участвуют все */}
-        {/* Рендерим сам редактор групп V2 без собственных кнопок */}
-        <div className="rounded-lg border border-gray-200 p-3">
-          <ParticipantGroupV2Editor
-            group={eventGroupV2}
-            eventumSlug={eventumSlug || ''}
-            nameOverride={eventForm.name ? `Участники \"${eventForm.name}\"` : ''}
-            hideNameField
-            hideActions
-            onChange={onEventGroupDraftChange}
-            onSave={async () => { /* сохранение выполняется кнопкой "Сохранить" модалки */ }}
-            onCancel={() => { /* no-op */ }}
-            isModal
-            availableGroups={availableGroupsV2}
-          />
-        </div>
-      </>
-    )}
-  </div>
-);
+      ) : (
+        <>
+          {/* Информация о количестве участников (оценка): если нет включающих связей — участвуют все */}
+          {/* Рендерим сам редактор групп V2 без собственных кнопок */}
+          <div className="rounded-lg border border-gray-200 p-3">
+            <ParticipantGroupV2Editor
+              group={eventGroupV2}
+              eventumSlug={eventumSlug || ''}
+              nameOverride={eventForm.name ? `Участники \"${eventForm.name}\"` : ''}
+              hideNameField
+              hideActions
+              onChange={onEventGroupDraftChange}
+              onSave={async () => { /* сохранение выполняется кнопкой "Сохранить" модалки */ }}
+              onCancel={() => { /* no-op */ }}
+              isModal
+              availableGroups={availableGroupsV2}
+            />
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
 
 interface EventEditModalProps {
   isOpen: boolean;
@@ -332,6 +339,44 @@ const EventEditModal = ({
   const tagInputRef = useRef<HTMLDivElement>(null);
   const groupLoadedRef = useRef<boolean>(false);
   
+  // Синхронизируем eventGroupDraft с eventGroupV2 при загрузке группы
+  useEffect(() => {
+    // Если группа загружена, но draft еще не установлен или не синхронизирован
+    if (eventGroupV2 && groupLoadedRef.current && !isLoadingGroupV2) {
+      // Используем небольшую задержку, чтобы редактор успел инициализироваться
+      const timeoutId = setTimeout(() => {
+        const participantRelations = Array.isArray(eventGroupV2.participant_relations) 
+          ? eventGroupV2.participant_relations.map((rel: any) => ({
+              participant_id: rel.participant_id || rel.participant?.id || 0,
+              relation_type: rel.relation_type
+            })).filter((rel: any) => rel.participant_id > 0)
+          : [];
+        const groupRelations = Array.isArray(eventGroupV2.group_relations) 
+          ? eventGroupV2.group_relations.map((rel: any) => ({
+              target_group_id: rel.target_group_id || rel.target_group?.id || 0,
+              relation_type: rel.relation_type
+            })).filter((rel: any) => rel.target_group_id > 0)
+          : [];
+        
+        // Проверяем, нужно ли обновить draft
+        const currentDraft = eventGroupDraft;
+        const expectedRelationsCount = participantRelations.length + groupRelations.length;
+        const currentRelationsCount = (currentDraft?.participant_relations?.length || 0) + (currentDraft?.group_relations?.length || 0);
+        
+        // Обновляем draft только если relations не совпадают или draft отсутствует
+        if (expectedRelationsCount !== currentRelationsCount || !currentDraft) {
+          setEventGroupDraft({
+            name: eventGroupV2.name || '',
+            participant_relations: participantRelations,
+            group_relations: groupRelations
+          });
+        }
+      }, 150);
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [eventGroupV2, isLoadingGroupV2, eventGroupDraft]);
+  
 
 
   // Обработка кликов вне области ввода
@@ -356,6 +401,11 @@ const EventEditModal = ({
     if (isOpen) {
       // Сбрасываем флаг загрузки при открытии
       groupLoadedRef.current = false;
+      // Сбрасываем состояние загрузки
+      setIsLoadingGroupV2(false);
+      // Сбрасываем состояние группы при открытии
+      setEventGroupV2(null);
+      setEventGroupDraft(null);
       
       if (event) {
         // Извлекаем ID из объектов тегов, участников, групп и локаций
@@ -406,16 +456,21 @@ const EventEditModal = ({
                         })).filter((rel: any) => rel.target_group_id > 0)
                       : [];
                     
-                    // Устанавливаем группу и draft одновременно
-                    // Редактор будет использовать данные из group при инициализации
+                    // СНАЧАЛА устанавливаем draft, ПОТОМ группу
+                    // Это важно для правильной инициализации редактора
                     const draft = {
                       name: found.name || '',
                       participant_relations: participantRelations,
                       group_relations: groupRelations
                     };
-                    setEventGroupV2(found);
                     setEventGroupDraft(draft);
-                    groupLoadedRef.current = true;
+                    
+                    // Устанавливаем группу синхронно после draft
+                    // Используем requestAnimationFrame для гарантии, что draft установился
+                    requestAnimationFrame(() => {
+                      setEventGroupV2(found);
+                      groupLoadedRef.current = true;
+                    });
                   } else {
                     setEventGroupV2(null);
                     setEventGroupDraft(null);
@@ -907,6 +962,7 @@ const EventEditModal = ({
               eventForm={eventForm}
               eventumSlug={eventumSlug}
               eventGroupV2={eventGroupV2}
+              eventGroupDraft={eventGroupDraft}
               onEventGroupDraftChange={(draft) => {
                 // Сохраняем draft - редактор больше не вызывает onChange при инициализации
                 setEventGroupDraft(draft);
