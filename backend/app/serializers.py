@@ -668,19 +668,15 @@ class BaseEventSerializer(serializers.ModelSerializer):
                 # Получаем ID всех участников, уже записанных на мероприятия волны
                 for registration in wave.registrations.all():
                     event = registration.event
-                    if event.participant_type == Event.ParticipantType.MANUAL:
-                        assigned_participant_ids.update(
-                            participant.id for participant in event.participants.all()
-                        )
-                    elif (event.participant_type == Event.ParticipantType.REGISTRATION and 
-                          event.id != obj.id):
+                    # Теперь participant_type определяется наличием event_group_v2
+                    # Если есть event_group_v2 - это REGISTRATION, иначе - ALL
+                    if event.event_group_v2_id and event.id != obj.id:
                         # Для типа REGISTRATION проверяем, зарегистрированы ли участники
                         if registration.registration_type == EventRegistration.RegistrationType.BUTTON:
                             # Участники в event_group_v2
-                            if event.event_group_v2:
-                                assigned_participant_ids.update(
-                                    event.event_group_v2.get_participants().values_list('id', flat=True)
-                                )
+                            assigned_participant_ids.update(
+                                event.event_group_v2.get_participants().values_list('id', flat=True)
+                            )
                         else:
                             # Участники в applicants
                             assigned_participant_ids.update(
@@ -899,8 +895,9 @@ class EventWithRegistrationInfoSerializer(BaseEventSerializer):
         """Можно ли делать обычную конвертацию (только для мероприятий типа registration)"""
         available_count = self.get_available_participants(obj)
         
+        # Проверяем наличие event_group_v2 вместо participant_type
         return (
-            obj.participant_type == Event.ParticipantType.REGISTRATION and
+            obj.event_group_v2_id is not None and
             self.get_registrations_count(obj) > 0 and
             available_count > 0 and
             (obj.max_participants is None or available_count <= obj.max_participants)
@@ -1179,6 +1176,8 @@ class EventSerializer(serializers.ModelSerializer):
     )
     registrations_count = serializers.SerializerMethodField()
     is_registered = serializers.SerializerMethodField()
+    # participant_type теперь вычисляемое поле на основе event_group_v2
+    participant_type = serializers.SerializerMethodField(read_only=True)
     
     # Обычные поля времени - работаем без таймзон
     start_time = serializers.DateTimeField()
@@ -1193,9 +1192,50 @@ class EventSerializer(serializers.ModelSerializer):
             'locations', 'location_ids', 'event_group_v2', 'event_group_v2_id',
             'registrations_count', 'is_registered'
         ]
+    
+    def get_participant_type(self, obj):
+        """Вычисляем participant_type на основе наличия event_group_v2"""
+        if obj.event_group_v2_id:
+            return Event.ParticipantType.REGISTRATION
+        return Event.ParticipantType.ALL
+
+    def create(self, validated_data):
+        """Создание события с обработкой связей"""
+        # participant_type теперь не используется - он вычисляется из event_group_v2
+        validated_data.pop('participant_type', None)
+        
+        # Извлекаем many-to-many поля
+        participants = validated_data.pop('participants', None)
+        groups = validated_data.pop('groups', None)
+        tags = validated_data.pop('tags', None)
+        group_tags = validated_data.pop('group_tags', None)
+        locations = validated_data.pop('locations', None)
+        # One-to-one поле
+        event_group_v2 = validated_data.pop('event_group_v2', None)
+        
+        # Создаем событие
+        instance = super().create(validated_data)
+        
+        # Устанавливаем many-to-many поля
+        if participants is not None:
+            instance.participants.set(participants)
+        if groups is not None:
+            instance.groups.set(groups)
+        if tags is not None:
+            instance.tags.set(tags)
+        if group_tags is not None:
+            instance.group_tags.set(group_tags)
+        if locations is not None:
+            instance.locations.set(locations)
+        # Устанавливаем связь 1:1
+        if event_group_v2 is not None:
+            instance.event_group_v2 = event_group_v2
+            instance.save(update_fields=['event_group_v2'])
+        
+        return instance
 
     def update(self, instance, validated_data):
-        """Переопределяем update для правильной обработки валидации participant_type"""
+        """Переопределяем update для правильной обработки связей"""
         # Извлекаем many-to-many поля
         participants = validated_data.pop('participants', None)
         groups = validated_data.pop('groups', None)
@@ -1204,6 +1244,9 @@ class EventSerializer(serializers.ModelSerializer):
         locations = validated_data.pop('locations', None)
         # One-to-one поле
         event_group_v2 = validated_data.pop('event_group_v2', 'NOT_PROVIDED')
+        
+        # participant_type теперь не используется - он вычисляется из event_group_v2
+        validated_data.pop('participant_type', None)
         
         # Обновляем обычные поля
         for attr, value in validated_data.items():
@@ -1329,73 +1372,20 @@ class EventSerializer(serializers.ModelSerializer):
         return value
 
     def validate(self, data):
-        """Валидация на уровне объекта для проверки participant_type и max_participants"""
-        participant_type = data.get('participant_type')
+        """Валидация на уровне объекта"""
+        # participant_type теперь вычисляется автоматически из event_group_v2
+        # Проверяем max_participants только если есть event_group_v2 (регистрация)
         max_participants = data.get('max_participants')
+        event_group_v2 = data.get('event_group_v2')
         
-        if participant_type == 'registration':
-            if not max_participants or max_participants <= 0:
+        # Если устанавливается event_group_v2 (не None), значит это регистрация
+        # Проверяем max_participants для регистрации
+        if event_group_v2 is not None and event_group_v2 != 'NOT_PROVIDED':
+            # event_group_v2 установлен - это регистрация
+            if max_participants is not None and max_participants <= 0:
                 raise serializers.ValidationError({
-                    'max_participants': 'max_participants must be specified and greater than 0 for registration type events'
+                    'max_participants': 'max_participants must be greater than 0 if specified'
                 })
-        # Удалено: валидация max_participants для типов all и manual
-        
-        # Check if trying to change participant_type from manual when there are existing connections
-        if self.instance and self.instance.pk:
-            original_participant_type = self.instance.participant_type
-            new_participant_type = participant_type or original_participant_type
-            
-            # If changing from manual to another type, check for existing connections
-            if (original_participant_type == 'manual' and 
-                new_participant_type != 'manual'):
-                
-                # Get new values for related fields from the request data
-                new_participants = data.get('participants', [])
-                new_groups = data.get('groups', [])
-                new_group_tags = data.get('group_tags', [])
-                
-                # Check if there will be participants after update
-                if new_participants:
-                    raise serializers.ValidationError({
-                        'participant_type': 'Нельзя изменить тип участников с "manual" на другой тип, '
-                                          'пока не удалены все связи с участниками'
-                    })
-                
-                # Check if there will be groups after update
-                if new_groups:
-                    raise serializers.ValidationError({
-                        'participant_type': 'Нельзя изменить тип участников с "manual" на другой тип, '
-                                          'пока не удалены все связи с группами'
-                    })
-                
-                # Check if there will be group tags after update
-                if new_group_tags:
-                    raise serializers.ValidationError({
-                        'participant_type': 'Нельзя изменить тип участников с "manual" на другой тип, '
-                                          'пока не удалены все связи с тегами групп'
-                    })
-            
-            # Проверяем изменение типа участников у мероприятий, связанных с волнами
-            if original_participant_type != new_participant_type:
-                from .models import EventWave
-                # Проверяем, есть ли у этого мероприятия регистрация, связанная с волнами
-                event_registration = getattr(self.instance, 'registration', None)
-                if event_registration:
-                    event_waves_with_this_registration = EventWave.objects.filter(
-                        eventum=self.instance.eventum,
-                        registrations=event_registration
-                    )
-                    
-                    if event_waves_with_this_registration.exists():
-                        wave_names = list(event_waves_with_this_registration.values_list('name', flat=True))
-                        original_display = dict(Event.ParticipantType.choices).get(original_participant_type, original_participant_type)
-                        new_display = dict(Event.ParticipantType.choices).get(new_participant_type, new_participant_type)
-                        raise serializers.ValidationError({
-                            'participant_type': f"Нельзя изменить тип участников мероприятия '{self.instance.name}' "
-                                              f"с '{original_display}' на '{new_display}', "
-                                              f"так как оно связано с волной мероприятий: {', '.join(wave_names)}. "
-                                              f"Мероприятия в волне должны иметь тип участников 'По записи'"
-                        })
         
         return data
 

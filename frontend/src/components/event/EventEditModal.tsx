@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useEventumSlug } from "../../hooks/useEventumSlug";
-import type { Event as EventModel, EventTag, Location, Participant, ParticipantType, ValidationError, ParticipantGroupV2 } from "../../types";
+import type { Event as EventModel, EventTag, Location, Participant, ValidationError, ParticipantGroupV2 } from "../../types";
 import ParticipantGroupV2Editor from "../participantGroupV2/ParticipantGroupV2Editor";
 import { groupsV2Api } from "../../api/eventumApi";
 import { MultiLocationSelector } from "../location/MultiLocationSelector";
@@ -258,7 +258,6 @@ interface EventEditModalProps {
     description: string;
     start_time: string;
     end_time: string;
-    participant_type: ParticipantType;
     max_participants?: number;
     image_url?: string;
     participants?: number[];
@@ -268,6 +267,7 @@ interface EventEditModalProps {
     group_tags?: number[];
     group_tag_ids?: number[];
     location_ids?: number[];
+    event_group_v2_id?: number | null;
   }) => Promise<void>;
   event?: EventModel | null;
   eventTags: EventTag[];
@@ -293,7 +293,6 @@ const EventEditModal = ({
     description: "",
     start_time: "",
     end_time: "",
-    participant_type: 'all' as ParticipantType,
     max_participants: undefined as number | undefined,
     image_url: "",
     participants: [] as number[],
@@ -308,7 +307,6 @@ const EventEditModal = ({
   const [validationErrors, setValidationErrors] = useState<ValidationError>({});
   const [hasUserEditedEndTime, setHasUserEditedEndTime] = useState(false);
   const [eventGroupV2, setEventGroupV2] = useState<ParticipantGroupV2 | null>(null);
-  const [selectedEventGroupV2Id, setSelectedEventGroupV2Id] = useState<number | null>(null);
   const [eventGroupDraft, setEventGroupDraft] = useState<{
     name: string;
     participant_relations: { participant_id: number; relation_type: any }[];
@@ -351,7 +349,6 @@ const EventEditModal = ({
           description: event.description,
           start_time: formatDateTimeForInput(event.start_time),
           end_time: formatDateTimeForInput(event.end_time),
-          participant_type: event.participant_type || 'all',
           max_participants: event.max_participants,
           image_url: event.image_url || "",
           participants: participantIds,
@@ -365,7 +362,6 @@ const EventEditModal = ({
           const evAny: any = event as any;
           if (evAny.event_group_v2 && evAny.event_group_v2.id) {
             const gid = evAny.event_group_v2.id as number;
-            setSelectedEventGroupV2Id(gid);
             // Загружаем полную группу (c relations) из списка
             (async () => {
               try {
@@ -374,20 +370,41 @@ const EventEditModal = ({
                   const groups = (resp as any).data ?? resp;
                   const found = (groups as any[]).find(g => g.id === gid) || null;
                   setEventGroupV2(found);
+                  // Инициализируем eventGroupDraft из загруженной группы, чтобы сохранить существующие связи
+                  // Важно: проверяем, что relations действительно есть в ответе (могут быть массивы или undefined)
+                  if (found) {
+                    const participantRelations = Array.isArray(found.participant_relations) 
+                      ? found.participant_relations 
+                      : (found.participant_relations || []);
+                    const groupRelations = Array.isArray(found.group_relations) 
+                      ? found.group_relations 
+                      : (found.group_relations || []);
+                    
+                    setEventGroupDraft({
+                      name: found.name || '',
+                      participant_relations: participantRelations,
+                      group_relations: groupRelations
+                    });
+                  } else {
+                    setEventGroupDraft(null);
+                  }
                 } else {
                   setEventGroupV2(null);
+                  setEventGroupDraft(null);
                 }
-              } catch {
+              } catch (error) {
+                console.error('Ошибка загрузки группы V2:', error);
                 setEventGroupV2(null);
+                setEventGroupDraft(null);
               }
             })();
           } else {
             setEventGroupV2(null);
-            setSelectedEventGroupV2Id(null);
+            setEventGroupDraft(null);
           }
         } catch {
           setEventGroupV2(null);
-          setSelectedEventGroupV2Id(null);
+          setEventGroupDraft(null);
         }
       } else {
         // Попытаться подставить дату и время последнего созданного мероприятия из localStorage
@@ -419,7 +436,6 @@ const EventEditModal = ({
           description: "",
           start_time: start,
           end_time: end,
-          participant_type: 'all',
           max_participants: undefined,
           image_url: "",
           participants: [],
@@ -429,7 +445,7 @@ const EventEditModal = ({
           location_ids: []
         });
         setEventGroupV2(null);
-        setSelectedEventGroupV2Id(null);
+        setEventGroupDraft(null);
       }
       setTagSearchQuery("");
       setShowTagSuggestions(false);
@@ -527,21 +543,6 @@ const EventEditModal = ({
 
   // Подсчет общего количества участников для ручного режима (не используется)
 
-  // Проверка валидации для изменения participant_type
-  const checkParticipantTypeValidation = useCallback((newParticipantType: ParticipantType) => {
-    // Если событие существует и пытаемся изменить с manual на другой тип
-    if (event && event.participant_type === 'manual' && newParticipantType !== 'manual') {
-      const hasBlockingConnections = 
-        eventForm.participants.length > 0 || 
-        eventForm.groups.length > 0 || 
-        eventForm.group_tags.length > 0;
-      
-      if (hasBlockingConnections) {
-        return "Нельзя изменить тип участников с 'manual' на другой тип, пока не удалены все связи с участниками, группами или тегами групп";
-      }
-    }
-    return null;
-  }, [event, eventForm.participants, eventForm.groups, eventForm.group_tags]);
 
   const handleSave = async () => {
     if (!eventForm.name.trim() || !eventForm.start_time || !eventForm.end_time) return;
@@ -551,55 +552,91 @@ const EventEditModal = ({
       return;
     }
     
-    // Удалено: валидация для типа registration
-    
-    // Проверка валидации participant_type
-    const participantTypeError = checkParticipantTypeValidation(eventForm.participant_type);
-    if (participantTypeError) {
-      setValidationErrors({ participant_type: participantTypeError });
-      return;
-    }
-    
     // Очищаем ошибки валидации
     setValidationErrors({});
     
     setIsSaving(true);
     try {
       // Обеспечиваем сохранение/обновление группы V2 перед сохранением мероприятия
-      let ensuredEventGroupId: number | null = selectedEventGroupV2Id;
-      if (eventForm.participant_type !== 'all') {
-        const draft = eventGroupDraft;
+      // Если есть eventGroupV2 или eventGroupDraft, значит нужно создать/обновить группу
+      let ensuredEventGroupId: number | null = null;
+      const hasGroupV2 = eventGroupV2?.id || eventGroupDraft;
+      
+      if (hasGroupV2) {
+        // Используем draft, если он есть, иначе используем текущее состояние eventGroupV2
+        // Важно: всегда передаем relations (даже если пустые массивы), чтобы бэкенд их обновил
+        const draft = eventGroupDraft || (eventGroupV2 ? {
+          name: eventGroupV2.name || '',
+          participant_relations: eventGroupV2.participant_relations || [],
+          group_relations: eventGroupV2.group_relations || []
+        } : {
+          name: '',
+          participant_relations: [],
+          group_relations: []
+        });
+        
         const effectiveName = ((event as any) ? `Участники \"${(event as any).name}\"` : (eventForm.name ? `Участники \"${eventForm.name}\"` : '')).trim();
         if (effectiveName) {
-          // Есть существующая группа — обновляем её, иначе создаём новую (если есть черновик или нужно пустую по умолчанию)
+          // Есть существующая группа — обновляем её, иначе создаём новую
           if (eventGroupV2?.id) {
-            const payload: any = { name: effectiveName };
-            if (draft) {
-              payload.participant_relations = draft.participant_relations;
-              payload.group_relations = draft.group_relations;
-            }
+            // ВАЖНО: всегда передаем relations при обновлении, чтобы бэкенд их сохранил
+            const payload: any = { 
+              name: effectiveName,
+              is_event_group: true,
+              participant_relations: draft.participant_relations || [],
+              group_relations: draft.group_relations || []
+            };
             try {
-              const updatedResp = await groupsV2Api.update(eventGroupV2.id, { ...payload, is_event_group: true }, eventumSlug || undefined);
+              const updatedResp = await groupsV2Api.update(eventGroupV2.id, payload, eventumSlug || undefined);
               const updated = (updatedResp as any).data ?? updatedResp;
               ensuredEventGroupId = (updated as any).id;
-              setEventGroupV2(updated as any);
+              // Перезагружаем группу с relations после обновления
+              try {
+                const reloadResp = await groupsV2Api.getAll(eventumSlug || '', { includeEventGroups: true });
+                const reloadGroups = (reloadResp as any).data ?? reloadResp;
+                const reloaded = (reloadGroups as any[]).find((g: any) => g.id === ensuredEventGroupId) || updated;
+                setEventGroupV2(reloaded);
+                setEventGroupDraft({
+                  name: reloaded.name || '',
+                  participant_relations: reloaded.participant_relations || [],
+                  group_relations: reloaded.group_relations || []
+                });
+              } catch {
+                setEventGroupV2(updated);
+              }
             } catch (e) {
               console.error('Ошибка обновления группы V2:', e);
+              throw e; // Пробрасываем ошибку, чтобы не продолжать сохранение
             }
           } else {
-            const createPayload: any = { name: effectiveName, is_event_group: true };
-            if (draft) {
-              createPayload.participant_relations = draft.participant_relations;
-              createPayload.group_relations = draft.group_relations;
-            }
+            // Создаем новую группу
+            const createPayload: any = { 
+              name: effectiveName, 
+              is_event_group: true,
+              participant_relations: draft.participant_relations || [],
+              group_relations: draft.group_relations || []
+            };
             try {
               const createdResp = await groupsV2Api.create(createPayload, eventumSlug || undefined);
               const created = (createdResp as any).data ?? createdResp;
               ensuredEventGroupId = (created as any).id;
-              setEventGroupV2(created as any);
-              setSelectedEventGroupV2Id(ensuredEventGroupId);
+              // Перезагружаем группу с relations после создания
+              try {
+                const reloadResp = await groupsV2Api.getAll(eventumSlug || '', { includeEventGroups: true });
+                const reloadGroups = (reloadResp as any).data ?? reloadResp;
+                const reloaded = (reloadGroups as any[]).find((g: any) => g.id === ensuredEventGroupId) || created;
+                setEventGroupV2(reloaded);
+                setEventGroupDraft({
+                  name: reloaded.name || '',
+                  participant_relations: reloaded.participant_relations || [],
+                  group_relations: reloaded.group_relations || []
+                });
+              } catch {
+                setEventGroupV2(created);
+              }
             } catch (e) {
               console.error('Ошибка создания группы V2:', e);
+              throw e; // Пробрасываем ошибку, чтобы не продолжать сохранение
             }
           }
         }
@@ -611,7 +648,6 @@ const EventEditModal = ({
         description: eventForm.description,
         start_time: eventForm.start_time,
         end_time: eventForm.end_time,
-        participant_type: eventForm.participant_type,
         max_participants: eventForm.max_participants,
         image_url: eventForm.image_url || undefined,
         participants: eventForm.participants,
@@ -619,8 +655,9 @@ const EventEditModal = ({
         location_ids: eventForm.location_ids,
         tag_ids: eventForm.tags,
         group_tag_ids: eventForm.group_tags,
-          // Если выбрана/создана группа V2 — передаем её ID для привязки после сохранения события
-          event_group_v2_id: ensuredEventGroupId || undefined
+        // Если выбрана/создана группа V2 — передаем её ID для привязки
+        // Если нет группы V2, передаем null для очистки связи (мероприятие для всех)
+        event_group_v2_id: ensuredEventGroupId || null
       };
       await onSave(eventData);
 
@@ -666,23 +703,6 @@ const EventEditModal = ({
           delete serverErrors.tag_ids;
         }
         
-        // Специальная обработка ошибок валидации типа участников
-        if (serverErrors.participant_type) {
-          const participantTypeError = Array.isArray(serverErrors.participant_type)
-            ? serverErrors.participant_type.join(' ')
-            : serverErrors.participant_type;
-          
-          // Также добавляем ошибку в общие ошибки, чтобы пользователь её увидел
-          serverErrors.non_field_errors = serverErrors.non_field_errors || [];
-          if (Array.isArray(serverErrors.non_field_errors)) {
-            serverErrors.non_field_errors.push(participantTypeError);
-          } else {
-            serverErrors.non_field_errors = [serverErrors.non_field_errors, participantTypeError];
-          }
-          
-          // Убираем ошибку из поля participant_type, чтобы не показывать её в интерфейсе поля
-          delete serverErrors.participant_type;
-        }
         
         setValidationErrors(serverErrors);
       } else {

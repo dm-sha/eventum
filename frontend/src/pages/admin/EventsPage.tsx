@@ -173,7 +173,6 @@ const AdminEventsPage = () => {
     description: string;
     start_time: string;
     end_time: string;
-    participant_type: 'all' | 'registration' | 'manual';
     max_participants?: number;
     image_url?: string;
     participants?: number[];
@@ -183,7 +182,7 @@ const AdminEventsPage = () => {
     group_tags?: number[];
     group_tag_ids?: number[];
     location_ids?: number[];
-    // Новое: опциональная привязка к группе V2 (если указано — создадим связь после сохранения события)
+    // Привязка к группе V2: если указано — мероприятие для конкретных участников, если null — для всех
     event_group_v2_id?: number | null;
   }) => {
     if (!eventumSlug) return;
