@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import type { 
   ParticipantGroupV2, 
   Participant, 
@@ -64,6 +64,35 @@ const ParticipantGroupV2Editor: React.FC<ParticipantGroupV2EditorProps> = ({
   const [groupFocused, setGroupFocused] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
 
+  // Загружаем участников только один раз при монтировании или при изменении eventumSlug
+  useEffect(() => {
+    const loadParticipants = async () => {
+      try {
+        const data = await getParticipantsForEventum(eventumSlug);
+        setAllParticipants(data);
+      } catch (error) {
+        console.error('Ошибка загрузки участников:', error);
+      }
+    };
+    loadParticipants();
+  }, [eventumSlug]); // Загружаем только при изменении eventumSlug, не при каждом изменении group
+
+  // Отдельный эффект для инициализации состояния группы
+  // Используем useMemo для нормализации relations и сравнения только при реальных изменениях
+  const normalizedGroupKey = useMemo(() => {
+    if (!group) return null;
+    // Создаем ключ для сравнения на основе ID группы и relations
+    const participantKeys = (group.participant_relations || [])
+      .map(r => `${r.participant_id || r.participant?.id || 0}-${r.relation_type}`)
+      .sort()
+      .join(',');
+    const groupKeys = (group.group_relations || [])
+      .map(r => `${r.target_group_id || r.target_group?.id || 0}-${r.relation_type}`)
+      .sort()
+      .join(',');
+    return `${group.id}-${participantKeys}-${groupKeys}-${nameOverride || ''}`;
+  }, [group?.id, group?.participant_relations, group?.group_relations, nameOverride]);
+
   useEffect(() => {
     // Флаг для предотвращения вызова onChange при первой инициализации
     setIsInitializing(true);
@@ -101,18 +130,7 @@ const ParticipantGroupV2Editor: React.FC<ParticipantGroupV2EditorProps> = ({
         setIsInitializing(false);
       }, 50);
     }
-
-    // Загружаем всех участников
-    const loadParticipants = async () => {
-      try {
-        const data = await getParticipantsForEventum(eventumSlug);
-        setAllParticipants(data);
-      } catch (error) {
-        console.error('Ошибка загрузки участников:', error);
-      }
-    };
-    loadParticipants();
-  }, [group, eventumSlug, nameOverride]);
+  }, [normalizedGroupKey]); // Используем нормализованный ключ для сравнения
 
   const participantSuggestions = (() => {
     const notAlreadyAdded = allParticipants.filter((p) => !participantRelations.some((rel) => rel.participant_id === p.id));
