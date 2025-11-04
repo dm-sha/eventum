@@ -329,9 +329,10 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
   };
 
   const getEventsForWave = (wave: EventWave) => {
-    return localEvents.filter(event => 
-      event.tags.some(tag => tag.id === wave.tag.id)
-    );
+    // Events are already included in the wave from the backend
+    // Map them using IDs from localEvents to get the latest data
+    const waveEventIds = new Set(wave.events.map(e => e.id));
+    return localEvents.filter(event => waveEventIds.has(event.id));
   };
 
   const getRegisteredEventsCountForWave = (wave: EventWave) => {
@@ -341,66 +342,15 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
   };
 
   // Проверяем доступность волны для текущего участника
-  const isWaveAccessible = (wave: EventWave) => {
+  // Note: Access control is now handled at the event level (via EventRegistration.allowed_group),
+  // so waves themselves are accessible if the user is a participant
+  const isWaveAccessible = (_wave: EventWave) => {
     if (!currentParticipant) {
       return { accessible: false, reason: 'Вы не являетесь участником этого события' };
     }
 
-    const participantGroupIds = currentParticipant.groups?.map(g => g.id) || [];
-    const participantGroupTagIds = currentParticipant.groups?.flatMap(g => g.tags?.map(t => t.id) || []) || [];
-
-    // Проверяем whitelist групп
-    if (wave.whitelist_groups.length > 0) {
-      const hasWhitelistedGroup = wave.whitelist_groups.some(group => 
-        participantGroupIds.includes(group.id)
-      );
-      if (!hasWhitelistedGroup) {
-        return { 
-          accessible: false, 
-          reason: `Доступна только для: ${wave.whitelist_groups.map(g => g.name).join(', ')}` 
-        };
-      }
-    }
-
-    // Проверяем whitelist тегов групп
-    if (wave.whitelist_group_tags.length > 0) {
-      const hasWhitelistedTag = wave.whitelist_group_tags.some(tag => 
-        participantGroupTagIds.includes(tag.id)
-      );
-      if (!hasWhitelistedTag) {
-        return { 
-          accessible: false, 
-          reason: `Доступна только для: ${wave.whitelist_group_tags.map(t => t.name).join(', ')}` 
-        };
-      }
-    }
-
-    // Проверяем blacklist групп
-    if (wave.blacklist_groups.length > 0) {
-      const hasBlacklistedGroup = wave.blacklist_groups.some(group => 
-        participantGroupIds.includes(group.id)
-      );
-      if (hasBlacklistedGroup) {
-        return { 
-          accessible: false, 
-          reason: `Недоступна для: ${wave.blacklist_groups.map(g => g.name).join(', ')}` 
-        };
-      }
-    }
-
-    // Проверяем blacklist тегов групп
-    if (wave.blacklist_group_tags.length > 0) {
-      const hasBlacklistedTag = wave.blacklist_group_tags.some(tag => 
-        participantGroupTagIds.includes(tag.id)
-      );
-      if (hasBlacklistedTag) {
-        return { 
-          accessible: false, 
-          reason: `Недоступна для: ${wave.blacklist_group_tags.map(t => t.name).join(', ')}` 
-        };
-      }
-    }
-
+    // Wave is accessible if user is a participant
+    // Individual events may have their own access restrictions via allowed_group
     return { accessible: true, reason: '' };
   };
 

@@ -520,7 +520,7 @@ const CreateWaveForm: React.FC<{
   );
 };
 
-const EventRegistration: React.FC = () => {
+const EventRegistrationPage: React.FC = () => {
   const eventumSlug = useEventumSlug();
   const [activeTab, setActiveTab] = useState<'registrations' | 'waves'>('registrations');
   const [eventum, setEventum] = useState<Eventum | null>(null);
@@ -819,4 +819,4 @@ const EventRegistration: React.FC = () => {
   );
 };
 
-export default EventRegistration;
+export default EventRegistrationPage;

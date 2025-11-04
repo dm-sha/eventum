@@ -1,6 +1,8 @@
 import apiClient from './client';
 import { shouldUseSubdomainApi, shouldUseContainerApi } from '../utils/eventumSlug';
 
+import type { Event } from '../types';
+
 export interface EventWaveEventInfo {
   id: number;
   name: string;
@@ -19,7 +21,7 @@ export interface EventWave {
   name: string;
   eventum: number;
   registrations: any[]; // EventRegistration[]
-  events: EventWaveEventInfo[];
+  events: Event[]; // Full Event objects from the serializer
 }
 
 export interface CreateEventWaveDto {
