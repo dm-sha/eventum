@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useEventumSlug } from "../../hooks/useEventumSlug";
 import type { Event as EventModel, EventTag, Location, Participant, ValidationError, ParticipantGroupV2 } from "../../types";
 import ParticipantGroupV2Editor from "../participantGroupV2/ParticipantGroupV2Editor";
@@ -232,63 +232,17 @@ const ParticipantsTab = ({
   availableGroupsV2: ParticipantGroupV2[];
   isLoadingGroupV2: boolean;
 }) => {
-  // Показываем загрузку, если идет загрузка ИЛИ группа еще не установлена (но ожидается)
-  const showLoading = isLoadingGroupV2 || (eventForm.name && !localGroupState);
+  // Показываем загрузку ТОЛЬКО когда реально идет загрузка
+  const showLoading = isLoadingGroupV2;
   
-  // Обработчик изменений от редактора - преобразует данные в формат ParticipantGroupV2
-  // Используем useCallback для стабилизации ссылки и предотвращения бесконечных циклов
-  const handleEditorChange = useCallback((data: {
+  // Простой обработчик изменений - просто обновляем состояние
+  const handleEditorChange = (data: {
     name: string;
     participant_relations: { participant_id: number; relation_type: any }[];
     group_relations: { target_group_id: number; relation_type: any }[];
   }) => {
-    // Нормализуем relations для сравнения
-    const normalizeRelations = (relations: any[], type: 'participant' | 'group') => {
-      return relations
-        .map((rel: any) => ({
-          type,
-          id: type === 'participant' ? rel.participant_id : rel.target_group_id,
-          relation: rel.relation_type
-        }))
-        .filter((r: any) => r.id > 0)
-        .sort((a, b) => {
-          const keyA = `${a.type}-${a.id}`;
-          const keyB = `${b.type}-${b.id}`;
-          return keyA.localeCompare(keyB);
-        });
-    };
-    
-    // Проверяем, изменились ли данные
-    const newParticipantRelations = normalizeRelations(data.participant_relations, 'participant');
-    const newGroupRelations = normalizeRelations(data.group_relations, 'group');
-    
     if (localGroupState) {
-      const currentParticipantRelations = normalizeRelations(
-        localGroupState.participant_relations.map(r => ({
-          participant_id: r.participant_id || r.participant?.id || 0,
-          relation_type: r.relation_type
-        })),
-        'participant'
-      );
-      const currentGroupRelations = normalizeRelations(
-        localGroupState.group_relations.map(r => ({
-          target_group_id: r.target_group_id || r.target_group?.id || 0,
-          relation_type: r.relation_type
-        })),
-        'group'
-      );
-      
-      // Проверяем, действительно ли что-то изменилось
-      const relationsChanged = 
-        JSON.stringify(newParticipantRelations) !== JSON.stringify(currentParticipantRelations) ||
-        JSON.stringify(newGroupRelations) !== JSON.stringify(currentGroupRelations) ||
-        data.name !== localGroupState.name;
-      
-      if (!relationsChanged) {
-        // Данные не изменились, не обновляем состояние
-        return;
-      }
-      
+      // Обновляем существующую группу
       const updatedGroup: ParticipantGroupV2 = {
         ...localGroupState,
         name: data.name,
@@ -307,29 +261,27 @@ const ParticipantsTab = ({
       };
       onLocalGroupStateChange(updatedGroup);
     } else {
-      // Если группы еще нет, создаем временную структуру только если есть relations
-      if (data.participant_relations.length > 0 || data.group_relations.length > 0) {
-        const newGroup: ParticipantGroupV2 = {
-          id: 0, // Временный ID, будет заменен при создании
-          name: data.name,
-          is_event_group: true,
-          participant_relations: data.participant_relations.map(rel => ({
-            id: 0,
-            relation_type: rel.relation_type,
-            group_id: 0,
-            participant_id: rel.participant_id,
-          })),
-          group_relations: data.group_relations.map(rel => ({
-            id: 0,
-            relation_type: rel.relation_type,
-            group_id: 0,
-            target_group_id: rel.target_group_id,
-          })),
-        };
-        onLocalGroupStateChange(newGroup);
-      }
+      // Создаем новую группу (даже если нет relations - это нормально)
+      const newGroup: ParticipantGroupV2 = {
+        id: 0,
+        name: data.name,
+        is_event_group: true,
+        participant_relations: data.participant_relations.map(rel => ({
+          id: 0,
+          relation_type: rel.relation_type,
+          group_id: 0,
+          participant_id: rel.participant_id,
+        })),
+        group_relations: data.group_relations.map(rel => ({
+          id: 0,
+          relation_type: rel.relation_type,
+          group_id: 0,
+          target_group_id: rel.target_group_id,
+        })),
+      };
+      onLocalGroupStateChange(newGroup);
     }
-  }, [localGroupState, onLocalGroupStateChange]);
+  };
   
   return (
     <div className="space-y-4">
@@ -451,77 +403,56 @@ const EventEditModal = ({
 
   // Инициализация формы при открытии
   useEffect(() => {
-    if (isOpen) {
-      // Сбрасываем состояние при открытии
-      setIsLoadingGroupV2(false);
-      setLocalGroupState(null);
-      setServerGroupState(null);
+    if (!isOpen) return;
+    
+    // Сбрасываем состояние
+    setIsLoadingGroupV2(false);
+    setLocalGroupState(null);
+    setServerGroupState(null);
+    
+    if (event) {
+      // Извлекаем ID из объектов
+      const tagIds = event.tags.map(tag => tag.id);
+      const groupTagIds = event.group_tags?.map(tag => tag.id) || [];
+      const participantIds = (event.participants ?? []).map((p: any) => typeof p === 'number' ? p : p.id);
+      const groupIds = (event.groups ?? []).map((g: any) => typeof g === 'number' ? g : g.id);
+      const locationIds = event.locations?.map(loc => loc.id) || event.location_ids || [];
       
-      if (event) {
-        // Извлекаем ID из объектов тегов, участников, групп и локаций
-        const tagIds = event.tags.map(tag => tag.id);
-        const groupTagIds = event.group_tags?.map(tag => tag.id) || [];
-        const participantIds = (event.participants ?? []).map((p: any) => typeof p === 'number' ? p : p.id);
-        const groupIds = (event.groups ?? []).map((g: any) => typeof g === 'number' ? g : g.id);
-        const locationIds = event.locations?.map(loc => loc.id) || event.location_ids || [];
-        setEventForm({
-          name: event.name,
-          description: event.description,
-          start_time: formatDateTimeForInput(event.start_time),
-          end_time: formatDateTimeForInput(event.end_time),
-          max_participants: event.max_participants,
-          image_url: event.image_url || "",
-          participants: participantIds,
-          groups: groupIds,
-          tags: tagIds,
-          group_tags: groupTagIds,
-          location_ids: locationIds
-        });
-        // Загружаем связанную V2 группу, если она есть в событии
-        try {
-          const evAny: any = event as any;
-          if (evAny.event_group_v2 && evAny.event_group_v2.id) {
-            const gid = evAny.event_group_v2.id as number;
-            setIsLoadingGroupV2(true);
-            // Загружаем полную группу (c relations) из списка
-            (async () => {
-              try {
-                if (eventumSlug) {
-                  const resp = await groupsV2Api.getAll(eventumSlug, { includeEventGroups: true });
-                  const groups = (resp as any).data ?? resp;
-                  const found = (groups as any[]).find(g => g.id === gid) || null;
-                  
-                  if (found) {
-                    // Устанавливаем и серверное, и локальное состояние одинаково при загрузке
-                    setServerGroupState(found);
-                    setLocalGroupState(found);
-                  } else {
-                    setServerGroupState(null);
-                    setLocalGroupState(null);
-                  }
-                } else {
-                  setServerGroupState(null);
-                  setLocalGroupState(null);
-                }
-              } catch (error) {
-                console.error('Ошибка загрузки группы V2:', error);
-                setServerGroupState(null);
-                setLocalGroupState(null);
-              } finally {
-                setIsLoadingGroupV2(false);
-              }
-            })();
-          } else {
-            setServerGroupState(null);
-            setLocalGroupState(null);
+      setEventForm({
+        name: event.name,
+        description: event.description,
+        start_time: formatDateTimeForInput(event.start_time),
+        end_time: formatDateTimeForInput(event.end_time),
+        max_participants: event.max_participants,
+        image_url: event.image_url || "",
+        participants: participantIds,
+        groups: groupIds,
+        tags: tagIds,
+        group_tags: groupTagIds,
+        location_ids: locationIds
+      });
+      
+      // Загружаем группу V2, если она есть
+      const evAny: any = event as any;
+      if (evAny.event_group_v2?.id && eventumSlug) {
+        setIsLoadingGroupV2(true);
+        groupsV2Api.getAll(eventumSlug, { includeEventGroups: true })
+          .then((resp: any) => {
+            const groups = resp.data ?? resp;
+            const found = groups.find((g: any) => g.id === evAny.event_group_v2.id);
+            if (found) {
+              setServerGroupState(found);
+              setLocalGroupState(found);
+            }
+          })
+          .catch((error) => {
+            console.error('Ошибка загрузки группы V2:', error);
+          })
+          .finally(() => {
             setIsLoadingGroupV2(false);
-          }
-        } catch {
-          setServerGroupState(null);
-          setLocalGroupState(null);
-          setIsLoadingGroupV2(false);
-        }
-      } else {
+          });
+      }
+    } else {
         // Попытаться подставить дату и время последнего созданного мероприятия из localStorage
         let start = getDefaultDateTime();
         let end = getDefaultEndDateTime();
@@ -562,27 +493,29 @@ const EventEditModal = ({
         setServerGroupState(null);
         setLocalGroupState(null);
         setIsLoadingGroupV2(false);
-      }
-      setTagSearchQuery("");
-      setShowTagSuggestions(false);
-      setValidationErrors({});
-      setHasUserEditedEndTime(false);
-      // Подгружаем все группы V2 для подсчета участников
-      (async () => {
-        try {
-          if (eventumSlug) {
-            const resp = await groupsV2Api.getAll(eventumSlug, { includeEventGroups: true });
-            const groups = (resp as any).data ?? resp;
-            setAllGroupsV2(groups as ParticipantGroupV2[]);
-          } else {
-            setAllGroupsV2([]);
-          }
-        } catch {
+    }
+    
+    // Общие действия для обоих случаев
+    setTagSearchQuery("");
+    setShowTagSuggestions(false);
+    setValidationErrors({});
+    setHasUserEditedEndTime(false);
+    
+    // Подгружаем все группы V2 для подсчета участников
+    (async () => {
+      try {
+        if (eventumSlug) {
+          const resp = await groupsV2Api.getAll(eventumSlug, { includeEventGroups: true });
+          const groups = (resp as any).data ?? resp;
+          setAllGroupsV2(groups as ParticipantGroupV2[]);
+        } else {
           setAllGroupsV2([]);
         }
-      })();
-    }
-  }, [isOpen, event]);
+      } catch {
+        setAllGroupsV2([]);
+      }
+    })();
+  }, [isOpen, event, eventumSlug]);
 
   const formatDateTimeForInput = (dateTime: string) => {
     if (!dateTime) return "";
@@ -872,54 +805,111 @@ const EventEditModal = ({
     eventForm.end_time &&
     new Date(eventForm.end_time) > new Date(eventForm.start_time);
 
-  // ===== Подсчет количества участников по черновику/группе V2 =====
-  const getGroupV2ById = useCallback((id: number) => allGroupsV2.find(g => g.id === id) || null, [allGroupsV2]);
+  // Функция для получения группы по ID (сначала из localGroupState, потом из allGroupsV2)
+  const getGroupV2ById = (id: number): ParticipantGroupV2 | null => {
+    // Если это локальная группа - используем её напрямую
+    if (localGroupState?.id === id) {
+      return localGroupState;
+    }
+    // Иначе ищем в allGroupsV2
+    return allGroupsV2.find(g => g.id === id) || null;
+  };
 
-  const collectParticipantsFromGroup = useCallback((groupId: number, visited: Set<number>): Set<number> => {
-    const result = new Set<number>();
-    const group = getGroupV2ById(groupId);
-    if (!group || visited.has(groupId)) return result;
+  // Рекурсивная функция для подсчета участников из группы
+  const collectParticipantsFromGroup = (groupId: number, visited: Set<number> = new Set()): Set<number> => {
+    if (visited.has(groupId)) return new Set();
     visited.add(groupId);
+    
+    const group = getGroupV2ById(groupId);
+    if (!group) return new Set();
 
-    const inclusivePR = group.participant_relations.filter(r => r.relation_type === 'inclusive');
-    const inclusiveGR = group.group_relations.filter(r => r.relation_type === 'inclusive');
-    const exclusivePR = group.participant_relations.filter(r => r.relation_type === 'exclusive');
-    const exclusiveGR = group.group_relations.filter(r => r.relation_type === 'exclusive');
+    const inclusivePR = group.participant_relations?.filter(r => r.relation_type === 'inclusive') || [];
+    const inclusiveGR = group.group_relations?.filter(r => r.relation_type === 'inclusive') || [];
+    const exclusivePR = group.participant_relations?.filter(r => r.relation_type === 'exclusive') || [];
+    const exclusiveGR = group.group_relations?.filter(r => r.relation_type === 'exclusive') || [];
 
-    let base = new Set<number>();
+    const result = new Set<number>();
+    
+    // Если нет включений - все участники, минус исключения
     if (inclusivePR.length === 0 && inclusiveGR.length === 0) {
-      // Все участники eventum как базовый набор
-      participants.forEach(p => base.add(p.id));
-      // Минус исключенные
-      exclusivePR.forEach(r => base.delete(r.participant_id));
+      participants.forEach(p => result.add(p.id));
+      exclusivePR.forEach(r => result.delete(r.participant_id || r.participant?.id || 0));
       exclusiveGR.forEach(r => {
-        const sub = collectParticipantsFromGroup(r.target_group_id, new Set(visited));
-        sub.forEach(pid => base.delete(pid));
+        const sub = collectParticipantsFromGroup(r.target_group_id || r.target_group?.id || 0, visited);
+        sub.forEach(pid => result.delete(pid));
       });
-      return base;
+      return result;
     }
 
-    // Иначе включения минус исключения
-    inclusivePR.forEach(r => base.add(r.participant_id));
+    // Иначе только включения, минус исключения
+    inclusivePR.forEach(r => {
+      const pid = r.participant_id || r.participant?.id || 0;
+      if (pid > 0) result.add(pid);
+    });
     inclusiveGR.forEach(r => {
-      const sub = collectParticipantsFromGroup(r.target_group_id, new Set(visited));
-      sub.forEach(pid => base.add(pid));
+      const sub = collectParticipantsFromGroup(r.target_group_id || r.target_group?.id || 0, visited);
+      sub.forEach(pid => result.add(pid));
     });
-    exclusivePR.forEach(r => base.delete(r.participant_id));
+    exclusivePR.forEach(r => {
+      const pid = r.participant_id || r.participant?.id || 0;
+      if (pid > 0) result.delete(pid);
+    });
     exclusiveGR.forEach(r => {
-      const sub = collectParticipantsFromGroup(r.target_group_id, new Set(visited));
-      sub.forEach(pid => base.delete(pid));
+      const sub = collectParticipantsFromGroup(r.target_group_id || r.target_group?.id || 0, visited);
+      sub.forEach(pid => result.delete(pid));
     });
-    return base;
-  }, [participants, getGroupV2ById]);
+    
+    return result;
+  };
 
-  // Подсчет участников на основе локального состояния группы
-  const participantsCount = useMemo(() => {
-    if (localGroupState?.id) {
-      return collectParticipantsFromGroup(localGroupState.id, new Set()).size;
+  // Подсчет участников: если есть локальная группа (даже с id: 0) - считаем по ней, иначе все участники
+  const participantsCount = (() => {
+    if (!localGroupState) {
+      return participants.length;
     }
-    return participants.length; // по умолчанию: все
-  }, [localGroupState, participants, collectParticipantsFromGroup]);
+    
+    // Если группа еще не создана (id: 0), считаем напрямую по localGroupState
+    if (localGroupState.id === 0) {
+      const inclusivePR = localGroupState.participant_relations?.filter(r => r.relation_type === 'inclusive') || [];
+      const inclusiveGR = localGroupState.group_relations?.filter(r => r.relation_type === 'inclusive') || [];
+      const exclusivePR = localGroupState.participant_relations?.filter(r => r.relation_type === 'exclusive') || [];
+      const exclusiveGR = localGroupState.group_relations?.filter(r => r.relation_type === 'exclusive') || [];
+      
+      const result = new Set<number>();
+      
+      if (inclusivePR.length === 0 && inclusiveGR.length === 0) {
+        participants.forEach(p => result.add(p.id));
+        exclusivePR.forEach(r => result.delete(r.participant_id || 0));
+        exclusiveGR.forEach(r => {
+          const sub = collectParticipantsFromGroup(r.target_group_id || 0);
+          sub.forEach(pid => result.delete(pid));
+        });
+        return result.size;
+      }
+      
+      inclusivePR.forEach(r => {
+        const pid = r.participant_id || 0;
+        if (pid > 0) result.add(pid);
+      });
+      inclusiveGR.forEach(r => {
+        const sub = collectParticipantsFromGroup(r.target_group_id || 0);
+        sub.forEach(pid => result.add(pid));
+      });
+      exclusivePR.forEach(r => {
+        const pid = r.participant_id || 0;
+        if (pid > 0) result.delete(pid);
+      });
+      exclusiveGR.forEach(r => {
+        const sub = collectParticipantsFromGroup(r.target_group_id || 0);
+        sub.forEach(pid => result.delete(pid));
+      });
+      
+      return result.size;
+    }
+    
+    // Для существующей группы используем обычный подсчет
+    return collectParticipantsFromGroup(localGroupState.id).size;
+  })();
 
 
 
