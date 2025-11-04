@@ -32,6 +32,7 @@ interface RegistrationCardProps {
   onStartEdit: () => void;
   onDelete: () => void;
   onSave: (data: {
+    event_id: number;
     registration_type: 'button' | 'application';
     max_participants?: number | null;
     allowed_group?: number | null;
@@ -154,6 +155,7 @@ const RegistrationCard: React.FC<RegistrationCardProps> = ({
               <button
                 onClick={() => {
                   onSave({
+                    event_id: registration.event.id,
                     registration_type: registrationType,
                     max_participants: maxParticipants ? parseInt(maxParticipants) : null,
                     allowed_group: allowedGroupId ? parseInt(allowedGroupId) : null
@@ -353,6 +355,173 @@ const GroupCombobox: React.FC<GroupComboboxProps> = ({
   );
 };
 
+// Компонент combobox для выбора регистрации
+interface RegistrationComboboxProps {
+  registrations: EventRegistration[];
+  value: number[];
+  onChange: (registrationIds: number[]) => void;
+  placeholder?: string;
+}
+
+const RegistrationCombobox: React.FC<RegistrationComboboxProps> = ({ 
+  registrations, 
+  value, 
+  onChange,
+  placeholder = "Введите название мероприятия для поиска..."
+}) => {
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [isOpen, setIsOpen] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState<number>(-1);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  const selectedRegistrations = registrations.filter(r => value.includes(r.id));
+  // Фильтруем регистрации: исключаем уже выбранные и фильтруем по поисковому запросу
+  const availableRegistrations = registrations.filter(reg => !value.includes(reg.id));
+  const filteredRegistrations = availableRegistrations.filter(reg =>
+    reg.event.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+        setSearchQuery('');
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const query = e.target.value;
+    setSearchQuery(query);
+    setIsOpen(true);
+    setHighlightedIndex(-1);
+  };
+
+  const handleSelectRegistration = (reg: EventRegistration) => {
+    // Просто добавляем регистрацию, она автоматически пропадет из списка
+    onChange([...value, reg.id]);
+    setSearchQuery('');
+    setIsOpen(false);
+  };
+
+  const handleRemoveRegistration = (registrationId: number) => {
+    onChange(value.filter(id => id !== registrationId));
+  };
+
+  const handleInputFocus = () => {
+    setIsOpen(true);
+    setSearchQuery('');
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!isOpen && (e.key === 'ArrowDown' || e.key === 'Enter')) {
+      setIsOpen(true);
+      return;
+    }
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHighlightedIndex(prev => 
+        prev < filteredRegistrations.length - 1 ? prev + 1 : prev
+      );
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightedIndex(prev => prev > -1 ? prev - 1 : -1);
+    } else if (e.key === 'Enter' && highlightedIndex >= 0) {
+      e.preventDefault();
+      handleSelectRegistration(filteredRegistrations[highlightedIndex]);
+    } else if (e.key === 'Escape') {
+      setIsOpen(false);
+      inputRef.current?.blur();
+    }
+  };
+
+  useEffect(() => {
+    if (highlightedIndex >= 0 && listRef.current) {
+      const highlightedElement = listRef.current.children[highlightedIndex] as HTMLElement;
+      if (highlightedElement) {
+        highlightedElement.scrollIntoView({ block: 'nearest' });
+      }
+    }
+  }, [highlightedIndex]);
+
+  return (
+    <div ref={containerRef}>
+      <div className="relative">
+        <input
+          ref={inputRef}
+          type="text"
+          value={isOpen ? searchQuery : ''}
+          onChange={handleInputChange}
+          onFocus={handleInputFocus}
+          onKeyDown={handleKeyDown}
+          placeholder={placeholder}
+          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+        />
+        {isOpen && (
+          <div className="absolute z-50 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg max-h-60 overflow-auto">
+            {filteredRegistrations.length === 0 ? (
+              <div className="px-3 py-2 text-sm text-gray-500">
+                {availableRegistrations.length === 0 
+                  ? 'Все регистрации уже добавлены' 
+                  : 'Регистрации не найдены'}
+              </div>
+            ) : (
+              <>
+                {filteredRegistrations.length < availableRegistrations.length && (
+                  <div className="px-3 py-2 text-xs text-gray-500 border-b border-gray-100">
+                    Найдено: {filteredRegistrations.length} из {availableRegistrations.length}
+                  </div>
+                )}
+                <div ref={listRef} className="py-1">
+                  {filteredRegistrations.map((reg, index) => (
+                    <button
+                      key={reg.id}
+                      type="button"
+                      onClick={() => handleSelectRegistration(reg)}
+                      className={`w-full text-left px-3 py-2 text-sm hover:bg-blue-50 focus:bg-blue-50 focus:outline-none ${
+                        index === highlightedIndex ? 'bg-blue-50' : 'text-gray-700'
+                      }`}
+                    >
+                      {reg.event.name}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+      {/* Список выбранных регистраций */}
+      {selectedRegistrations.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {selectedRegistrations.map((reg) => (
+            <div
+              key={reg.id}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 px-2.5 py-1.5 text-sm text-blue-700 border border-blue-200"
+            >
+              <span>{reg.event.name}</span>
+              <button
+                type="button"
+                onClick={() => handleRemoveRegistration(reg.id)}
+                className="ml-1 rounded-full p-0.5 hover:bg-blue-100 text-blue-600 hover:text-blue-800 transition-colors"
+                title="Удалить из волны"
+              >
+                <IconX size={14} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // Компонент combobox для выбора мероприятия
 interface EventComboboxProps {
   events: Event[];
@@ -509,7 +678,7 @@ const EventCombobox: React.FC<EventComboboxProps> = ({ events, value, onChange, 
 // Компонент формы создания регистрации
 const CreateRegistrationForm: React.FC<{
   onCreate: (data: {
-    event: number;
+    event_id: number;
     registration_type: 'button' | 'application';
     max_participants?: number | null;
     allowed_group?: number | null;
@@ -517,9 +686,10 @@ const CreateRegistrationForm: React.FC<{
   onCancel: () => void;
   events: Event[];
   groups: BasicItem[];
-}> = ({ onCreate, onCancel, events, groups }) => {
+  isLoading?: boolean;
+}> = ({ onCreate, onCancel, events, groups, isLoading = false }) => {
   const [eventId, setEventId] = useState<string>('');
-  const [registrationType, setRegistrationType] = useState<'button' | 'application'>('button');
+  const [registrationType, setRegistrationType] = useState<'button' | 'application'>('application');
   const [maxParticipants, setMaxParticipants] = useState<string>('');
   const [allowedGroupId, setAllowedGroupId] = useState<string>('');
 
@@ -529,13 +699,13 @@ const CreateRegistrationForm: React.FC<{
     e.preventDefault();
     if (!canSave) return;
     onCreate({
-      event: parseInt(eventId),
+      event_id: parseInt(eventId),
       registration_type: registrationType,
       max_participants: maxParticipants ? parseInt(maxParticipants) : null,
       allowed_group: allowedGroupId ? parseInt(allowedGroupId) : null
     });
     setEventId('');
-    setRegistrationType('button');
+    setRegistrationType('application');
     setMaxParticipants('');
     setAllowedGroupId('');
   };
@@ -593,15 +763,26 @@ const CreateRegistrationForm: React.FC<{
         <div className="flex flex-col gap-2 sm:flex-row">
           <button
             type="submit"
-            disabled={!canSave}
+            disabled={!canSave || isLoading}
             className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Создать
+            {isLoading ? (
+              <>
+                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Создание...
+              </>
+            ) : (
+              'Создать'
+            )}
           </button>
           <button
             type="button"
             onClick={onCancel}
-            className="inline-flex items-center justify-center rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2"
+            disabled={isLoading}
+            className="inline-flex items-center justify-center rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Отмена
           </button>
@@ -620,18 +801,80 @@ interface WaveCardProps {
   onSave: (data: { name: string; registration_ids?: number[] }) => void;
   onCancel: () => void;
   registrations: EventRegistration[];
+  events: Event[];
+  groups: BasicItem[];
+  eventumSlug: string;
+  onCreateRegistration: (data: {
+    event_id: number;
+    registration_type: 'button' | 'application';
+    max_participants?: number | null;
+    allowed_group?: number | null;
+  }) => void;
+  onUpdateRegistration: (id: number, data: {
+    event_id: number;
+    registration_type: 'button' | 'application';
+    max_participants?: number | null;
+    allowed_group?: number | null;
+  }) => void;
+  onDeleteRegistration: (id: number) => void;
 }
 
-const WaveCard: React.FC<WaveCardProps> = ({ wave, mode, onStartEdit, onDelete, onSave, onCancel, registrations }) => {
+const WaveCard: React.FC<WaveCardProps> = ({ 
+  wave, 
+  mode, 
+  onStartEdit, 
+  onDelete, 
+  onSave, 
+  onCancel, 
+  registrations,
+  events,
+  groups,
+  eventumSlug,
+  onUpdateRegistration,
+  onDeleteRegistration
+}) => {
   const [name, setName] = useState(wave.name);
   const [selectedRegistrationIds, setSelectedRegistrationIds] = useState<number[]>(
     wave.registrations?.map((r: any) => r.id) || []
   );
+  const [showCreateRegistration, setShowCreateRegistration] = useState(false);
+  const [editingRegistrationId, setEditingRegistrationId] = useState<number | null>(null);
+  const [localRegistrations, setLocalRegistrations] = useState<EventRegistration[]>(registrations);
+  const [isCreatingRegistration, setIsCreatingRegistration] = useState(false);
 
   useEffect(() => {
     setName(wave.name);
     setSelectedRegistrationIds(wave.registrations?.map((r: any) => r.id) || []);
   }, [wave]);
+
+  useEffect(() => {
+    setLocalRegistrations(registrations);
+  }, [registrations]);
+
+  const allRegistrations = localRegistrations;
+  const waveRegistrations = allRegistrations.filter(r => selectedRegistrationIds.includes(r.id));
+
+  const handleCreateRegistrationInWave = async (data: {
+    event_id: number;
+    registration_type: 'button' | 'application';
+    max_participants?: number | null;
+    allowed_group?: number | null;
+  }) => {
+    setIsCreatingRegistration(true);
+    try {
+      const newRegistration = await createEventRegistration(eventumSlug, data);
+      // Добавляем новую регистрацию в локальный список
+      setLocalRegistrations([...localRegistrations, newRegistration]);
+      // Автоматически добавляем её в выбранные регистрации волны
+      setSelectedRegistrationIds([...selectedRegistrationIds, newRegistration.id]);
+      // Закрываем форму
+      setShowCreateRegistration(false);
+    } catch (error) {
+      console.error('Error creating registration:', error);
+    } finally {
+      setIsCreatingRegistration(false);
+    }
+  };
 
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
@@ -657,28 +900,36 @@ const WaveCard: React.FC<WaveCardProps> = ({ wave, mode, onStartEdit, onDelete, 
               </button>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Регистрации в волне
-              </label>
-              <div className="space-y-2 max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-2">
-                {registrations.map((reg) => (
-                  <label key={reg.id} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-2 rounded">
-                    <input
-                      type="checkbox"
-                      checked={selectedRegistrationIds.includes(reg.id)}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setSelectedRegistrationIds([...selectedRegistrationIds, reg.id]);
-                        } else {
-                          setSelectedRegistrationIds(selectedRegistrationIds.filter(id => id !== reg.id));
-                        }
-                      }}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    <span className="text-sm text-gray-700">{reg.event.name}</span>
-                  </label>
-                ))}
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-medium text-gray-700">
+                  Регистрации в волне
+                </label>
+                <button
+                  onClick={() => setShowCreateRegistration(true)}
+                  className="flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                >
+                  <IconPlus size={14} />
+                  Создать регистрацию
+                </button>
               </div>
+              <RegistrationCombobox
+                registrations={allRegistrations}
+                value={selectedRegistrationIds}
+                onChange={setSelectedRegistrationIds}
+                placeholder="Выберите регистрации..."
+              />
+              {/* Форма создания регистрации */}
+              {showCreateRegistration && (
+                <div className="mt-3">
+                  <CreateRegistrationForm
+                    onCreate={handleCreateRegistrationInWave}
+                    onCancel={() => setShowCreateRegistration(false)}
+                    events={events.filter(e => !allRegistrations.some(r => r.event.id === e.id))}
+                    groups={groups}
+                    isLoading={isCreatingRegistration}
+                  />
+                </div>
+              )}
             </div>
           </div>
         ) : (
@@ -686,7 +937,7 @@ const WaveCard: React.FC<WaveCardProps> = ({ wave, mode, onStartEdit, onDelete, 
             <div className="space-y-1">
               <h4 className="text-base font-semibold text-gray-900">{wave.name}</h4>
               <p className="text-sm text-gray-500">
-                Регистраций: {wave.registrations?.length || 0} | Мероприятий: {wave.events?.length || 0}
+                Мероприятий: {wave.events?.length || 0}
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -701,27 +952,40 @@ const WaveCard: React.FC<WaveCardProps> = ({ wave, mode, onStartEdit, onDelete, 
           </div>
         )}
 
-        {/* Мероприятия в волне */}
-        {mode !== 'edit' && wave.events && wave.events.length > 0 && (
-        <div className="border-t pt-3">
-          <h5 className="text-sm font-medium text-gray-700 mb-2">
-            Мероприятия ({wave.events.length})
-          </h5>
-            <div className="space-y-1">
-              {wave.events.map((ev) => (
-                <div
-                  key={ev.id}
-                  className="flex flex-col gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600"
-                >
-                    <span className="font-medium text-gray-800">{ev.name}</span>
-                  <div className="text-xs text-gray-500">
-                    <div>Места: {ev.max_participants ? `максимум ${ev.max_participants}` : 'без лимита'}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            </div>
-          )}
+        {/* Регистрации в волне (в режиме просмотра) */}
+        {mode !== 'edit' && (
+          <div className="border-t pt-3">
+            {/* Список регистраций */}
+            {waveRegistrations.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-3 py-6 text-center text-sm text-gray-500">
+                Регистрации не добавлены
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {waveRegistrations.map((reg) => (
+                  <RegistrationCard
+                    key={reg.id}
+                    registration={reg}
+                    mode={editingRegistrationId === reg.id ? 'edit' : 'view'}
+                    onStartEdit={() => setEditingRegistrationId(reg.id)}
+                    onDelete={() => {
+                      if (confirm('Вы уверены, что хотите удалить эту регистрацию?')) {
+                        onDeleteRegistration(reg.id);
+                        setEditingRegistrationId(null);
+                      }
+                    }}
+                    onSave={(data) => {
+                      onUpdateRegistration(reg.id, data);
+                      setEditingRegistrationId(null);
+                    }}
+                    onCancel={() => setEditingRegistrationId(null)}
+                    groups={groups}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Кнопки сохранения/отмены в режиме редактирования */}
         {mode === 'edit' && (
@@ -791,25 +1055,12 @@ const CreateWaveForm: React.FC<{
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Регистрации в волне
           </label>
-          <div className="space-y-2 max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-2">
-            {registrations.map((reg) => (
-              <label key={reg.id} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-2 rounded">
-                <input
-                  type="checkbox"
-                  checked={selectedRegistrationIds.includes(reg.id)}
-                  onChange={(e) => {
-                    if (e.target.checked) {
-                      setSelectedRegistrationIds([...selectedRegistrationIds, reg.id]);
-                    } else {
-                      setSelectedRegistrationIds(selectedRegistrationIds.filter(id => id !== reg.id));
-                    }
-                  }}
-                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                />
-                <span className="text-sm text-gray-700">{reg.event.name}</span>
-              </label>
-            ))}
-          </div>
+          <RegistrationCombobox
+            registrations={registrations}
+            value={selectedRegistrationIds}
+            onChange={setSelectedRegistrationIds}
+            placeholder="Выберите регистрации..."
+          />
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
           <button
@@ -884,7 +1135,7 @@ const EventRegistrationPage: React.FC = () => {
   );
 
   const handleCreateRegistration = async (data: {
-    event: number;
+    event_id: number;
     registration_type: 'button' | 'application';
     max_participants?: number | null;
     allowed_group?: number | null;
@@ -896,6 +1147,7 @@ const EventRegistrationPage: React.FC = () => {
   };
 
   const handleUpdateRegistration = async (id: number, data: {
+    event_id: number;
     registration_type: 'button' | 'application';
     max_participants?: number | null;
     allowed_group?: number | null;
@@ -1120,6 +1372,12 @@ const EventRegistrationPage: React.FC = () => {
                     onSave={(data) => handleUpdateWave(w.id, data)}
                     onCancel={() => setEditingWaveId(null)}
                     registrations={registrations}
+                    events={events}
+                    groups={groups}
+                    eventumSlug={eventumSlug}
+                    onCreateRegistration={handleCreateRegistration}
+                    onUpdateRegistration={handleUpdateRegistration}
+                    onDeleteRegistration={handleDeleteRegistration}
                   />
                 ))
               )}

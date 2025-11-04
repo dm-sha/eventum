@@ -19,13 +19,14 @@ export interface EventRegistration {
 }
 
 export interface CreateEventRegistrationDto {
-  event: number;
+  event_id: number;
   registration_type: 'button' | 'application';
   max_participants?: number | null;
   allowed_group?: number | null;
 }
 
 export interface UpdateEventRegistrationDto {
+  event_id?: number;
   registration_type?: 'button' | 'application';
   max_participants?: number | null;
   allowed_group?: number | null;
