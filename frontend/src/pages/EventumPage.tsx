@@ -323,7 +323,10 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
   const getEventsForWave = useCallback((wave: EventWave) => {
     // Получаем актуальные события из массива events по ID из волны
     const waveEventIds = new Set(wave.events.map(e => e.id));
-    return events.filter(event => waveEventIds.has(event.id));
+    // Фильтруем недоступные для участника регистрации (по allowed_group)
+    return events
+      .filter(event => waveEventIds.has(event.id))
+      .filter(event => (event.is_accessible ?? true));
   }, [events]);
 
   const getRegisteredEventsCountForWave = (wave: EventWave) => {
@@ -623,9 +626,10 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
     );
   }
 
-  // Фильтруем только доступные волны и сортируем по названию
+  // Фильтруем только доступные волны, в которых есть хотя бы одно доступное мероприятие, и сортируем по названию
   const accessibleWaves = eventWaves
     .filter(wave => isWaveAccessible(wave).accessible)
+    .filter(wave => getEventsForWave(wave).length > 0)
     .sort((a, b) => a.name.localeCompare(b.name, 'ru'));
 
   if (accessibleWaves.length === 0) {

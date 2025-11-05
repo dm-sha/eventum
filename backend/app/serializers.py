@@ -1180,6 +1180,8 @@ class EventSerializer(serializers.ModelSerializer):
     )
     registrations_count = serializers.SerializerMethodField()
     is_registered = serializers.SerializerMethodField()
+    # Признак доступности регистрации для текущего участника (по allowed_group)
+    is_accessible = serializers.SerializerMethodField()
     # participant_type теперь вычисляемое поле на основе event_group_v2
     participant_type = serializers.SerializerMethodField(read_only=True)
     # registration_type - тип регистрации из EventRegistration
@@ -1196,7 +1198,7 @@ class EventSerializer(serializers.ModelSerializer):
             'participant_type', 'max_participants', 'image_url',
             'participants', 'groups', 'tags', 'tag_ids', 'group_tags', 'group_tag_ids', 
             'locations', 'location_ids', 'event_group_v2', 'event_group_v2_id',
-            'registrations_count', 'is_registered', 'registration_type'
+            'registrations_count', 'is_registered', 'registration_type', 'is_accessible'
         ]
     
     def get_participant_type(self, obj):
@@ -1210,6 +1212,31 @@ class EventSerializer(serializers.ModelSerializer):
         if hasattr(obj, 'registration') and obj.registration:
             return obj.registration.registration_type
         return None
+
+    def get_is_accessible(self, obj):
+        """Определяем, доступна ли регистрация события для текущего участника по allowed_group."""
+        request = self.context.get('request')
+        if not request or not request.user or not request.user.is_authenticated:
+            return False
+
+        # Если нет настройки регистрации — считаем доступным (для вкладок это не критично)
+        registration = getattr(obj, 'registration', None)
+        if not registration:
+            return True
+
+        # Если нет ограничения по группе — доступно всем участникам eventum
+        if not registration.allowed_group_id:
+            return True
+
+        # Ищем участника текущего пользователя в этом eventum
+        try:
+            participant = Participant.objects.get(user=request.user, eventum=obj.eventum)
+        except Participant.DoesNotExist:
+            return False
+
+        # Проверяем вхождение участника в разрешенную группу (V2)
+        allowed_participants = registration.allowed_group.get_participants()
+        return allowed_participants.filter(id=participant.id).exists()
 
     def create(self, validated_data):
         """Создание события с обработкой связей"""
