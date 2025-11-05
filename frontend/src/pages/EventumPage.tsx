@@ -501,12 +501,11 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
                             )}
                           </div>
                           {registration.event.image_url && (
-                            <div className="flex-shrink-0" style={{ maxWidth: 'min(48px, 20%)' }}>
+                            <div className="flex-shrink-0 max-w-[min(48px,20%)] sm:max-w-none">
                               <img
                                 src={registration.event.image_url}
                                 alt={registration.event.name}
-                                className="w-12 h-auto sm:w-16 object-contain rounded-lg shadow"
-                                style={{ maxWidth: '100%', height: 'auto' }}
+                                className="w-12 h-auto sm:w-16 max-w-full object-contain rounded-lg shadow"
                               />
                             </div>
                           )}
@@ -586,12 +585,11 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
                             )}
                           </div>
                           {registration.event.image_url && (
-                            <div className="flex-shrink-0" style={{ maxWidth: 'min(48px, 20%)' }}>
+                            <div className="flex-shrink-0 max-w-[min(48px,20%)] sm:max-w-none">
                               <img
                                 src={registration.event.image_url}
                                 alt={registration.event.name}
-                                className="w-12 h-auto sm:w-16 object-contain rounded-lg shadow"
-                                style={{ maxWidth: '100%', height: 'auto' }}
+                                className="w-12 h-auto sm:w-16 max-w-full object-contain rounded-lg shadow"
                               />
                             </div>
                           )}
@@ -964,12 +962,11 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string; isViewingAsOtherP
         </div>
         
         {event.image_url && (
-          <div className="flex-shrink-0" style={{ maxWidth: 'min(64px, 25%)' }}>
+          <div className="flex-shrink-0 max-w-[min(64px,25%)] sm:max-w-none">
             <img
               src={event.image_url}
               alt={event.name}
-              className="w-16 h-auto sm:w-36 sm:h-auto md:w-48 md:h-auto lg:w-56 lg:h-auto xl:w-64 xl:h-auto object-contain rounded-lg shadow-lg"
-              style={{ maxWidth: '100%', height: 'auto' }}
+              className="w-16 h-auto sm:w-36 sm:h-auto md:w-48 md:h-auto lg:w-56 lg:h-auto xl:w-64 xl:h-auto max-w-full object-contain rounded-lg shadow-lg"
             />
           </div>
         )}
