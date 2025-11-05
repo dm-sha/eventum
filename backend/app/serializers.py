@@ -933,9 +933,46 @@ class EventWaveSerializer(serializers.ModelSerializer):
         if obj.pk:
             # Используем отложенный импорт, так как EventRegistrationSerializer определен ниже
             registrations = obj.registrations.all().select_related('event', 'allowed_group').prefetch_related('applicants')
+
+            request = self.context.get('request')
+            # Кэш текущего участника в контексте сериализатора
+            participant_cached = self.context.get('_current_participant', None)
+            if participant_cached is None and request and getattr(request, 'user', None) and request.user.is_authenticated:
+                try:
+                    sample_eventum = None
+                    for r in registrations:
+                        if getattr(r, 'event', None) is not None:
+                            sample_eventum = r.event.eventum
+                            break
+                    if sample_eventum is not None:
+                        participant_cached = Participant.objects.get(user=request.user, eventum=sample_eventum)
+                    else:
+                        participant_cached = False
+                except Participant.DoesNotExist:
+                    participant_cached = False
+                self.context['_current_participant'] = participant_cached
+
+            membership_cache = self.context.setdefault('_allowed_group_membership', {})
+
             # Создаем минимальное представление регистраций
-            return [
-                {
+            result = []
+            for reg in registrations:
+                # Вычисляем доступность на уровне регистрации
+                if not request or not getattr(request, 'user', None) or not request.user.is_authenticated:
+                    is_accessible = True
+                elif not reg.allowed_group_id:
+                    is_accessible = True
+                elif participant_cached is False:
+                    is_accessible = False
+                else:
+                    key = (reg.allowed_group_id, participant_cached.id)
+                    if key in membership_cache:
+                        is_accessible = membership_cache[key]
+                    else:
+                        is_accessible = reg.allowed_group.get_participants().filter(id=participant_cached.id).exists()
+                        membership_cache[key] = is_accessible
+
+                result.append({
                     'id': reg.id,
                     'event': {
                         'id': reg.event.id,
@@ -946,9 +983,10 @@ class EventWaveSerializer(serializers.ModelSerializer):
                     'allowed_group': reg.allowed_group_id,
                     'registered_count': reg.get_registered_count(),
                     'is_full': reg.is_full(),
-                }
-                for reg in registrations
-            ]
+                    'is_accessible': is_accessible,
+                })
+
+            return result
         return []
     
     def get_events(self, obj):
@@ -1185,8 +1223,6 @@ class EventSerializer(serializers.ModelSerializer):
     )
     registrations_count = serializers.SerializerMethodField()
     is_registered = serializers.SerializerMethodField()
-    # Признак доступности регистрации для текущего участника (по allowed_group)
-    is_accessible = serializers.SerializerMethodField()
     # participant_type теперь вычисляемое поле на основе event_group_v2
     participant_type = serializers.SerializerMethodField(read_only=True)
     # registration_type - тип регистрации из EventRegistration
@@ -1203,7 +1239,7 @@ class EventSerializer(serializers.ModelSerializer):
             'participant_type', 'max_participants', 'image_url',
             'participants', 'groups', 'tags', 'tag_ids', 'group_tags', 'group_tag_ids', 
             'locations', 'location_ids', 'event_group_v2', 'event_group_v2_id',
-            'registrations_count', 'is_registered', 'registration_type', 'is_accessible'
+            'registrations_count', 'is_registered', 'registration_type'
         ]
     
     def get_participant_type(self, obj):
@@ -1218,43 +1254,7 @@ class EventSerializer(serializers.ModelSerializer):
             return obj.registration.registration_type
         return None
 
-    def get_is_accessible(self, obj):
-        """Определяем, доступна ли регистрация события для текущего участника по allowed_group."""
-        request = self.context.get('request')
-        if not request or not request.user or not request.user.is_authenticated:
-            return False
-
-        # Если нет настройки регистрации — считаем доступным (для вкладок это не критично)
-        registration = getattr(obj, 'registration', None)
-        if not registration:
-            return True
-
-        # Если нет ограничения по группе — доступно всем участникам eventum
-        if not registration.allowed_group_id:
-            return True
-
-        # Кэшируем текущего участника в контексте сериализатора, чтобы не искать каждый раз
-        participant_cached = self.context.get('_current_participant', None)
-        if participant_cached is None:
-            try:
-                participant_cached = Participant.objects.get(user=request.user, eventum=obj.eventum)
-            except Participant.DoesNotExist:
-                participant_cached = False  # маркер отсутствия участника
-            self.context['_current_participant'] = participant_cached
-
-        if participant_cached is False:
-            return False
-
-        # Кэшируем проверку членства для пары (allowed_group_id, participant_id)
-        membership_cache = self.context.setdefault('_allowed_group_membership', {})
-        cache_key = (registration.allowed_group_id, participant_cached.id)
-        if cache_key in membership_cache:
-            return membership_cache[cache_key]
-
-        allowed_participants = registration.allowed_group.get_participants()
-        is_member = allowed_participants.filter(id=participant_cached.id).exists()
-        membership_cache[cache_key] = is_member
-        return is_member
+    # флаг доступности перенесен на уровень регистрации
 
     def create(self, validated_data):
         """Создание события с обработкой связей"""

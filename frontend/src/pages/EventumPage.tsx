@@ -323,10 +323,15 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
   const getEventsForWave = useCallback((wave: EventWave) => {
     // Получаем актуальные события из массива events по ID из волны
     const waveEventIds = new Set(wave.events.map(e => e.id));
-    // Фильтруем недоступные для участника регистрации (по allowed_group)
+    // Разрешенные к показу события определяем по доступности соответствующих регистраций
+    const allowedEventIds = new Set(
+      (wave.registrations || [])
+        .filter((reg: any) => reg && (reg.is_accessible ?? true) && reg.event && typeof reg.event.id === 'number')
+        .map((reg: any) => reg.event.id)
+    );
     return events
       .filter(event => waveEventIds.has(event.id))
-      .filter(event => (event.is_accessible ?? true));
+      .filter(event => allowedEventIds.has(event.id));
   }, [events]);
 
   const getRegisteredEventsCountForWave = (wave: EventWave) => {
