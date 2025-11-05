@@ -724,6 +724,8 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
                         event={event} 
                         eventumSlug={eventumSlug} 
                         isViewingAsOtherParticipant={!!participantId}
+                        // Если смотрим от лица другого участника, берём статус из его заявок
+                        initialIsRegistered={participantId ? myRegistrations.some(r => r.event.id === event.id) : undefined}
                         onLocalRegistrationChange={handleEventRegistrationChange}
                       />
                     ))
@@ -739,12 +741,14 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
 };
 
 // Компонент карточки мероприятия
-const EventCard: React.FC<{ event: Event; eventumSlug: string; isViewingAsOtherParticipant?: boolean; onLocalRegistrationChange?: (eventId: number, isRegistered: boolean) => void }> = ({ event, eventumSlug, isViewingAsOtherParticipant = false, onLocalRegistrationChange }) => {
+const EventCard: React.FC<{ event: Event; eventumSlug: string; isViewingAsOtherParticipant?: boolean; initialIsRegistered?: boolean; onLocalRegistrationChange?: (eventId: number, isRegistered: boolean) => void }> = ({ event, eventumSlug, isViewingAsOtherParticipant = false, initialIsRegistered, onLocalRegistrationChange }) => {
   // Отдельные состояния для отслеживания загрузки каждой операции
   const [isRegistering, setIsRegistering] = useState(false);
   const [isUnregistering, setIsUnregistering] = useState(false);
   // Локальное состояние для оптимистичного обновления UI
-  const [localIsRegistered, setLocalIsRegistered] = useState(event.is_registered);
+  const [localIsRegistered, setLocalIsRegistered] = useState(
+    typeof initialIsRegistered === 'boolean' ? initialIsRegistered : event.is_registered
+  );
   const [localRegistrationsCount, setLocalRegistrationsCount] = useState(event.registrations_count);
   // Флаг для отслеживания, что мы сами обновили состояние (чтобы не перезаписывать из пропсов)
   const hasLocalUpdate = useRef(false);
@@ -753,14 +757,14 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string; isViewingAsOtherP
   // Но только если нет активной операции и мы не делали локальных обновлений
   useEffect(() => {
     if (!isRegistering && !isUnregistering && !hasLocalUpdate.current) {
-      setLocalIsRegistered(event.is_registered);
+      const nextIsRegistered = typeof initialIsRegistered === 'boolean' ? initialIsRegistered : event.is_registered;
+      setLocalIsRegistered(nextIsRegistered);
       setLocalRegistrationsCount(event.registrations_count);
     }
-    // Сбрасываем флаг после синхронизации
     if (!isRegistering && !isUnregistering) {
       hasLocalUpdate.current = false;
     }
-  }, [event.is_registered, event.registrations_count, isRegistering, isUnregistering]);
+  }, [initialIsRegistered, event.is_registered, event.registrations_count, isRegistering, isUnregistering]);
 
   const handleRegister = async () => {
     if (isRegistering || isUnregistering || localIsRegistered) return;
