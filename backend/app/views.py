@@ -1007,7 +1007,7 @@ class EventViewSet(CachedListMixin, EventumScopedViewSet, viewsets.ModelViewSet)
                         return Response({'error': 'Event registration is full'}, status=status.HTTP_400_BAD_REQUEST)
                     
                     # Проверяем, не зарегистрирован ли уже
-                    if event.event_group_v2.get_participants().filter(id=participant.id).exists():
+                    if event.event_group_v2.has_participant(participant.id):
                         return Response({'error': 'Already registered for this event'}, status=status.HTTP_400_BAD_REQUEST)
                     
                     # Добавляем участника в группу через ParticipantGroupV2ParticipantRelation
@@ -1078,7 +1078,7 @@ class EventViewSet(CachedListMixin, EventumScopedViewSet, viewsets.ModelViewSet)
                         return Response({'error': 'Not registered for this event'}, status=status.HTTP_404_NOT_FOUND)
                     
                     # Проверяем, зарегистрирован ли
-                    if not event.event_group_v2.get_participants().filter(id=participant.id).exists():
+                    if not event.event_group_v2.has_participant(participant.id):
                         return Response({'error': 'Not registered for this event'}, status=status.HTTP_404_NOT_FOUND)
                     
                     # Удаляем связь участника с группой

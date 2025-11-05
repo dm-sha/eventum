@@ -1011,7 +1011,8 @@ class EventWaveSerializer(serializers.ModelSerializer):
                                 if key in membership_cache:
                                     is_accessible = membership_cache[key]
                                 else:
-                                    is_accessible = grp.get_participants().filter(id=participant_cached.id).exists()
+                                    # Используем оптимизированный метод с кешем
+                                    is_accessible = grp.has_participant(participant_cached.id)
                                     membership_cache[key] = is_accessible
 
                 result.append({
@@ -1408,7 +1409,8 @@ class EventSerializer(serializers.ModelSerializer):
         if registration.registration_type == EventRegistration.RegistrationType.BUTTON:
             # Для типа button проверяем, входит ли участник в event_group_v2
             if obj.event_group_v2:
-                return obj.event_group_v2.get_participants().filter(id=participant.id).exists()
+                # Используем оптимизированный метод с кешем
+                return obj.event_group_v2.has_participant(participant.id)
             return False
         else:
             # Для типа application проверяем, есть ли участник в applicants

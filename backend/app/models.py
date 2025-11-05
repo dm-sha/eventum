@@ -257,6 +257,37 @@ class ParticipantGroupV2(models.Model):
             cache.set(cache_key, participant_ids, timeout=3600)  # Кеш на 1 час
         
         return result
+    
+    def get_participants_count(self):
+        """Быстрое получение количества участников через кеш"""
+        cache_key = f'group_participants_{self.id}_{self.eventum_id}'
+        cached_ids = cache.get(cache_key)
+        if cached_ids is not None:
+            # Используем длину закешированного списка (быстро, без SQL)
+            return len(cached_ids)
+        # Если кеша нет, вызываем get_participants() который сам кеширует результат
+        # После вызова get_participants() кеш должен быть установлен, проверяем его
+        self.get_participants()  # Это установит кеш
+        cached_ids_after = cache.get(cache_key)
+        if cached_ids_after is not None:
+            return len(cached_ids_after)
+        # Если по какой-то причине кеш не установился (например, рекурсивный вызов),
+        # делаем обычный count
+        return self.get_participants().count()
+    
+    def has_participant(self, participant_id):
+        """Быстрая проверка наличия участника в группе через кеш"""
+        cache_key = f'group_participants_{self.id}_{self.eventum_id}'
+        cached_ids = cache.get(cache_key)
+        if cached_ids is not None:
+            # Быстрая проверка в Python (O(1) для set или O(n) для list)
+            # Преобразуем в set для быстрой проверки, если список большой
+            if len(cached_ids) > 100:
+                cached_ids_set = set(cached_ids)
+                return participant_id in cached_ids_set
+            return participant_id in cached_ids
+        # Fallback к старому методу, если кеша нет
+        return self.get_participants().filter(id=participant_id).exists()
 
 
 class ParticipantGroupV2ParticipantRelation(models.Model):
@@ -887,7 +918,8 @@ class EventRegistration(models.Model):
         if self.registration_type == self.RegistrationType.BUTTON:
             # Для типа button считаем участников в event_group_v2
             if self.event.event_group_v2:
-                return self.event.event_group_v2.get_participants().count()
+                # Используем оптимизированный метод с кешем
+                return self.event.event_group_v2.get_participants_count()
             return 0
         else:
             # Для типа application считаем заявки
