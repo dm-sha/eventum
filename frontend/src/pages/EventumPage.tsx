@@ -192,7 +192,7 @@ const EventumPage = () => {
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 px-4 py-6 sm:px-6 lg:px-8 lg:py-10">
+    <main className="min-h-screen bg-gray-50 px-1 py-6 sm:px-6 lg:px-8 lg:py-10">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
         {/* Заголовок */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -443,9 +443,9 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
                   <h4 className="text-lg font-semibold text-gray-900 mb-4">Мероприятия, в которых вы участвуете</h4>
                   <div className="space-y-3">
                     {participatingEvents.map((registration) => (
-                      <div key={registration.id} className="bg-green-50 rounded-lg border border-green-200 p-4">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
+                      <div key={registration.id} className="bg-green-50 rounded-lg border border-green-200 p-4 overflow-hidden">
+                        <div className="flex items-start gap-2">
+                          <div className="flex-1 min-w-0 overflow-hidden">
                             <div className="flex items-center gap-2 mb-2">
                               <h5 className="text-lg font-medium text-gray-900">{registration.event.name}</h5>
                               <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
@@ -501,11 +501,12 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
                             )}
                           </div>
                           {registration.event.image_url && (
-                            <div className="ml-4 flex-shrink-0">
+                            <div className="flex-shrink-0" style={{ maxWidth: 'min(48px, 20%)' }}>
                               <img
                                 src={registration.event.image_url}
                                 alt={registration.event.name}
-                                className="w-16 h-auto object-contain rounded-lg shadow"
+                                className="w-12 h-auto sm:w-16 object-contain rounded-lg shadow"
+                                style={{ maxWidth: '100%', height: 'auto' }}
                               />
                             </div>
                           )}
@@ -530,9 +531,9 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
                   <h4 className="text-lg font-semibold text-gray-900 mb-4">Мероприятия, на которые вы не попали</h4>
                   <div className="space-y-3">
                     {appliedEvents.map((registration) => (
-                      <div key={registration.id} className="bg-white rounded-lg border border-gray-200 p-4">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
+                      <div key={registration.id} className="bg-white rounded-lg border border-gray-200 p-4 overflow-hidden">
+                        <div className="flex items-start gap-2">
+                          <div className="flex-1 min-w-0 overflow-hidden">
                             <div className="flex items-center gap-2 mb-2">
                               <h5 className="text-lg font-medium text-gray-900">{registration.event.name}</h5>
                             </div>
@@ -585,11 +586,12 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
                             )}
                           </div>
                           {registration.event.image_url && (
-                            <div className="ml-4 flex-shrink-0">
+                            <div className="flex-shrink-0" style={{ maxWidth: 'min(48px, 20%)' }}>
                               <img
                                 src={registration.event.image_url}
                                 alt={registration.event.name}
-                                className="w-16 h-auto object-contain rounded-lg shadow"
+                                className="w-12 h-auto sm:w-16 object-contain rounded-lg shadow"
+                                style={{ maxWidth: '100%', height: 'auto' }}
                               />
                             </div>
                           )}
@@ -901,7 +903,7 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string; isViewingAsOtherP
   };
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-2 sm:p-4 hover:shadow-md transition-shadow">
+    <div className="bg-white rounded-lg border border-gray-200 p-2 sm:p-4 hover:shadow-md transition-shadow overflow-hidden">
       {/* Мобильная версия - вертикальная компоновка */}
       <div className="block sm:hidden space-y-3">
         <h4 className="text-lg font-semibold text-gray-900">{event.name}</h4>
@@ -926,8 +928,8 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string; isViewingAsOtherP
       </div>
 
       {/* Десктопная версия - горизонтальная компоновка */}
-      <div className="hidden sm:flex items-stretch justify-between">
-        <div className="flex-1 flex flex-col justify-between">
+      <div className="hidden sm:flex items-stretch gap-4">
+        <div className="flex-1 min-w-0 overflow-hidden flex flex-col justify-between">
           <div>
             <h4 className="text-lg font-semibold text-gray-900 mb-2">{event.name}</h4>
             
@@ -962,11 +964,12 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string; isViewingAsOtherP
         </div>
         
         {event.image_url && (
-          <div className="ml-4 flex-shrink-0">
+          <div className="flex-shrink-0" style={{ maxWidth: 'min(64px, 25%)' }}>
             <img
               src={event.image_url}
               alt={event.name}
-              className="w-20 h-auto sm:w-36 sm:h-auto md:w-48 md:h-auto lg:w-56 lg:h-auto xl:w-64 xl:h-auto object-contain rounded-lg shadow-lg"
+              className="w-16 h-auto sm:w-36 sm:h-auto md:w-48 md:h-auto lg:w-56 lg:h-auto xl:w-64 xl:h-auto object-contain rounded-lg shadow-lg"
+              style={{ maxWidth: '100%', height: 'auto' }}
             />
           </div>
         )}
