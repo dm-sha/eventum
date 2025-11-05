@@ -25,7 +25,7 @@ const AdminLayout = () => {
     { to: "participants", label: "Участники", icon: IconUsersCircle },
     // { to: "groups", label: "Группы участников", icon: IconParticipantGroup },
     { to: "groups-v2", label: "Группы участников", icon: IconParticipantGroup },
-    { to: "group-tags", label: "Теги групп", icon: IconGroupTag },
+    // { to: "group-tags", label: "Теги групп", icon: IconGroupTag },
   ];
 
   // Sidebar collapsed state with persistence
