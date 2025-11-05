@@ -70,6 +70,8 @@ const RegistrationCard: React.FC<RegistrationCardProps> = ({
     application: 'По заявкам'
   };
 
+  const allowedGroup = groups.find(g => g.id === registration.allowed_group);
+
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
       <div className="space-y-3">
@@ -116,7 +118,7 @@ const RegistrationCard: React.FC<RegistrationCardProps> = ({
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Группа с доступом (опционально)
+                  Доступно для (опционально)
                 </label>
                 <GroupCombobox
                   groups={groups}
@@ -131,9 +133,23 @@ const RegistrationCard: React.FC<RegistrationCardProps> = ({
             <div className="space-y-1">
               <h4 className="text-base font-semibold text-gray-900">{registration.event.name}</h4>
               <div className="text-sm text-gray-500 space-y-1">
-                <div>Тип: {registrationTypeLabel[registration.registration_type]}</div>
-                <div>Места: {capacityInfo(registration.max_participants)}</div>
-                <div>Зарегистрировано: {registration.registered_count} {registration.is_full && '(заполнено)'}</div>
+                <div>
+                  <span className="text-gray-500">Тип:</span>{' '}
+                  <span className="font-medium text-gray-900">{registrationTypeLabel[registration.registration_type]}</span>
+                </div>
+                <div>
+                  <span className="text-gray-500">Места:</span>{' '}
+                  <span className="font-medium text-gray-900">{capacityInfo(registration.max_participants)}</span>
+                </div>
+                <div>
+                  <span className="text-gray-500">Зарегистрировано:</span>{' '}
+                  <span className="font-medium text-gray-900">{registration.registered_count}</span>{' '}
+                  {registration.is_full && <span className="text-gray-500">(заполнено)</span>}
+                </div>
+                <div>
+                  <span className="text-gray-500">Доступно для:</span>{' '}
+                  <span className="font-medium text-gray-900">{allowedGroup ? allowedGroup.name : 'всех'}</span>
+                </div>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -753,7 +769,7 @@ const CreateRegistrationForm: React.FC<{
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Группа с доступом (опционально)
+            Доступно для (опционально)
           </label>
           <GroupCombobox
             groups={groups}
