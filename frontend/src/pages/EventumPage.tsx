@@ -147,19 +147,6 @@ const EventumPage = () => {
     navigate(getEventumScopedPath(eventumSlug, pathWithParams));
   };
 
-  // Функция для обновления списка мероприятий после изменения регистрации
-  const refreshEvents = useCallback(async () => {
-    if (!eventumSlug) return;
-    try {
-      // Добавляем timestamp для обхода кеша браузера/сервера
-      const updatedEvents = await getEventsForEventum(eventumSlug);
-      // Создаём новый массив с новыми объектами для гарантии обновления
-      setEvents(updatedEvents.map(e => ({ ...e })));
-    } catch (error) {
-      console.error('Ошибка обновления данных мероприятий:', error);
-    }
-  }, [eventumSlug]);
-
   if (loading) {
     return (
       <main className="min-h-screen bg-gray-50 px-4 py-6 sm:px-6 lg:px-8 lg:py-10">
@@ -261,7 +248,7 @@ const EventumPage = () => {
             <GeneralTab eventum={eventum} />
           )}
           {currentTab === 'registration' && eventumSlug && (
-            <RegistrationTab eventWaves={eventWaves} events={events} currentParticipant={currentParticipant} eventumSlug={eventumSlug} eventum={eventum} myRegistrations={myRegistrations} participantId={participantId} onRegistrationChange={refreshEvents} />
+            <RegistrationTab eventWaves={eventWaves} events={events} currentParticipant={currentParticipant} eventumSlug={eventumSlug} eventum={eventum} myRegistrations={myRegistrations} participantId={participantId} />
           )}
           {currentTab === 'schedule' && eventumSlug && (
             <ScheduleTab events={events} currentParticipant={currentParticipant} participantId={participantId} />
@@ -301,7 +288,7 @@ const GeneralTab: React.FC<{ eventum: Eventum }> = ({ eventum }) => {
 };
 
 // Компонент для вкладки "Подача заявок на мероприятия"
-const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; currentParticipant: Participant | null; eventumSlug: string; eventum: Eventum; myRegistrations: EventRegistration[]; participantId: string | null; onRegistrationChange: () => Promise<void> }> = ({ eventWaves, events, currentParticipant, eventumSlug, eventum, myRegistrations, participantId, onRegistrationChange }) => {
+const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; currentParticipant: Participant | null; eventumSlug: string; eventum: Eventum; myRegistrations: EventRegistration[]; participantId: string | null }> = ({ eventWaves, events, currentParticipant, eventumSlug, eventum, myRegistrations, participantId }) => {
   const [expandedWaves, setExpandedWaves] = useState<Set<number>>(new Set());
   // Локальное отслеживание регистраций для быстрого обновления UI
   const [eventRegistrations, setEventRegistrations] = useState<Map<number, boolean>>(() => {
@@ -726,7 +713,6 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
                         event={event} 
                         eventumSlug={eventumSlug} 
                         isViewingAsOtherParticipant={!!participantId}
-                        onRegistrationChange={onRegistrationChange}
                         onLocalRegistrationChange={handleEventRegistrationChange}
                       />
                     ))
@@ -742,7 +728,7 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
 };
 
 // Компонент карточки мероприятия
-const EventCard: React.FC<{ event: Event; eventumSlug: string; isViewingAsOtherParticipant?: boolean; onRegistrationChange: () => Promise<void>; onLocalRegistrationChange?: (eventId: number, isRegistered: boolean) => void }> = ({ event, eventumSlug, isViewingAsOtherParticipant = false, onRegistrationChange, onLocalRegistrationChange }) => {
+const EventCard: React.FC<{ event: Event; eventumSlug: string; isViewingAsOtherParticipant?: boolean; onLocalRegistrationChange?: (eventId: number, isRegistered: boolean) => void }> = ({ event, eventumSlug, isViewingAsOtherParticipant = false, onLocalRegistrationChange }) => {
   // Отдельные состояния для отслеживания загрузки каждой операции
   const [isRegistering, setIsRegistering] = useState(false);
   const [isUnregistering, setIsUnregistering] = useState(false);
