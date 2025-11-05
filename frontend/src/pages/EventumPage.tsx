@@ -473,41 +473,39 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
                                 })}
                               </span>
                             </div>
-                            <div className="mt-1 flex items-center text-sm text-gray-500">
-                              <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25s-7.5-4.108-7.5-11.25a7.5 7.5 0 1115 0z" />
-                              </svg>
-                              <span>
-                                {(() => {
-                                  if (!registration.event.locations || registration.event.locations.length === 0) {
-                                    return 'Локация не указана';
-                                  }
-                                  
-                                  // Функция для получения уникальных частей пути локаций
-                                  const getUniqueLocationParts = (locations: any[]) => {
-                                    const allParts = new Set<string>();
+                            {registration.event.locations && registration.event.locations.length > 0 && (
+                              <div className="mt-1 flex items-center text-sm text-gray-500">
+                                <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25s-7.5-4.108-7.5-11.25a7.5 7.5 0 1115 0z" />
+                                </svg>
+                                <span>
+                                  {(() => {
+                                    // Функция для получения уникальных частей пути локаций
+                                    const getUniqueLocationParts = (locations: any[]) => {
+                                      const allParts = new Set<string>();
+                                      
+                                      locations.forEach(loc => {
+                                        const parts = loc.full_path.split(', ');
+                                        parts.forEach((part: string) => allParts.add(part.trim()));
+                                      });
+                                      
+                                      return Array.from(allParts);
+                                    };
                                     
-                                    locations.forEach(loc => {
-                                      const parts = loc.full_path.split(', ');
-                                      parts.forEach((part: string) => allParts.add(part.trim()));
-                                    });
-                                    
-                                    return Array.from(allParts);
-                                  };
-                                  
-                                  const uniqueParts = getUniqueLocationParts(registration.event.locations);
-                                  return uniqueParts.join(', ');
-                                })()}
-                              </span>
-                            </div>
+                                    const uniqueParts = getUniqueLocationParts(registration.event.locations);
+                                    return uniqueParts.join(', ');
+                                  })()}
+                                </span>
+                              </div>
+                            )}
                           </div>
                           {registration.event.image_url && (
                             <div className="ml-4 flex-shrink-0">
                               <img
                                 src={registration.event.image_url}
                                 alt={registration.event.name}
-                                className="w-16 h-16 object-cover rounded-lg"
+                                className="w-16 h-auto object-contain rounded-lg shadow"
                               />
                             </div>
                           )}
@@ -559,41 +557,39 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
                                 })}
                               </span>
                             </div>
-                            <div className="mt-1 flex items-center text-sm text-gray-500">
-                              <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25s-7.5-4.108-7.5-11.25a7.5 7.5 0 1115 0z" />
-                              </svg>
-                              <span>
-                                {(() => {
-                                  if (!registration.event.locations || registration.event.locations.length === 0) {
-                                    return 'Локация не указана';
-                                  }
-                                  
-                                  // Функция для получения уникальных частей пути локаций
-                                  const getUniqueLocationParts = (locations: any[]) => {
-                                    const allParts = new Set<string>();
+                            {registration.event.locations && registration.event.locations.length > 0 && (
+                              <div className="mt-1 flex items-center text-sm text-gray-500">
+                                <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25s-7.5-4.108-7.5-11.25a7.5 7.5 0 1115 0z" />
+                                </svg>
+                                <span>
+                                  {(() => {
+                                    // Функция для получения уникальных частей пути локаций
+                                    const getUniqueLocationParts = (locations: any[]) => {
+                                      const allParts = new Set<string>();
+                                      
+                                      locations.forEach(loc => {
+                                        const parts = loc.full_path.split(', ');
+                                        parts.forEach((part: string) => allParts.add(part.trim()));
+                                      });
+                                      
+                                      return Array.from(allParts);
+                                    };
                                     
-                                    locations.forEach(loc => {
-                                      const parts = loc.full_path.split(', ');
-                                      parts.forEach((part: string) => allParts.add(part.trim()));
-                                    });
-                                    
-                                    return Array.from(allParts);
-                                  };
-                                  
-                                  const uniqueParts = getUniqueLocationParts(registration.event.locations);
-                                  return uniqueParts.join(', ');
-                                })()}
-                              </span>
-                            </div>
+                                    const uniqueParts = getUniqueLocationParts(registration.event.locations);
+                                    return uniqueParts.join(', ');
+                                  })()}
+                                </span>
+                              </div>
+                            )}
                           </div>
                           {registration.event.image_url && (
                             <div className="ml-4 flex-shrink-0">
                               <img
                                 src={registration.event.image_url}
                                 alt={registration.event.name}
-                                className="w-16 h-16 object-cover rounded-lg"
+                                className="w-16 h-auto object-contain rounded-lg shadow"
                               />
                             </div>
                           )}
@@ -747,17 +743,21 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
                       В этой волне пока нет мероприятий
                     </p>
                   ) : (
-                    waveEvents.map((event) => (
-                      <EventCard 
-                        key={`${event.id}-${event.is_registered}-${event.registrations_count}`} 
-                        event={event} 
-                        eventumSlug={eventumSlug} 
-                        isViewingAsOtherParticipant={!!participantId}
-                        // Если смотрим от лица другого участника, берём статус из его заявок (с защитой от пустых event)
-                        initialIsRegistered={participantId ? myRegistrations.some(r => r && r.event && typeof r.event.id === 'number' && r.event.id === event.id) : undefined}
-                        onLocalRegistrationChange={handleLocalAndGlobalChange}
-                      />
-                    ))
+                    waveEvents.map((event) => {
+                      const reg = (wave.registrations || []).find((r: any) => r && r.event && typeof r.event.id === 'number' && r.event.id === event.id);
+                      return (
+                        <EventCard 
+                          key={`${event.id}-${event.is_registered}-${event.registrations_count}`} 
+                          event={event} 
+                          eventumSlug={eventumSlug} 
+                          isViewingAsOtherParticipant={!!participantId}
+                          // Если смотрим от лица другого участника, берём статус из его заявок (с защитой от пустых event)
+                          initialIsRegistered={participantId ? myRegistrations.some(r => r && r.event && typeof r.event.id === 'number' && r.event.id === event.id) : undefined}
+                          onLocalRegistrationChange={handleLocalAndGlobalChange}
+                          registrationMaxParticipants={reg?.max_participants ?? null}
+                        />
+                      );
+                    })
                   )}
                 </div>
               </div>
@@ -770,7 +770,7 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
 };
 
 // Компонент карточки мероприятия
-const EventCard: React.FC<{ event: Event; eventumSlug: string; isViewingAsOtherParticipant?: boolean; initialIsRegistered?: boolean; onLocalRegistrationChange?: (eventId: number, isRegistered: boolean) => void }> = ({ event, eventumSlug, isViewingAsOtherParticipant = false, initialIsRegistered, onLocalRegistrationChange }) => {
+const EventCard: React.FC<{ event: Event; eventumSlug: string; isViewingAsOtherParticipant?: boolean; initialIsRegistered?: boolean; onLocalRegistrationChange?: (eventId: number, isRegistered: boolean) => void; registrationMaxParticipants?: number | null }> = ({ event, eventumSlug, isViewingAsOtherParticipant = false, initialIsRegistered, onLocalRegistrationChange, registrationMaxParticipants = null }) => {
   // Отдельные состояния для отслеживания загрузки каждой операции
   const [isRegistering, setIsRegistering] = useState(false);
   const [isUnregistering, setIsUnregistering] = useState(false);
@@ -861,7 +861,7 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string; isViewingAsOtherP
 
   const getLocationText = () => {
     if (!event.locations || event.locations.length === 0) {
-      return 'Локация не указана';
+      return null;
     }
     
     // Функция для получения уникальных частей пути локаций
@@ -883,8 +883,10 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string; isViewingAsOtherP
   const getParticipantsInfo = () => {
     if (event.registration_type === 'button' || event.registration_type === 'application') {
       // Для мероприятий с регистрацией показываем количество заявок/мест (используем локальное состояние)
-      if (event.max_participants) {
-        return `Заявок/мест: ${localRegistrationsCount}/${event.max_participants}`;
+      const maxFromRegistration = registrationMaxParticipants ?? undefined;
+      const max = typeof maxFromRegistration === 'number' ? maxFromRegistration : event.max_participants;
+      if (typeof max === 'number' && max > 0) {
+        return `Заявок/мест: ${localRegistrationsCount}/${max}`;
       }
       return `Заявок: ${localRegistrationsCount}`;
     } else if (event.participant_type === 'all') {
@@ -906,7 +908,7 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string; isViewingAsOtherP
             <img
               src={event.image_url}
               alt={event.name}
-              className="w-full max-w-xs h-56 object-cover rounded-lg shadow-lg"
+              className="max-w-xs w-auto h-auto object-contain rounded-lg shadow-lg mx-auto"
             />
           </div>
         )}
@@ -937,13 +939,15 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string; isViewingAsOtherP
           
           {/* Информация о локации и участниках - выровнена по нижнему краю */}
           <div className="space-y-2 text-sm text-gray-500">
-            <div className="flex items-center space-x-2">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
-              </svg>
-              <span>{getLocationText()}</span>
-            </div>
+            {getLocationText() && (
+              <div className="flex items-center space-x-2">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
+                </svg>
+                <span>{getLocationText()}</span>
+              </div>
+            )}
             
             <div className="flex items-center space-x-2">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
@@ -959,7 +963,7 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string; isViewingAsOtherP
             <img
               src={event.image_url}
               alt={event.name}
-              className="w-20 h-20 sm:w-36 sm:h-36 md:w-48 md:h-48 lg:w-56 lg:h-56 xl:w-64 xl:h-64 object-cover rounded-lg shadow-lg"
+              className="w-20 h-auto sm:w-36 sm:h-auto md:w-48 md:h-auto lg:w-56 lg:h-auto xl:w-64 xl:h-auto object-contain rounded-lg shadow-lg"
             />
           </div>
         )}
@@ -967,13 +971,15 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string; isViewingAsOtherP
       
       {/* Информация о локации и участниках для мобильной версии */}
       <div className="block sm:hidden mt-2 space-y-2 text-sm text-gray-500">
-        <div className="flex items-center space-x-2">
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
-            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
-          </svg>
-          <span>{getLocationText()}</span>
-        </div>
+        {getLocationText() && (
+          <div className="flex items-center space-x-2">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
+            </svg>
+            <span>{getLocationText()}</span>
+          </div>
+        )}
         
         <div className="flex items-center space-x-2">
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
