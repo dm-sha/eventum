@@ -57,11 +57,28 @@ deploy-to-vm:
     - scp -o StrictHostKeyChecking=yes .env ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_DIR}/.env
     - scp -o StrictHostKeyChecking=yes ${CI_PROJECT_DIR}/backend/docker-compose.yml ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_DIR}/docker-compose.yml || echo "No local docker-compose.yml to copy, assuming exists on host"
     - |
+      # Диагностика перед копированием ключа
+      echo "=== Диагностика перед копированием ключа ==="
+      echo "Размер ключа: $(echo "$SA_PROD_DEPLOYER_PRIVATE_KEY" | wc -c) байт"
+      
+      # Проверяем доступное место на удаленном сервере
+      ssh ${DEPLOY_USER}@${DEPLOY_HOST} "df -h /tmp && echo '---' && ls -ld /tmp && echo '---' && touch /tmp/test_write && rm /tmp/test_write && echo 'Запись в /tmp возможна' || echo 'ОШИБКА: запись в /tmp невозможна'"
+      
       # Сохраняем ключ в файл для безопасной передачи
       echo "$SA_PROD_DEPLOYER_PRIVATE_KEY" > /tmp/sa_key.json
+      chmod 600 /tmp/sa_key.json
       
-      # Копируем ключ на удаленный сервер
-      scp -o StrictHostKeyChecking=yes /tmp/sa_key.json ${DEPLOY_USER}@${DEPLOY_HOST}:/tmp/sa_key.json
+      # Копируем ключ на удаленный сервер с verbose режимом для отладки
+      echo "=== Начинаем копирование ключа ==="
+      scp -v -o StrictHostKeyChecking=yes /tmp/sa_key.json ${DEPLOY_USER}@${DEPLOY_HOST}:/tmp/sa_key.json || {
+        echo "ОШИБКА при копировании ключа через scp"
+        echo "Пробуем альтернативный метод через stdin..."
+        # Альтернативный метод: передаем ключ через stdin
+        echo "$SA_PROD_DEPLOYER_PRIVATE_KEY" | ssh ${DEPLOY_USER}@${DEPLOY_HOST} "cat > /tmp/sa_key.json && chmod 600 /tmp/sa_key.json && echo 'Ключ успешно записан альтернативным методом'"
+      }
+      
+      # Проверяем, что файл успешно скопирован
+      ssh ${DEPLOY_USER}@${DEPLOY_HOST} "test -f /tmp/sa_key.json && echo 'Файл /tmp/sa_key.json существует' && ls -lh /tmp/sa_key.json || echo 'ОШИБКА: файл не найден'"
       
       # Удаляем локальный ключ
       rm /tmp/sa_key.json
