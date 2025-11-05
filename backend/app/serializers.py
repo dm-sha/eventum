@@ -1,5 +1,4 @@
 from rest_framework import serializers
-from urllib.parse import urlparse, parse_qs
 from rest_framework.relations import MANY_RELATION_KWARGS
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.utils.text import slugify
@@ -936,55 +935,22 @@ class EventWaveSerializer(serializers.ModelSerializer):
             registrations = obj.registrations.all().select_related('event', 'allowed_group').prefetch_related('applicants')
 
             request = self.context.get('request')
-            # Всегда вычисляем участника заново, чтобы поддерживать переключение participant в query
-            participant_cached = None
-            if request:
-                # Пытаемся переопределить участника через параметр participant_id (для админских кейсов)
-                wave_eventum = getattr(obj, 'eventum', None)
-                # Пробуем получить override из контекста (задан во viewset)
-                override_pid = self.context.get('participant_override')
-                # Читаем participant из DRF Request.query_params или Django request.GET
-                if not override_pid and hasattr(request, 'query_params') and request.query_params is not None:
-                    override_pid = request.query_params.get('participant_id') or request.query_params.get('participant')
-                if not override_pid:
-                    try:
-                        # request может быть DRF Request, у которого есть ._request
-                        django_req = getattr(request, '_request', request)
-                        if hasattr(django_req, 'GET'):
-                            override_pid = django_req.GET.get('participant_id') or django_req.GET.get('participant')
-                    except Exception:
-                        pass
-                if not override_pid:
-                    # Пробуем вытащить participant из Referer (фронт может не прокидывать в API)
-                    try:
-                        ref = None
-                        django_req = getattr(request, '_request', request)
-                        if hasattr(django_req, 'META'):
-                            ref = django_req.META.get('HTTP_REFERER')
-                        if ref:
-                            q = parse_qs(urlparse(ref).query)
-                            override_pid = (q.get('participant_id') or q.get('participant') or [None])[0]
-                    except Exception:
-                        pass
-                if override_pid and wave_eventum is not None:
-                    try:
-                        pid_int = int(str(override_pid).strip())
-                        participant_cached = Participant.objects.get(id=pid_int, eventum=wave_eventum)
-                    except Participant.DoesNotExist:
+            # Кэш текущего участника в контексте сериализатора
+            participant_cached = self.context.get('_current_participant', None)
+            if participant_cached is None and request and getattr(request, 'user', None) and request.user.is_authenticated:
+                try:
+                    sample_eventum = None
+                    for r in registrations:
+                        if getattr(r, 'event', None) is not None:
+                            sample_eventum = r.event.eventum
+                            break
+                    if sample_eventum is not None:
+                        participant_cached = Participant.objects.get(user=request.user, eventum=sample_eventum)
+                    else:
                         participant_cached = False
-                    except (TypeError, ValueError):
-                        participant_cached = False
-                elif getattr(request, 'user', None) and request.user.is_authenticated:
-                    try:
-                        if wave_eventum is not None:
-                            participant_cached = Participant.objects.get(user=request.user, eventum=wave_eventum)
-                        else:
-                            participant_cached = False
-                    except Participant.DoesNotExist:
-                        participant_cached = False
-                else:
+                except Participant.DoesNotExist:
                     participant_cached = False
-            # Не кэшируем participant в контексте, чтобы избежать устаревших значений
+                self.context['_current_participant'] = participant_cached
 
             membership_cache = self.context.setdefault('_allowed_group_membership', {})
 
@@ -999,21 +965,54 @@ class EventWaveSerializer(serializers.ModelSerializer):
                 elif participant_cached is False:
                     is_accessible = False
                 else:
-                    # Точная проверка членства с учетом вложенных групп (с кэшем)
+                    # FAST-PATH проверки на основе уже префетченных связей группы
                     grp = reg.allowed_group
-                    participant_id = participant_cached.id
-                    # Если у группы нет ни одной связи, доступ открыт всем участникам eventum
-                    if not grp.participant_relations.exists() and not grp.group_relations.exists():
+                    pr_all = list(getattr(grp, 'participant_relations').all()) if hasattr(grp, 'participant_relations') else []
+                    gr_all = list(getattr(grp, 'group_relations').all()) if hasattr(grp, 'group_relations') else []
+
+                    has_inclusive_participants = any(
+                        rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.INCLUSIVE
+                        for rel in pr_all
+                    )
+                    has_inclusive_groups = any(
+                        rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.INCLUSIVE
+                        for rel in gr_all
+                    )
+                    has_exclusive_participants = any(
+                        rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.EXCLUSIVE
+                        for rel in pr_all
+                    )
+                    has_exclusive_groups = any(
+                        rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.EXCLUSIVE
+                        for rel in gr_all
+                    )
+
+                    # Если нет инклюзивов и вообще нет эксклюзивов — доступно всем
+                    if not has_inclusive_participants and not has_inclusive_groups and not has_exclusive_participants and not has_exclusive_groups:
                         is_accessible = True
                     else:
-                        key = (reg.allowed_group_id, participant_id)
-                        if key in membership_cache:
-                            is_accessible = membership_cache[key]
+                        # Прямые включения/исключения участника
+                        direct_inclusive = any(
+                            rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.INCLUSIVE and rel.participant_id == participant_cached.id
+                            for rel in pr_all
+                        )
+                        if direct_inclusive:
+                            is_accessible = True
                         else:
-                            is_accessible = grp.get_participants().filter(id=participant_id).exists()
-                            membership_cache[key] = is_accessible
-
-                    # конец точной проверки
+                            direct_exclusive = any(
+                                rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.EXCLUSIVE and rel.participant_id == participant_cached.id
+                                for rel in pr_all
+                            )
+                            if direct_exclusive:
+                                is_accessible = False
+                            else:
+                                # Fallback к кэшу проверки через get_participants
+                                key = (reg.allowed_group_id, participant_cached.id)
+                                if key in membership_cache:
+                                    is_accessible = membership_cache[key]
+                                else:
+                                    is_accessible = grp.get_participants().filter(id=participant_cached.id).exists()
+                                    membership_cache[key] = is_accessible
 
                 result.append({
                     'id': reg.id,
