@@ -792,6 +792,33 @@ class EventWaveViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
             'registrations__allowed_group__group_relations__target_group__group_relations',
         ).order_by('id')
 
+    def get_serializer_context(self):
+        """Добавляем eventum и (опционально) участника из query-параметра в контекст сериализатора."""
+        context = super().get_serializer_context()
+        eventum = self.get_eventum()
+        context['eventum'] = eventum
+
+        participant_param = self.request.query_params.get('participant')
+        if participant_param:
+            try:
+                participant_id = int(participant_param)
+            except (TypeError, ValueError):
+                participant_id = None
+
+            if participant_id:
+                # Разрешаем указывать participant только организаторам данного eventum
+                from .models import Participant, UserRole
+                is_organizer = UserRole.objects.filter(user=self.request.user, eventum=eventum, role='organizer').exists()
+                if is_organizer:
+                    try:
+                        participant = Participant.objects.get(id=participant_id, eventum=eventum)
+                        context['_current_participant'] = participant
+                    except Participant.DoesNotExist:
+                        # Игнорируем неверный participant_id
+                        pass
+
+        return context
+
 
 class EventRegistrationViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
     """ViewSet для управления регистрациями на мероприятия"""
