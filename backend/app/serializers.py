@@ -952,17 +952,22 @@ class EventWaveSerializer(serializers.ModelSerializer):
         return []
     
     def get_events(self, obj):
-        """Получить события, связанные с регистрациями в волне"""
-        if obj.pk:
-            # Получаем события из всех регистраций волны
-            events = Event.objects.filter(
-                registration__in=obj.registrations.all()
-            ).distinct().select_related('eventum', 'event_group_v2').prefetch_related(
-                'locations', 'tags', 'registration'
-            )
-            serializer = EventSerializer(events, many=True, context=self.context)
-            return serializer.data
-        return []
+        """Получить события, связанные с регистрациями в волне, используя уже префетченные связи"""
+        if not obj.pk:
+            return []
+
+        # Используем уже префетченные registrations -> event, чтобы избежать лишних запросов
+        registrations = list(obj.registrations.all())
+        events = []
+        seen_ids = set()
+        for reg in registrations:
+            ev = getattr(reg, 'event', None)
+            if ev is not None and ev.id not in seen_ids:
+                seen_ids.add(ev.id)
+                events.append(ev)
+
+        serializer = EventSerializer(events, many=True, context=self.context)
+        return serializer.data
     
     def validate_registration_ids(self, value):
         """Валидация registration_ids - регистрации должны принадлежать тому же eventum"""
@@ -1228,15 +1233,28 @@ class EventSerializer(serializers.ModelSerializer):
         if not registration.allowed_group_id:
             return True
 
-        # Ищем участника текущего пользователя в этом eventum
-        try:
-            participant = Participant.objects.get(user=request.user, eventum=obj.eventum)
-        except Participant.DoesNotExist:
+        # Кэшируем текущего участника в контексте сериализатора, чтобы не искать каждый раз
+        participant_cached = self.context.get('_current_participant', None)
+        if participant_cached is None:
+            try:
+                participant_cached = Participant.objects.get(user=request.user, eventum=obj.eventum)
+            except Participant.DoesNotExist:
+                participant_cached = False  # маркер отсутствия участника
+            self.context['_current_participant'] = participant_cached
+
+        if participant_cached is False:
             return False
 
-        # Проверяем вхождение участника в разрешенную группу (V2)
+        # Кэшируем проверку членства для пары (allowed_group_id, participant_id)
+        membership_cache = self.context.setdefault('_allowed_group_membership', {})
+        cache_key = (registration.allowed_group_id, participant_cached.id)
+        if cache_key in membership_cache:
+            return membership_cache[cache_key]
+
         allowed_participants = registration.allowed_group.get_participants()
-        return allowed_participants.filter(id=participant.id).exists()
+        is_member = allowed_participants.filter(id=participant_cached.id).exists()
+        membership_cache[cache_key] = is_member
+        return is_member
 
     def create(self, validated_data):
         """Создание события с обработкой связей"""
