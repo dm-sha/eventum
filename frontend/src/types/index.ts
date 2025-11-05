@@ -48,6 +48,7 @@ export interface ParticipantGroup {
 }
 
 export type ParticipantType = 'all' | 'registration' | 'manual';
+export type RegistrationType = 'button' | 'application';
 
 export interface Event {
   id: number;
@@ -63,6 +64,7 @@ export interface Event {
   image_url?: string; // URL изображения события
   registrations_count: number; // Количество записанных участников
   is_registered: boolean; // Записан ли текущий пользователь
+  registration_type?: RegistrationType | null; // Тип регистрации: 'button' - по кнопке, 'application' - по заявкам
   // (arrays of IDs)
   participants: number[];
   groups: number[];

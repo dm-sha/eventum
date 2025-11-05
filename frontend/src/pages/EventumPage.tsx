@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { getEventumBySlug } from "../api/eventum";
 import { listEventWaves } from "../api/eventWave";
 import { getEventsForEventum, registerForEvent, unregisterFromEvent } from "../api/event";
@@ -147,6 +147,19 @@ const EventumPage = () => {
     navigate(getEventumScopedPath(eventumSlug, pathWithParams));
   };
 
+  // Функция для обновления списка мероприятий после изменения регистрации
+  const refreshEvents = useCallback(async () => {
+    if (!eventumSlug) return;
+    try {
+      // Добавляем timestamp для обхода кеша браузера/сервера
+      const updatedEvents = await getEventsForEventum(eventumSlug);
+      // Создаём новый массив с новыми объектами для гарантии обновления
+      setEvents(updatedEvents.map(e => ({ ...e })));
+    } catch (error) {
+      console.error('Ошибка обновления данных мероприятий:', error);
+    }
+  }, [eventumSlug]);
+
   if (loading) {
     return (
       <main className="min-h-screen bg-gray-50 px-4 py-6 sm:px-6 lg:px-8 lg:py-10">
@@ -248,7 +261,7 @@ const EventumPage = () => {
             <GeneralTab eventum={eventum} />
           )}
           {currentTab === 'registration' && eventumSlug && (
-            <RegistrationTab eventWaves={eventWaves} events={events} currentParticipant={currentParticipant} eventumSlug={eventumSlug} eventum={eventum} myRegistrations={myRegistrations} participantId={participantId} />
+            <RegistrationTab eventWaves={eventWaves} events={events} currentParticipant={currentParticipant} eventumSlug={eventumSlug} eventum={eventum} myRegistrations={myRegistrations} participantId={participantId} onRegistrationChange={refreshEvents} />
           )}
           {currentTab === 'schedule' && eventumSlug && (
             <ScheduleTab events={events} currentParticipant={currentParticipant} participantId={participantId} />
@@ -288,35 +301,8 @@ const GeneralTab: React.FC<{ eventum: Eventum }> = ({ eventum }) => {
 };
 
 // Компонент для вкладки "Подача заявок на мероприятия"
-const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; currentParticipant: Participant | null; eventumSlug: string; eventum: Eventum; myRegistrations: EventRegistration[]; participantId: string | null }> = ({ eventWaves, events, currentParticipant, eventumSlug, eventum, myRegistrations, participantId }) => {
+const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; currentParticipant: Participant | null; eventumSlug: string; eventum: Eventum; myRegistrations: EventRegistration[]; participantId: string | null; onRegistrationChange: () => Promise<void> }> = ({ eventWaves, events, currentParticipant, eventumSlug, eventum, myRegistrations, participantId, onRegistrationChange }) => {
   const [expandedWaves, setExpandedWaves] = useState<Set<number>>(new Set());
-  const [refreshKey, setRefreshKey] = useState(0);
-  const [localEvents, setLocalEvents] = useState<Event[]>(events);
-
-  // Обновляем локальное состояние при изменении props
-  useEffect(() => {
-    setLocalEvents(events);
-  }, [events]);
-
-  useEffect(() => {
-    const handleRegistrationChange = async () => {
-      // Перезагружаем данные с сервера для получения актуального registrations_count
-      try {
-        const updatedEvents = await getEventsForEventum(eventumSlug);
-        setLocalEvents(updatedEvents);
-        setRefreshKey(prev => prev + 1);
-      } catch (error) {
-        console.error('Ошибка обновления данных:', error);
-        // Если не удалось загрузить с сервера, просто перерендериваем
-        setRefreshKey(prev => prev + 1);
-      }
-    };
-
-    window.addEventListener('eventRegistrationChanged', handleRegistrationChange);
-    return () => {
-      window.removeEventListener('eventRegistrationChanged', handleRegistrationChange);
-    };
-  }, [eventumSlug]);
 
   const toggleWave = (waveId: number) => {
     const newExpanded = new Set(expandedWaves);
@@ -328,12 +314,11 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
     setExpandedWaves(newExpanded);
   };
 
-  const getEventsForWave = (wave: EventWave) => {
-    // Events are already included in the wave from the backend
-    // Map them using IDs from localEvents to get the latest data
+  const getEventsForWave = useCallback((wave: EventWave) => {
+    // Получаем актуальные события из массива events по ID из волны
     const waveEventIds = new Set(wave.events.map(e => e.id));
-    return localEvents.filter(event => waveEventIds.has(event.id));
-  };
+    return events.filter(event => waveEventIds.has(event.id));
+  }, [events]);
 
   const getRegisteredEventsCountForWave = (wave: EventWave) => {
     if (!currentParticipant) return 0;
@@ -657,7 +642,7 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
   }
 
   return (
-    <div className="space-y-2 sm:space-y-4" key={refreshKey}>
+    <div className="space-y-2 sm:space-y-4">
       <h2 className="text-xl font-semibold text-gray-900 mb-2 sm:mb-6">Волны мероприятий</h2>
       <p className="text-gray-600 mb-1 sm:mb-4">
         В одной волне проходит несколько событий одновременно, попасть можно максимум на одно. Выберите все интересные варианты – после окончания регистрации система распределит вас случайным образом на одно мероприятие из каждой волны, на которое вы подали заявку. Обратите внимание, что количество мест ограничено, при большом количестве желающих есть вероятность никуда не попасть.
@@ -710,14 +695,11 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
                   ) : (
                     waveEvents.map((event) => (
                       <EventCard 
-                        key={event.id} 
+                        key={`${event.id}-${event.is_registered}-${event.registrations_count}`} 
                         event={event} 
                         eventumSlug={eventumSlug} 
                         isViewingAsOtherParticipant={!!participantId}
-                        onEventUpdate={(updatedEvent) => {
-                          // Обновляем событие в локальном состоянии
-                          setLocalEvents(prev => prev.map(e => e.id === updatedEvent.id ? updatedEvent : e));
-                        }} 
+                        onRegistrationChange={onRegistrationChange}
                       />
                     ))
                   )}
@@ -732,46 +714,84 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
 };
 
 // Компонент карточки мероприятия
-const EventCard: React.FC<{ event: Event; eventumSlug: string; onEventUpdate?: (event: Event) => void; isViewingAsOtherParticipant?: boolean }> = ({ event, eventumSlug, onEventUpdate, isViewingAsOtherParticipant = false }) => {
-  const [isLoading, setIsLoading] = useState(false);
+const EventCard: React.FC<{ event: Event; eventumSlug: string; isViewingAsOtherParticipant?: boolean; onRegistrationChange: () => Promise<void> }> = ({ event, eventumSlug, isViewingAsOtherParticipant = false, onRegistrationChange }) => {
+  // Отдельные состояния для отслеживания загрузки каждой операции
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [isUnregistering, setIsUnregistering] = useState(false);
+  // Локальное состояние для оптимистичного обновления UI
+  const [localIsRegistered, setLocalIsRegistered] = useState(event.is_registered);
+  const [localRegistrationsCount, setLocalRegistrationsCount] = useState(event.registrations_count);
+  // Флаг для отслеживания, что мы сами обновили состояние (чтобы не перезаписывать из пропсов)
+  const hasLocalUpdate = useRef(false);
+
+  // Синхронизируем локальное состояние с пропсом при его изменении
+  // Но только если нет активной операции и мы не делали локальных обновлений
+  useEffect(() => {
+    if (!isRegistering && !isUnregistering && !hasLocalUpdate.current) {
+      setLocalIsRegistered(event.is_registered);
+      setLocalRegistrationsCount(event.registrations_count);
+    }
+    // Сбрасываем флаг после синхронизации
+    if (!isRegistering && !isUnregistering) {
+      hasLocalUpdate.current = false;
+    }
+  }, [event.is_registered, event.registrations_count, isRegistering, isUnregistering]);
 
   const handleRegister = async () => {
-    setIsLoading(true);
+    if (isRegistering || isUnregistering || localIsRegistered) return;
+    
+    setIsRegistering(true);
+    // Оптимистично обновляем только счётчик, статус регистрации обновим после успеха
+    setLocalRegistrationsCount(prev => prev + 1);
+    
     try {
       await registerForEvent(eventumSlug, event.id);
-      // Обновляем состояние события
-      const updatedEvent = { 
-        ...event, 
-        is_registered: true,
-        registrations_count: event.registrations_count + 1
-      };
-      onEventUpdate?.(updatedEvent);
-      // Принудительно обновляем компонент
-      window.dispatchEvent(new CustomEvent('eventRegistrationChanged'));
-    } catch (error) {
+      // После успеха обновляем статус регистрации
+      // Не делаем запрос к серверу - локальное состояние достаточно,
+      // кеш на бэкенде уже инвалидирован, при следующем естественном обновлении данные синхронизируются
+      hasLocalUpdate.current = true;
+      setLocalIsRegistered(true);
+    } catch (error: any) {
       console.error('Ошибка подачи заявки на мероприятие:', error);
+      // Откатываем оптимистичное обновление счётчика при ошибке
+      setLocalRegistrationsCount(prev => prev - 1);
+      // Если заявка уже была подана, обновляем локальное состояние
+      if (error?.response?.data?.error === 'Application already submitted' || 
+          error?.response?.data?.error === 'Already registered for this event') {
+        hasLocalUpdate.current = true;
+        setLocalIsRegistered(true);
+      }
     } finally {
-      setIsLoading(false);
+      setIsRegistering(false);
     }
   };
 
   const handleUnregister = async () => {
-    setIsLoading(true);
+    if (isRegistering || isUnregistering || !localIsRegistered) return;
+    
+    setIsUnregistering(true);
+    // Оптимистично обновляем только счётчик, статус регистрации обновим после успеха
+    setLocalRegistrationsCount(prev => Math.max(0, prev - 1));
+    
     try {
       await unregisterFromEvent(eventumSlug, event.id);
-      // Обновляем состояние события
-      const updatedEvent = { 
-        ...event, 
-        is_registered: false,
-        registrations_count: Math.max(0, event.registrations_count - 1)
-      };
-      onEventUpdate?.(updatedEvent);
-      // Принудительно обновляем компонент
-      window.dispatchEvent(new CustomEvent('eventRegistrationChanged'));
-    } catch (error) {
+      // После успеха обновляем статус регистрации
+      // Не делаем запрос к серверу - локальное состояние достаточно,
+      // кеш на бэкенде уже инвалидирован, при следующем естественном обновлении данные синхронизируются
+      hasLocalUpdate.current = true;
+      setLocalIsRegistered(false);
+    } catch (error: any) {
       console.error('Ошибка отмены заявки на мероприятие:', error);
+      // Откатываем оптимистичное обновление счётчика при ошибке
+      setLocalRegistrationsCount(prev => prev + 1);
+      // Если заявка уже была отменена, обновляем локальное состояние
+      if (error?.response?.data?.error === 'Application not found' || 
+          error?.response?.data?.error === 'Not registered for this event') {
+        hasLocalUpdate.current = true;
+        setLocalIsRegistered(false);
+      }
     } finally {
-      setIsLoading(false);
+      setIsUnregistering(false);
     }
   };
 
@@ -797,10 +817,14 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string; onEventUpdate?: (
   };
 
   const getParticipantsInfo = () => {
-    if (event.participant_type === 'all') {
+    if (event.registration_type === 'button' || event.registration_type === 'application') {
+      // Для мероприятий с регистрацией показываем количество заявок/мест (используем локальное состояние)
+      if (event.max_participants) {
+        return `Заявок/мест: ${localRegistrationsCount}/${event.max_participants}`;
+      }
+      return `Заявок: ${localRegistrationsCount}`;
+    } else if (event.participant_type === 'all') {
       return 'Для всех участников';
-    } else if (event.participant_type === 'registration' && event.max_participants) {
-      return `Заявок/мест: ${event.registrations_count}/${event.max_participants}`;
     } else if (event.participant_type === 'manual') {
       return 'По приглашению';
     }
@@ -895,27 +919,27 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string; onEventUpdate?: (
         </div>
       </div>
 
-      {/* Кнопка подачи заявки для мероприятий с типом "По записи" */}
-      {event.participant_type === 'registration' && !isViewingAsOtherParticipant && (
+      {/* Кнопка подачи заявки для мероприятий с регистрацией (button или application) */}
+      {(event.registration_type === 'button' || event.registration_type === 'application') && !isViewingAsOtherParticipant && (
         <div className="mt-4 pt-4 border-t border-gray-100">
-          {event.is_registered ? (
+          {localIsRegistered ? (
             <div className="flex items-center gap-4">
               <button
                 onClick={handleUnregister}
-                disabled={isLoading}
+                disabled={isRegistering || isUnregistering}
                 className="px-3 py-1 text-sm text-gray-600 hover:text-gray-700 hover:bg-gray-50 border border-gray-300 rounded-md transition-colors disabled:opacity-50"
               >
-                {isLoading ? 'Отмена...' : 'Отменить заявку'}
+                {isUnregistering ? 'Отмена...' : event.registration_type === 'button' ? 'Отписаться' : 'Отменить заявку'}
               </button>
             </div>
           ) : (
             <div className="flex items-center">
               <button
                 onClick={handleRegister}
-                disabled={isLoading}
+                disabled={isRegistering || isUnregistering}
                 className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isLoading ? 'Подача заявки...' : 'Подать заявку'}
+                {isRegistering ? (event.registration_type === 'button' ? 'Запись...' : 'Подача заявки...') : (event.registration_type === 'button' ? 'Записаться' : 'Подать заявку')}
               </button>
             </div>
           )}
@@ -923,17 +947,27 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string; onEventUpdate?: (
       )}
       
       {/* Информация о статусе заявки при просмотре от лица другого участника */}
-      {event.participant_type === 'registration' && isViewingAsOtherParticipant && (
+      {(event.registration_type === 'button' || event.registration_type === 'application') && isViewingAsOtherParticipant && (
         <div className="mt-4 pt-4 border-t border-gray-100">
           <div className="flex items-center gap-2 text-sm">
-            {event.is_registered ? (
-              <svg className="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
+            {localIsRegistered ? (
+              <>
+                <svg className="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span className="text-gray-600">
+                  {event.registration_type === 'button' ? 'Записан' : 'Заявка подана'}
+                </span>
+              </>
             ) : (
-              <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
+              <>
+                <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                <span className="text-gray-500">
+                  {event.registration_type === 'button' ? 'Не записан' : 'Заявка не подана'}
+                </span>
+              </>
             )}
           </div>
         </div>

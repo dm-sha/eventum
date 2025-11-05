@@ -874,10 +874,7 @@ class EventWithRegistrationInfoSerializer(BaseEventSerializer):
         
         if not wave_data['wave']:
             # Если нет волны, все участники доступны
-            return len(registrations)
-        
-        # Подсчитываем доступных участников
-        registration_participant_ids = set(reg.participant_id for reg in registrations)
+            return len(registration_participant_ids)
         
         # Исключаем участников, которые уже распределены на другие мероприятия волны
         # И участников, которые имеют заявки на нераспределенные мероприятия
@@ -1185,6 +1182,8 @@ class EventSerializer(serializers.ModelSerializer):
     is_registered = serializers.SerializerMethodField()
     # participant_type теперь вычисляемое поле на основе event_group_v2
     participant_type = serializers.SerializerMethodField(read_only=True)
+    # registration_type - тип регистрации из EventRegistration
+    registration_type = serializers.SerializerMethodField(read_only=True)
     
     # Обычные поля времени - работаем без таймзон
     start_time = serializers.DateTimeField()
@@ -1197,7 +1196,7 @@ class EventSerializer(serializers.ModelSerializer):
             'participant_type', 'max_participants', 'image_url',
             'participants', 'groups', 'tags', 'tag_ids', 'group_tags', 'group_tag_ids', 
             'locations', 'location_ids', 'event_group_v2', 'event_group_v2_id',
-            'registrations_count', 'is_registered'
+            'registrations_count', 'is_registered', 'registration_type'
         ]
     
     def get_participant_type(self, obj):
@@ -1205,6 +1204,12 @@ class EventSerializer(serializers.ModelSerializer):
         if obj.event_group_v2_id:
             return Event.ParticipantType.REGISTRATION
         return Event.ParticipantType.ALL
+    
+    def get_registration_type(self, obj):
+        """Получить тип регистрации из EventRegistration"""
+        if hasattr(obj, 'registration') and obj.registration:
+            return obj.registration.registration_type
+        return None
 
     def create(self, validated_data):
         """Создание события с обработкой связей"""

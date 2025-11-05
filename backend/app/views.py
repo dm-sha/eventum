@@ -980,6 +980,11 @@ class EventViewSet(CachedListMixin, EventumScopedViewSet, viewsets.ModelViewSet)
                         defaults={'relation_type': ParticipantGroupV2ParticipantRelation.RelationType.INCLUSIVE}
                     )
                     
+                    # Инвалидируем кеш списка событий
+                    cache_key = f"events_list_{eventum_slug}"
+                    cache.delete(cache_key)
+                    self._invalidate_ical_cache(eventum_slug)
+                    
                     return Response({'status': 'success', 'message': 'Successfully registered for event'}, status=status.HTTP_201_CREATED)
                 
                 else:  # APPLICATION
@@ -994,6 +999,11 @@ class EventViewSet(CachedListMixin, EventumScopedViewSet, viewsets.ModelViewSet)
                     
                     # Добавляем участника в applicants
                     registration.applicants.add(participant)
+                    
+                    # Инвалидируем кеш списка событий
+                    cache_key = f"events_list_{eventum_slug}"
+                    cache.delete(cache_key)
+                    self._invalidate_ical_cache(eventum_slug)
                     
                     return Response({'status': 'success', 'message': 'Application submitted successfully'}, status=status.HTTP_201_CREATED)
                 
@@ -1044,6 +1054,11 @@ class EventViewSet(CachedListMixin, EventumScopedViewSet, viewsets.ModelViewSet)
                     if deleted_count == 0:
                         return Response({'error': 'Not registered for this event'}, status=status.HTTP_404_NOT_FOUND)
                     
+                    # Инвалидируем кеш списка событий
+                    cache_key = f"events_list_{eventum_slug}"
+                    cache.delete(cache_key)
+                    self._invalidate_ical_cache(eventum_slug)
+                    
                     return Response({'status': 'success', 'message': 'Successfully unregistered from event'}, status=status.HTTP_200_OK)
                 
                 else:  # APPLICATION
@@ -1053,6 +1068,11 @@ class EventViewSet(CachedListMixin, EventumScopedViewSet, viewsets.ModelViewSet)
                     
                     # Удаляем участника из applicants
                     registration.applicants.remove(participant)
+                    
+                    # Инвалидируем кеш списка событий
+                    cache_key = f"events_list_{eventum_slug}"
+                    cache.delete(cache_key)
+                    self._invalidate_ical_cache(eventum_slug)
                     
                     return Response({'status': 'success', 'message': 'Application withdrawn successfully'}, status=status.HTTP_200_OK)
                 
