@@ -303,6 +303,14 @@ const GeneralTab: React.FC<{ eventum: Eventum }> = ({ eventum }) => {
 // Компонент для вкладки "Подача заявок на мероприятия"
 const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; currentParticipant: Participant | null; eventumSlug: string; eventum: Eventum; myRegistrations: EventRegistration[]; participantId: string | null; onRegistrationChange: () => Promise<void> }> = ({ eventWaves, events, currentParticipant, eventumSlug, eventum, myRegistrations, participantId, onRegistrationChange }) => {
   const [expandedWaves, setExpandedWaves] = useState<Set<number>>(new Set());
+  // Локальное отслеживание регистраций для быстрого обновления UI
+  const [eventRegistrations, setEventRegistrations] = useState<Map<number, boolean>>(() => {
+    const map = new Map<number, boolean>();
+    events.forEach(event => {
+      map.set(event.id, event.is_registered);
+    });
+    return map;
+  });
 
   const toggleWave = (waveId: number) => {
     const newExpanded = new Set(expandedWaves);
@@ -314,6 +322,15 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
     setExpandedWaves(newExpanded);
   };
 
+  // Синхронизируем локальное состояние регистраций с пропсами
+  useEffect(() => {
+    const newMap = new Map<number, boolean>();
+    events.forEach(event => {
+      newMap.set(event.id, event.is_registered);
+    });
+    setEventRegistrations(newMap);
+  }, [events]);
+
   const getEventsForWave = useCallback((wave: EventWave) => {
     // Получаем актуальные события из массива events по ID из волны
     const waveEventIds = new Set(wave.events.map(e => e.id));
@@ -323,8 +340,18 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
   const getRegisteredEventsCountForWave = (wave: EventWave) => {
     if (!currentParticipant) return 0;
     const waveEvents = getEventsForWave(wave);
-    return waveEvents.filter(event => event.is_registered).length;
+    // Используем локальное состояние регистраций для актуального подсчёта
+    return waveEvents.filter(event => eventRegistrations.get(event.id) === true).length;
   };
+
+  // Callback для обновления регистрации события
+  const handleEventRegistrationChange = useCallback((eventId: number, isRegistered: boolean) => {
+    setEventRegistrations(prev => {
+      const newMap = new Map(prev);
+      newMap.set(eventId, isRegistered);
+      return newMap;
+    });
+  }, []);
 
   // Проверяем доступность волны для текущего участника
   // Note: Access control is now handled at the event level (via EventRegistration.allowed_group),
@@ -700,6 +727,7 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
                         eventumSlug={eventumSlug} 
                         isViewingAsOtherParticipant={!!participantId}
                         onRegistrationChange={onRegistrationChange}
+                        onLocalRegistrationChange={handleEventRegistrationChange}
                       />
                     ))
                   )}
@@ -714,7 +742,7 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
 };
 
 // Компонент карточки мероприятия
-const EventCard: React.FC<{ event: Event; eventumSlug: string; isViewingAsOtherParticipant?: boolean; onRegistrationChange: () => Promise<void> }> = ({ event, eventumSlug, isViewingAsOtherParticipant = false, onRegistrationChange }) => {
+const EventCard: React.FC<{ event: Event; eventumSlug: string; isViewingAsOtherParticipant?: boolean; onRegistrationChange: () => Promise<void>; onLocalRegistrationChange?: (eventId: number, isRegistered: boolean) => void }> = ({ event, eventumSlug, isViewingAsOtherParticipant = false, onRegistrationChange, onLocalRegistrationChange }) => {
   // Отдельные состояния для отслеживания загрузки каждой операции
   const [isRegistering, setIsRegistering] = useState(false);
   const [isUnregistering, setIsUnregistering] = useState(false);
@@ -751,6 +779,8 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string; isViewingAsOtherP
       // кеш на бэкенде уже инвалидирован, при следующем естественном обновлении данные синхронизируются
       hasLocalUpdate.current = true;
       setLocalIsRegistered(true);
+      // Уведомляем родительский компонент об изменении для обновления счётчика в волне
+      onLocalRegistrationChange?.(event.id, true);
     } catch (error: any) {
       console.error('Ошибка подачи заявки на мероприятие:', error);
       // Откатываем оптимистичное обновление счётчика при ошибке
@@ -760,6 +790,7 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string; isViewingAsOtherP
           error?.response?.data?.error === 'Already registered for this event') {
         hasLocalUpdate.current = true;
         setLocalIsRegistered(true);
+        onLocalRegistrationChange?.(event.id, true);
       }
     } finally {
       setIsRegistering(false);
@@ -780,6 +811,8 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string; isViewingAsOtherP
       // кеш на бэкенде уже инвалидирован, при следующем естественном обновлении данные синхронизируются
       hasLocalUpdate.current = true;
       setLocalIsRegistered(false);
+      // Уведомляем родительский компонент об изменении для обновления счётчика в волне
+      onLocalRegistrationChange?.(event.id, false);
     } catch (error: any) {
       console.error('Ошибка отмены заявки на мероприятие:', error);
       // Откатываем оптимистичное обновление счётчика при ошибке
@@ -789,6 +822,7 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string; isViewingAsOtherP
           error?.response?.data?.error === 'Not registered for this event') {
         hasLocalUpdate.current = true;
         setLocalIsRegistered(false);
+        onLocalRegistrationChange?.(event.id, false);
       }
     } finally {
       setIsUnregistering(false);
