@@ -83,6 +83,32 @@ class EventumViewSet(EventumMixin, viewsets.ModelViewSet):
         """
         return super().get_object()
     
+    def retrieve(self, request, *args, **kwargs):
+        """
+        Переопределяем retrieve для проверки прав участника или организатора
+        """
+        eventum = self.get_object()
+        
+        # Проверяем права доступа: только участники и организаторы могут просматривать eventum
+        if request.user.is_authenticated:
+            from .auth_utils import get_user_role_in_eventum
+            user_role = get_user_role_in_eventum(request.user, eventum)
+            # Если пользователь не является участником и не является организатором, возвращаем 403
+            if user_role not in ['organizer', 'participant']:
+                return Response(
+                    {'error': 'Access denied. You must be a participant or organizer to view this eventum.'}, 
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        else:
+            # Неаутентифицированные пользователи не имеют доступа
+            return Response(
+                {'error': 'Access denied. You must be a participant or organizer to view this eventum.'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Вызываем стандартный retrieve
+        return super().retrieve(request, *args, **kwargs)
+    
     @action(detail=True, methods=['post'], permission_classes=[IsEventumOrganizer])
     def toggle_registration(self, request, slug=None):
         """Переключить состояние регистрации"""
@@ -1637,12 +1663,25 @@ def eventum_details(request, slug=None):
         # Используем новую утилиту для получения eventum
         eventum = get_eventum_from_request(request, kwargs={'slug': slug})
         
-        # Если пользователь аутентифицирован, проверяем права организатора для расширенной информации
+        # Проверяем права доступа: только участники и организаторы могут просматривать eventum
         from .auth_utils import get_user_role_in_eventum
-        user_role = get_user_role_in_eventum(request.user, eventum) if request.user.is_authenticated else None
-        is_organizer = user_role == 'organizer'
+        if request.user.is_authenticated:
+            user_role = get_user_role_in_eventum(request.user, eventum)
+            # Если пользователь не является участником и не является организатором, возвращаем 403
+            if user_role not in ['organizer', 'participant']:
+                return Response(
+                    {'error': 'Access denied. You must be a participant or organizer to view this eventum.'}, 
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            is_organizer = user_role == 'organizer'
+        else:
+            # Неаутентифицированные пользователи не имеют доступа
+            return Response(
+                {'error': 'Access denied. You must be a participant or organizer to view this eventum.'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
         
-        # Базовые данные eventum всегда доступны
+        # Базовые данные eventum доступны только участникам и организаторам
         eventum_data = EventumSerializer(eventum).data
         
         # Если пользователь организатор, добавляем расширенную информацию

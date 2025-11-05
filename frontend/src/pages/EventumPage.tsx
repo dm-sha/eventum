@@ -127,7 +127,13 @@ const EventumPage = () => {
         setUserRoles(rolesData.data);
       } catch (err) {
         console.error('Ошибка загрузки данных:', err);
-        setError('Не удалось загрузить информацию о событии');
+        const error = err as { response?: { status?: number } };
+        // Проверяем, является ли ошибка 403 (доступ запрещен)
+        if (error?.response?.status === 403) {
+          setError('У вас нет доступа к этому событию. Вы должны быть участником или организатором, чтобы просматривать информацию о событии.');
+        } else {
+          setError('Не удалось загрузить информацию о событии');
+        }
       } finally {
         setLoading(false);
       }
