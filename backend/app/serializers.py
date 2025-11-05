@@ -965,12 +965,54 @@ class EventWaveSerializer(serializers.ModelSerializer):
                 elif participant_cached is False:
                     is_accessible = False
                 else:
-                    key = (reg.allowed_group_id, participant_cached.id)
-                    if key in membership_cache:
-                        is_accessible = membership_cache[key]
+                    # FAST-PATH проверки на основе уже префетченных связей группы
+                    grp = reg.allowed_group
+                    pr_all = list(getattr(grp, 'participant_relations').all()) if hasattr(grp, 'participant_relations') else []
+                    gr_all = list(getattr(grp, 'group_relations').all()) if hasattr(grp, 'group_relations') else []
+
+                    has_inclusive_participants = any(
+                        rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.INCLUSIVE
+                        for rel in pr_all
+                    )
+                    has_inclusive_groups = any(
+                        rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.INCLUSIVE
+                        for rel in gr_all
+                    )
+                    has_exclusive_participants = any(
+                        rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.EXCLUSIVE
+                        for rel in pr_all
+                    )
+                    has_exclusive_groups = any(
+                        rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.EXCLUSIVE
+                        for rel in gr_all
+                    )
+
+                    # Если нет инклюзивов и вообще нет эксклюзивов — доступно всем
+                    if not has_inclusive_participants and not has_inclusive_groups and not has_exclusive_participants and not has_exclusive_groups:
+                        is_accessible = True
                     else:
-                        is_accessible = reg.allowed_group.get_participants().filter(id=participant_cached.id).exists()
-                        membership_cache[key] = is_accessible
+                        # Прямые включения/исключения участника
+                        direct_inclusive = any(
+                            rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.INCLUSIVE and rel.participant_id == participant_cached.id
+                            for rel in pr_all
+                        )
+                        if direct_inclusive:
+                            is_accessible = True
+                        else:
+                            direct_exclusive = any(
+                                rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.EXCLUSIVE and rel.participant_id == participant_cached.id
+                                for rel in pr_all
+                            )
+                            if direct_exclusive:
+                                is_accessible = False
+                            else:
+                                # Fallback к кэшу проверки через get_participants
+                                key = (reg.allowed_group_id, participant_cached.id)
+                                if key in membership_cache:
+                                    is_accessible = membership_cache[key]
+                                else:
+                                    is_accessible = grp.get_participants().filter(id=participant_cached.id).exists()
+                                    membership_cache[key] = is_accessible
 
                 result.append({
                     'id': reg.id,

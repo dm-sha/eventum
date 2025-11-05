@@ -778,11 +778,18 @@ class EventWaveViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
         return EventWave.objects.filter(eventum=eventum).select_related(
             'eventum'
         ).prefetch_related(
+            'registrations',
             'registrations__event',
             'registrations__event__eventum',
             'registrations__event__locations',
             'registrations__event__tags',
-            'registrations__allowed_group'
+            'registrations__allowed_group',
+            'registrations__allowed_group__participant_relations',
+            'registrations__allowed_group__participant_relations__participant',
+            'registrations__allowed_group__group_relations',
+            'registrations__allowed_group__group_relations__target_group',
+            'registrations__allowed_group__group_relations__target_group__participant_relations',
+            'registrations__allowed_group__group_relations__target_group__group_relations',
         ).order_by('id')
 
 
