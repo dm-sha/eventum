@@ -1269,6 +1269,9 @@ class EventSerializer(serializers.ModelSerializer):
     participant_type = serializers.SerializerMethodField(read_only=True)
     # registration_type - тип регистрации из EventRegistration
     registration_type = serializers.SerializerMethodField(read_only=True)
+    # Информация о регистрации для фронтенда
+    registration_max_participants = serializers.SerializerMethodField(read_only=True)
+    registration_is_full = serializers.SerializerMethodField(read_only=True)
     
     # Обычные поля времени - работаем без таймзон
     start_time = serializers.DateTimeField()
@@ -1281,7 +1284,8 @@ class EventSerializer(serializers.ModelSerializer):
             'participant_type', 'max_participants', 'image_url',
             'participants', 'groups', 'tags', 'tag_ids', 'group_tags', 'group_tag_ids', 
             'locations', 'location_ids', 'event_group_v2', 'event_group_v2_id',
-            'registrations_count', 'is_registered', 'registration_type'
+            'registrations_count', 'is_registered', 'registration_type',
+            'registration_max_participants', 'registration_is_full'
         ]
     
     def get_participant_type(self, obj):
@@ -1409,6 +1413,18 @@ class EventSerializer(serializers.ModelSerializer):
         else:
             # Для типа application проверяем, есть ли участник в applicants
             return registration.applicants.filter(id=participant.id).exists()
+    
+    def get_registration_max_participants(self, obj):
+        """Получить максимальное количество участников из регистрации"""
+        if hasattr(obj, 'registration') and obj.registration:
+            return obj.registration.max_participants
+        return None
+    
+    def get_registration_is_full(self, obj):
+        """Проверить, заполнена ли регистрация"""
+        if hasattr(obj, 'registration') and obj.registration:
+            return obj.registration.is_full()
+        return False
 
     def validate_participants(self, value):
         if not value:
@@ -1683,6 +1699,8 @@ class EventRegistrationSerializer(serializers.ModelSerializer):
         
         # Обновляем applicants если они переданы
         if applicants is not None:
+            # Для типа APPLICATION заявок может быть больше чем max_participants,
+            # администратор потом выберет, кого одобрить, поэтому валидация не нужна
             registration.applicants.set(applicants)
         
         return registration

@@ -926,6 +926,9 @@ class EventRegistrationApplication(models.Model):
                         f"Участник {self.participant.name} не входит в группу, "
                         f"которой разрешена регистрация на это мероприятие"
                     )
+        
+        # Для типа APPLICATION заявок может быть больше чем max_participants,
+        # администратор потом выберет, кого одобрить, поэтому валидация на max_participants не нужна
     
     def save(self, *args, **kwargs):
         self.full_clean()

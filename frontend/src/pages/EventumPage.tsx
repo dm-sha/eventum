@@ -798,6 +798,9 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string; isViewingAsOtherP
   const handleRegister = async () => {
     if (isRegistering || isUnregistering || localIsRegistered) return;
     
+    // Для типа application заявок может быть больше чем max_participants,
+    // администратор потом выберет, кого одобрить, поэтому проверка не нужна
+    
     setIsRegistering(true);
     // Оптимистично обновляем только счётчик, статус регистрации обновим после успеха
     setLocalRegistrationsCount(prev => prev + 1);
@@ -815,7 +818,7 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string; isViewingAsOtherP
       console.error('Ошибка подачи заявки на мероприятие:', error);
       // Откатываем оптимистичное обновление счётчика при ошибке
       setLocalRegistrationsCount(prev => prev - 1);
-      // Если заявка уже была подана, обновляем локальное состояние
+      // Обрабатываем различные ошибки
       if (error?.response?.data?.error === 'Application already submitted' || 
           error?.response?.data?.error === 'Already registered for this event') {
         hasLocalUpdate.current = true;

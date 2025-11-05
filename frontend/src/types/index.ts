@@ -66,6 +66,8 @@ export interface Event {
   registrations_count: number; // Количество записанных участников
   is_registered: boolean; // Записан ли текущий пользователь
   registration_type?: RegistrationType | null; // Тип регистрации: 'button' - по кнопке, 'application' - по заявкам
+  registration_max_participants?: number | null; // Максимальное количество участников для регистрации
+  registration_is_full?: boolean; // Заполнена ли регистрация
   // (arrays of IDs)
   participants: number[];
   groups: number[];

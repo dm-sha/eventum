@@ -1026,9 +1026,8 @@ class EventViewSet(CachedListMixin, EventumScopedViewSet, viewsets.ModelViewSet)
                 
                 else:  # APPLICATION
                     # Для типа application: добавляем участника в applicants
-                    # Проверяем, не переполнена ли регистрация
-                    if registration.is_full():
-                        return Response({'error': 'Event registration is full'}, status=status.HTTP_400_BAD_REQUEST)
+                    # Для типа APPLICATION заявок может быть больше чем max_participants,
+                    # администратор потом выберет, кого одобрить
                     
                     # Проверяем, не подал ли уже заявку
                     if registration.applicants.filter(id=participant.id).exists():
