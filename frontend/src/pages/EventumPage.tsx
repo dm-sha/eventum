@@ -724,8 +724,8 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
                         event={event} 
                         eventumSlug={eventumSlug} 
                         isViewingAsOtherParticipant={!!participantId}
-                        // Если смотрим от лица другого участника, берём статус из его заявок
-                        initialIsRegistered={participantId ? myRegistrations.some(r => r.event.id === event.id) : undefined}
+                        // Если смотрим от лица другого участника, берём статус из его заявок (с защитой от пустых event)
+                        initialIsRegistered={participantId ? myRegistrations.some(r => r && r.event && typeof r.event.id === 'number' && r.event.id === event.id) : undefined}
                         onLocalRegistrationChange={handleEventRegistrationChange}
                       />
                     ))
