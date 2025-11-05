@@ -80,7 +80,7 @@ const EventumPage = () => {
         // Загружаем основные данные параллельно (кроме участника)
         const [eventumData, wavesData, eventsData, rolesData] = await Promise.all([
           getEventumBySlug(eventumSlug),
-          listEventWaves(eventumSlug),
+          listEventWaves(eventumSlug, participantId ? parseInt(participantId) : undefined),
           getEventsForEventum(eventumSlug),
           authApi.getRoles()
         ]);

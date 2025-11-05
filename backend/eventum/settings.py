@@ -379,6 +379,11 @@ LOGGING = {
             'level': 'WARNING',
             'propagate': True,
         },
+        'app': {
+            'handlers': ['console', 'file'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
         'requests.packages.urllib3': {
             'handlers': ['console', 'file'],
             'level': 'WARNING',

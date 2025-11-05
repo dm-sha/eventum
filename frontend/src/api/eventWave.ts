@@ -34,15 +34,21 @@ export interface UpdateEventWaveDto {
   registration_ids?: number[];
 }
 
-export async function listEventWaves(eventumSlug: string): Promise<EventWave[]> {
+export async function listEventWaves(eventumSlug: string, participantId?: number): Promise<EventWave[]> {
   if (shouldUseSubdomainApi()) {
-    const { data } = await apiClient.get('/event-waves/');
+    const { data } = await apiClient.get('/event-waves/', {
+      params: participantId ? { participant: participantId } : undefined,
+    });
     return data;
   } else if (shouldUseContainerApi()) {
-    const { data } = await apiClient.get(`/eventums/${eventumSlug}/event-waves/`);
+    const { data } = await apiClient.get(`/eventums/${eventumSlug}/event-waves/`, {
+      params: participantId ? { participant: participantId } : undefined,
+    });
     return data;
   } else {
-    const { data } = await apiClient.get(`/eventums/${eventumSlug}/event-waves/`);
+    const { data } = await apiClient.get(`/eventums/${eventumSlug}/event-waves/`, {
+      params: participantId ? { participant: participantId } : undefined,
+    });
     return data;
   }
 }

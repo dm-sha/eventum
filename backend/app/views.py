@@ -792,6 +792,16 @@ class EventWaveViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
             'registrations__allowed_group__group_relations__target_group__group_relations',
         ).order_by('id')
 
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        try:
+            override_pid = self.request.query_params.get('participant_id') or self.request.query_params.get('participant')
+        except Exception:
+            override_pid = None
+        if override_pid:
+            context['participant_override'] = override_pid
+        return context
+
 
 class EventRegistrationViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
     """ViewSet для управления регистрациями на мероприятия"""
