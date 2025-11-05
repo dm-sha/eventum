@@ -12,3 +12,4 @@ setuptools>=80.0.0
 transliterate==1.10.2
 whitenoise==6.8.2
 icalendar==5.0.11
+boto3==1.35.54

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useEventumSlug } from "../../hooks/useEventumSlug";
 import type { Event as EventModel, EventTag, Location, Participant, ValidationError, ParticipantGroupV2 } from "../../types";
 import ParticipantGroupV2Editor from "../participantGroupV2/ParticipantGroupV2Editor";
+import { eventumApi } from "../../api/eventumApi";
 import { groupsV2Api } from "../../api/eventumApi";
 import { MultiLocationSelector } from "../location/MultiLocationSelector";
 
@@ -21,7 +22,9 @@ const GeneralTab = ({
   getEndTimeFromStartTime,
   tagInputRef,
   hasUserEditedEndTime,
-  setHasUserEditedEndTime
+  setHasUserEditedEndTime,
+  onUpload,
+  isUploading
 }: {
   eventForm: any;
   setEventForm: any;
@@ -38,6 +41,8 @@ const GeneralTab = ({
   tagInputRef: React.RefObject<HTMLDivElement | null>;
   hasUserEditedEndTime: boolean;
   setHasUserEditedEndTime: (edited: boolean) => void;
+  onUpload: (file: File) => void;
+  isUploading: boolean;
 }) => (
   <div className="space-y-4">
     <div>
@@ -68,15 +73,48 @@ const GeneralTab = ({
     
     <div>
       <label className="block text-sm font-medium text-gray-700 mb-1">
-        URL изображения
+        Изображение
       </label>
-      <input
-        type="url"
-        value={eventForm.image_url}
-        onChange={(e) => setEventForm((prev: any) => ({ ...prev, image_url: e.target.value }))}
-        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-        placeholder="https://example.com/image.jpg"
-      />
+      <div className="mt-2">
+        <div
+          className="relative rounded-lg border-2 border-dashed border-gray-300 p-4 text-center hover:border-blue-400 transition-colors"
+          onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+          onDrop={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const file = e.dataTransfer.files && e.dataTransfer.files[0];
+            if (file) onUpload(file);
+          }}
+        >
+          <input
+            id="event-image-upload"
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files && e.target.files[0];
+              if (f) onUpload(f);
+              e.currentTarget.value = '';
+            }}
+          />
+          <label
+            htmlFor="event-image-upload"
+            className="inline-flex items-center gap-2 rounded-md bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 cursor-pointer"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4 text-gray-600"><path d="M3.5 2A1.5 1.5 0 002 3.5v9A1.5 1.5 0 003.5 14h4.879l-1.94 1.94a.75.75 0 101.06 1.06L10 14.5l2.5 2.5a.75.75 0 101.06-1.06L11.621 14H16.5A1.5 1.5 0 0018 12.5v-9A1.5 1.5 0 0016.5 2h-13z"/></svg>
+            Выбрать файл
+          </label>
+          <div className="mt-2 text-xs text-gray-500">Перетащите изображение сюда или нажмите «Выбрать файл»</div>
+          {isUploading && (
+            <div className="mt-2 text-xs text-gray-500">Загрузка...</div>
+          )}
+        </div>
+      </div>
+      {eventForm.image_url && (
+        <div className="mt-2">
+          <img src={eventForm.image_url} alt="preview" className="max-h-32 rounded border" />
+        </div>
+      )}
     </div>
     
     <div className="grid grid-cols-2 gap-3">
@@ -374,6 +412,7 @@ const EventEditModal = ({
   const [isSaving, setIsSaving] = useState(false);
   const [validationErrors, setValidationErrors] = useState<ValidationError>({});
   const [hasUserEditedEndTime, setHasUserEditedEndTime] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   // Локальное состояние группы - используется для UI и подсчетов
   const [localGroupState, setLocalGroupState] = useState<ParticipantGroupV2 | null>(null);
   // Состояние группы на сервере - источник истины
@@ -583,6 +622,23 @@ const EventEditModal = ({
     
     return filteredTags.slice(0, 5);
   }, [eventTags, eventForm.tags, tagSearchQuery]);
+
+  const handleImageUpload = useCallback(async (file: File) => {
+    if (!file) return;
+    if (!eventumSlug) return;
+    try {
+      setIsUploadingImage(true);
+      const resp = await eventumApi.uploadImage(file, eventumSlug);
+      const data: any = (resp as any).data ?? resp;
+      if (data?.url) {
+        setEventForm((prev: any) => ({ ...prev, image_url: data.url }));
+      }
+    } catch (e) {
+      console.error('Ошибка загрузки изображения:', e);
+    } finally {
+      setIsUploadingImage(false);
+    }
+  }, [eventumSlug]);
 
   
 
@@ -976,6 +1032,8 @@ const EventEditModal = ({
             tagInputRef={tagInputRef}
             hasUserEditedEndTime={hasUserEditedEndTime}
             setHasUserEditedEndTime={setHasUserEditedEndTime}
+            onUpload={handleImageUpload}
+            isUploading={isUploadingImage}
             />
           ) : (
             <ParticipantsTab 

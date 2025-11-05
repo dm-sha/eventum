@@ -63,9 +63,7 @@ class TokenManager {
 // Создаем основной API клиент
 const apiClient = axios.create({
   baseURL: resolveApiBaseUrl(),
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  // Не задаем глобально Content-Type, чтобы FormData могло корректно выставлять boundary
 });
 
 // Интерцептор для добавления токена
@@ -159,11 +157,32 @@ export const createApiRequest = <T = any>(
     case 'GET':
       return apiClient.get<T>(url);
     case 'POST':
-      return apiClient.post<T>(url, data);
+      if (typeof FormData !== 'undefined' && data instanceof FormData) {
+        return apiClient.post<T>(url, data, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+      }
+      return apiClient.post<T>(url, data, {
+        headers: { 'Content-Type': 'application/json' }
+      });
     case 'PUT':
-      return apiClient.put<T>(url, data);
+      if (typeof FormData !== 'undefined' && data instanceof FormData) {
+        return apiClient.put<T>(url, data, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+      }
+      return apiClient.put<T>(url, data, {
+        headers: { 'Content-Type': 'application/json' }
+      });
     case 'PATCH':
-      return apiClient.patch<T>(url, data);
+      if (typeof FormData !== 'undefined' && data instanceof FormData) {
+        return apiClient.patch<T>(url, data, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+      }
+      return apiClient.patch<T>(url, data, {
+        headers: { 'Content-Type': 'application/json' }
+      });
     case 'DELETE':
       return apiClient.delete<T>(url);
     default:

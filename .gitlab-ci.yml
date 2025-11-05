@@ -52,6 +52,9 @@ deploy-to-vm:
       printf 'VK_APP_ID=%s\n' "${VK_APP_ID}" >> .env
       printf 'VK_APP_SECRET=%s\n' "${VK_APP_SECRET}" >> .env
       printf 'VK_REDIRECT_URI=%s\n' "${VK_REDIRECT_URI}" >> .env
+      printf 'YC_S3_BUCKET_NAME=%s\n' "${YC_S3_BUCKET_NAME}" >> .env
+      printf 'AWS_ACCESS_KEY_ID=%s\n' "${AWS_ACCESS_KEY_ID}" >> .env
+      printf 'AWS_SECRET_ACCESS_KEY=%s\n' "${AWS_SECRET_ACCESS_KEY}" >> .env
       printf 'IMAGE=%s\n' "${IMAGE}" >> .env
     - chmod 600 .env
     - scp -o StrictHostKeyChecking=yes .env ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_DIR}/.env

@@ -32,6 +32,9 @@ from .utils import log_execution_time, csrf_exempt_class_api
 from .auth_utils import EventumMixin, require_authentication, require_eventum_role, get_eventum_from_request
 from .base_views import EventumScopedViewSet, CachedListMixin
 import logging
+import mimetypes
+import boto3
+from botocore.client import Config
 
 logger = logging.getLogger(__name__)
 
@@ -1683,6 +1686,66 @@ def eventum_registration_stats(request, slug=None):
     return Response({
         'registered_participants_count': registered_participants_count
     })
+
+
+@api_view(['POST'])
+@require_eventum_role('organizer')
+def upload_image(request, eventum_slug=None):
+    """Загрузка изображения в Yandex Object Storage. Возвращает публичный URL."""
+    file_obj = request.FILES.get('file') or request.FILES.get('image')
+    if not file_obj:
+        return Response({'error': 'No file provided (expected field "file" or "image")'}, status=status.HTTP_400_BAD_REQUEST)
+
+    bucket = getattr(settings, 'YC_S3_BUCKET_NAME', None)
+    access_key = getattr(settings, 'AWS_ACCESS_KEY_ID', None)
+    secret_key = getattr(settings, 'AWS_SECRET_ACCESS_KEY', None)
+    endpoint_url = getattr(settings, 'YC_S3_ENDPOINT_URL', 'https://storage.yandexcloud.net')
+    region_name = getattr(settings, 'YC_S3_REGION', 'ru-central1')
+
+    if not all([bucket, access_key, secret_key]):
+        return Response({'error': 'S3 storage is not configured'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    # Генерируем путь: eventum/<slug>/images/<uuid>.<ext>
+    import uuid as _uuid
+    original_name = getattr(file_obj, 'name', 'upload')
+    ext = ''
+    if '.' in original_name:
+        ext = original_name.rsplit('.', 1)[-1].lower()
+    key = f"eventum/{eventum_slug}/images/{_uuid.uuid4().hex}{('.' + ext) if ext else ''}"
+
+    content_type = file_obj.content_type or mimetypes.guess_type(original_name)[0] or 'application/octet-stream'
+
+    try:
+        s3 = boto3.client(
+            's3',
+            endpoint_url=endpoint_url,
+            aws_access_key_id=access_key,
+            aws_secret_access_key=secret_key,
+            region_name=region_name,
+            config=Config(signature_version='s3v4')
+        )
+
+        s3.upload_fileobj(
+            Fileobj=file_obj,
+            Bucket=bucket,
+            Key=key,
+            ExtraArgs={
+                'ACL': 'public-read',
+                'ContentType': content_type,
+                'CacheControl': 'public, max-age=31536000'
+            }
+        )
+
+        public_url = f"{endpoint_url.rstrip('/')}/{bucket}/{key}"
+        return Response({
+            'url': public_url,
+            'key': key,
+            'content_type': content_type
+        }, status=status.HTTP_201_CREATED)
+    except Exception as e:
+        logger = logging.getLogger(__name__)
+        logger.error(f"Image upload failed: {e}")
+        return Response({'error': 'Upload failed'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['GET', 'POST'])

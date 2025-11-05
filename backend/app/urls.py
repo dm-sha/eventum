@@ -29,7 +29,8 @@ from .views import (
     ParticipantGroupV2ViewSet,
     ParticipantGroupV2ParticipantRelationViewSet,
     ParticipantGroupV2GroupRelationViewSet,
-    ParticipantGroupV2EventRelationViewSet
+    ParticipantGroupV2EventRelationViewSet,
+    upload_image
 )
 
 router = DefaultRouter()
@@ -65,6 +66,8 @@ urlpatterns = [
     path('eventums/<slug:eventum_slug>/calendar.ics', participant_calendar_ics, name='participant_calendar_ics'),
     path('eventums/<slug:eventum_slug>/calendar/<int:participant_id>.ics', participant_calendar_ics, name='participant_calendar_ics_with_id'),
     path('eventums/<slug:eventum_slug>/calendar/webcal', participant_calendar_webcal, name='participant_calendar_webcal'),
+    # Upload image endpoint
+    path('eventums/<slug:eventum_slug>/upload-image/', upload_image, name='upload_image'),
     
     # Fallback для поддоменов (обратная совместимость)
     path('', include(eventum_scoped_router.urls)),

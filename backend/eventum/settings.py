@@ -295,6 +295,14 @@ REST_FRAMEWORK = {
     ],
 }
 
+# Yandex Object Storage (S3-compatible) settings
+# Use AWS_* standard env var names
+AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
+AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
+YC_S3_BUCKET_NAME = os.getenv('YC_S3_BUCKET_NAME')
+YC_S3_REGION = os.getenv('YC_S3_REGION', 'ru-central1')
+YC_S3_ENDPOINT_URL = os.getenv('YC_S3_ENDPOINT_URL', 'https://storage.yandexcloud.net')
+
 # VK API настройки
 VK_APP_ID = os.getenv('VK_APP_ID')
 VK_APP_SECRET = os.getenv('VK_APP_SECRET')

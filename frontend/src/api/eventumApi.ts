@@ -89,6 +89,19 @@ export const eventumApi = {
       return createApiRequest<Eventum>('POST', '/toggle_registration/', subdomainSlug);
     }
     return createApiRequest<Eventum>('POST', `/eventums/${slug}/toggle_registration/`);
+  },
+
+  // Загрузка изображения в бакет через бэкенд
+  uploadImage: (file: File, eventumSlug?: string) => {
+    const slug = getEventumSlugForRequest(eventumSlug);
+    const form = new FormData();
+    form.append('file', file);
+    return createApiRequest<{ url: string; key: string }>(
+      'POST',
+      '/upload-image/',
+      slug,
+      form
+    );
   }
 };
 
