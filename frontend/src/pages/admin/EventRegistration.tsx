@@ -858,6 +858,7 @@ const WaveCard: React.FC<WaveCardProps> = ({
   const [editingRegistrationId, setEditingRegistrationId] = useState<number | null>(null);
   const [localRegistrations, setLocalRegistrations] = useState<EventRegistration[]>(registrations);
   const [isCreatingRegistration, setIsCreatingRegistration] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(true);
 
   useEffect(() => {
     setName(wave.name);
@@ -950,14 +951,25 @@ const WaveCard: React.FC<WaveCardProps> = ({
             </div>
           </div>
         ) : (
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="space-y-1">
-              <h4 className="text-base font-semibold text-gray-900">{wave.name}</h4>
-              <p className="text-sm text-gray-500">
-                Мероприятий: {wave.events?.length || 0}
-              </p>
+          <div 
+            className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between cursor-pointer"
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            aria-expanded={!isCollapsed}
+          >
+            <div className="flex items-start gap-3">
+              <span className={`mt-0.5 inline-block text-gray-600 transition-transform ${isCollapsed ? '' : 'rotate-90'}`}>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-6 w-6">
+                  <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 0 1-1.06-1.06L10.19 9.9 6.15 5.85A.75.75 0 1 1 7.2 4.8l4.75 4.75a.75.75 0 0 1 0 1.06l-4.75 4.75z" clipRule="evenodd" />
+                </svg>
+              </span>
+              <div className="space-y-1">
+                <h4 className="text-base font-semibold text-gray-900">{wave.name}</h4>
+                <p className="text-sm text-gray-500">
+                  Мероприятий: {wave.events?.length || 0}
+                </p>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
               <button
                 onClick={onStartEdit}
                 className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
@@ -970,7 +982,7 @@ const WaveCard: React.FC<WaveCardProps> = ({
         )}
 
         {/* Регистрации в волне (в режиме просмотра) */}
-        {mode !== 'edit' && (
+        {mode !== 'edit' && !isCollapsed && (
           <div className="border-t pt-3">
             {/* Список регистраций */}
             {waveRegistrations.length === 0 ? (
