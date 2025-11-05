@@ -1,7 +1,8 @@
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.core.exceptions import ValidationError
+from django.core.cache import cache
 from django.db import models
-from django.db.models.signals import post_save, m2m_changed
+from django.db.models.signals import post_save, m2m_changed, post_delete
 from django.dispatch import receiver
 from django.utils import timezone
 
@@ -158,11 +159,23 @@ class ParticipantGroupV2(models.Model):
     def get_participants(self, visited_groups=None):
         """
         Получает QuerySet участников, которые принадлежат этой группе.
+        Кешируется для оптимизации производительности.
         
         Логика:
         - Если нет ни участников, ни inclusive групп, возвращаются все участники eventum
         - Если есть участники или inclusive группы, применяется логика включений/исключений
         """
+        # Генерируем ключ кеша
+        cache_key = f'group_participants_{self.id}_{self.eventum_id}'
+        
+        # Пытаемся получить из кеша (только если visited_groups пустой, чтобы избежать рекурсивных проблем)
+        if visited_groups is None:
+            cached_result = cache.get(cache_key)
+            if cached_result is not None:
+                # Восстанавливаем QuerySet из закешированных ID
+                participant_ids = cached_result
+                return Participant.objects.filter(id__in=participant_ids)
+        
         if visited_groups is None:
             visited_groups = set()
         
@@ -205,36 +218,45 @@ class ParticipantGroupV2(models.Model):
                 )
             
             if excluded_participant_ids:
-                return all_participants.exclude(id__in=excluded_participant_ids)
-            return all_participants
-        
-        # Иначе применяем стандартную логику включений/исключений
-        included_participant_ids = set()
-        excluded_participant_ids = set()
-        
-        # Обрабатываем прямые связи с участниками
-        for rel in self.participant_relations.all():
-            if rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.INCLUSIVE:
-                included_participant_ids.add(rel.participant_id)
-            elif rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.EXCLUSIVE:
-                excluded_participant_ids.add(rel.participant_id)
-        
-        # Обрабатываем связи с группами
-        for rel in self.group_relations.all():
-            target_participants = rel.target_group.get_participants(visited_groups.copy())
-            target_participant_ids = set(target_participants.values_list('id', flat=True))
+                result = all_participants.exclude(id__in=excluded_participant_ids)
+            else:
+                result = all_participants
+        else:
+            # Иначе применяем стандартную логику включений/исключений
+            included_participant_ids = set()
+            excluded_participant_ids = set()
             
-            if rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.INCLUSIVE:
-                included_participant_ids.update(target_participant_ids)
-            elif rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.EXCLUSIVE:
-                excluded_participant_ids.update(target_participant_ids)
+            # Обрабатываем прямые связи с участниками
+            for rel in self.participant_relations.all():
+                if rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.INCLUSIVE:
+                    included_participant_ids.add(rel.participant_id)
+                elif rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.EXCLUSIVE:
+                    excluded_participant_ids.add(rel.participant_id)
+            
+            # Обрабатываем связи с группами
+            for rel in self.group_relations.all():
+                target_participants = rel.target_group.get_participants(visited_groups.copy())
+                target_participant_ids = set(target_participants.values_list('id', flat=True))
+                
+                if rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.INCLUSIVE:
+                    included_participant_ids.update(target_participant_ids)
+                elif rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.EXCLUSIVE:
+                    excluded_participant_ids.update(target_participant_ids)
+            
+            # Исключаем участников из списка включенных
+            included_participant_ids -= excluded_participant_ids
+            
+            if included_participant_ids:
+                result = Participant.objects.filter(id__in=included_participant_ids)
+            else:
+                result = Participant.objects.none()
         
-        # Исключаем участников из списка включенных
-        included_participant_ids -= excluded_participant_ids
+        # Кешируем результат (только если это не рекурсивный вызов)
+        if visited_groups == {self.id}:  # Это первый уровень вызова
+            participant_ids = list(result.values_list('id', flat=True))
+            cache.set(cache_key, participant_ids, timeout=3600)  # Кеш на 1 час
         
-        if included_participant_ids:
-            return Participant.objects.filter(id__in=included_participant_ids)
-        return Participant.objects.none()
+        return result
 
 
 class ParticipantGroupV2ParticipantRelation(models.Model):
@@ -963,3 +985,44 @@ class UserRole(models.Model):
 def validate_event_tags(sender, instance, action, pk_set, **kwargs):
     """Удалено: проверка что мероприятие с типом 'не по записи' не добавляется к тегам с волнами"""
     pass
+
+
+# Сигналы для инвалидации кеша групп
+def invalidate_group_cache(sender, instance, **kwargs):
+    """Инвалидирует кеш для всех групп в eventum при изменении связанных моделей"""
+    eventum_id = None
+    
+    # Определяем eventum_id в зависимости от модели
+    if hasattr(instance, 'eventum'):
+        eventum_id = instance.eventum_id
+    elif hasattr(instance, 'group'):
+        eventum_id = instance.group.eventum_id
+    elif hasattr(instance, 'target_group'):
+        eventum_id = instance.target_group.eventum_id
+    elif hasattr(instance, 'participant'):
+        eventum_id = instance.participant.eventum_id
+    elif hasattr(instance, 'event'):
+        eventum_id = instance.event.eventum_id
+    
+    if eventum_id:
+        # Инвалидируем кеш для всех групп в этом eventum
+        groups = ParticipantGroupV2.objects.filter(eventum_id=eventum_id)
+        for group in groups:
+            cache_key = f'group_participants_{group.id}_{eventum_id}'
+            cache.delete(cache_key)
+
+
+# Регистрируем сигналы для всех моделей, которые влияют на состав групп
+@receiver(post_save, sender=ParticipantGroupV2)
+@receiver(post_delete, sender=ParticipantGroupV2)
+@receiver(post_save, sender=ParticipantGroupV2ParticipantRelation)
+@receiver(post_delete, sender=ParticipantGroupV2ParticipantRelation)
+@receiver(post_save, sender=ParticipantGroupV2GroupRelation)
+@receiver(post_delete, sender=ParticipantGroupV2GroupRelation)
+@receiver(post_save, sender=ParticipantGroupV2EventRelation)
+@receiver(post_delete, sender=ParticipantGroupV2EventRelation)
+@receiver(post_save, sender=Participant)
+@receiver(post_delete, sender=Participant)
+def clear_group_cache(sender, instance, **kwargs):
+    """Инвалидирует кеш групп при изменении связанных моделей"""
+    invalidate_group_cache(sender, instance, **kwargs)
