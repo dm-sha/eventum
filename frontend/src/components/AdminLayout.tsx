@@ -9,7 +9,6 @@ import {
   IconUsersCircle,
   IconMapPin,
   IconEventTag,
-  IconGroupTag,
   IconParticipantGroup,
   IconClipboardDocumentList,
 } from "./icons";
