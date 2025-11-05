@@ -147,6 +147,20 @@ const EventumPage = () => {
     navigate(getEventumScopedPath(eventumSlug, pathWithParams));
   };
 
+  // Глобально обновляем список событий при изменении регистрации,
+  // чтобы состояние сохранялось при переключении вкладок
+  const handleEventRegistrationChangeGlobal = useCallback((eventId: number, isRegistered: boolean) => {
+    setEvents(prev => prev.map(ev => {
+      if (ev.id !== eventId) return ev;
+      const delta = isRegistered ? 1 : -1;
+      return {
+        ...ev,
+        is_registered: isRegistered,
+        registrations_count: Math.max(0, (ev.registrations_count ?? 0) + delta),
+      };
+    }));
+  }, []);
+
   if (loading) {
     return (
       <main className="min-h-screen bg-gray-50 px-4 py-6 sm:px-6 lg:px-8 lg:py-10">
@@ -250,7 +264,16 @@ const EventumPage = () => {
             <GeneralTab eventum={eventum} />
           )}
           {currentTab === 'registration' && eventumSlug && (
-            <RegistrationTab eventWaves={eventWaves} events={events} currentParticipant={currentParticipant} eventumSlug={eventumSlug} eventum={eventum} myRegistrations={myRegistrations} participantId={participantId} />
+            <RegistrationTab 
+              eventWaves={eventWaves} 
+              events={events} 
+              currentParticipant={currentParticipant} 
+              eventumSlug={eventumSlug} 
+              eventum={eventum} 
+              myRegistrations={myRegistrations} 
+              participantId={participantId}
+              onEventRegistrationChange={handleEventRegistrationChangeGlobal}
+            />
           )}
           {currentTab === 'schedule' && eventumSlug && eventum && (isUserOrganizer(eventum.id) || eventum.schedule_visible) && (
             <ScheduleTab events={events} currentParticipant={currentParticipant} participantId={participantId} />
@@ -290,7 +313,7 @@ const GeneralTab: React.FC<{ eventum: Eventum }> = ({ eventum }) => {
 };
 
 // Компонент для вкладки "Подача заявок на мероприятия"
-const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; currentParticipant: Participant | null; eventumSlug: string; eventum: Eventum; myRegistrations: EventRegistration[]; participantId: string | null }> = ({ eventWaves, events, currentParticipant, eventumSlug, eventum, myRegistrations, participantId }) => {
+const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; currentParticipant: Participant | null; eventumSlug: string; eventum: Eventum; myRegistrations: EventRegistration[]; participantId: string | null; onEventRegistrationChange?: (eventId: number, isRegistered: boolean) => void }> = ({ eventWaves, events, currentParticipant, eventumSlug, eventum, myRegistrations, participantId, onEventRegistrationChange }) => {
   const [expandedWaves, setExpandedWaves] = useState<Set<number>>(new Set());
   // Локальное отслеживание регистраций для быстрого обновления UI
   const [eventRegistrations, setEventRegistrations] = useState<Map<number, boolean>>(() => {
@@ -349,6 +372,12 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
       return newMap;
     });
   }, []);
+
+  // Обновляем локально и пробрасываем изменение наверх
+  const handleLocalAndGlobalChange = useCallback((eventId: number, isRegistered: boolean) => {
+    handleEventRegistrationChange(eventId, isRegistered);
+    onEventRegistrationChange?.(eventId, isRegistered);
+  }, [handleEventRegistrationChange, onEventRegistrationChange]);
 
   // Проверяем доступность волны для текущего участника
   // Note: Access control is now handled at the event level (via EventRegistration.allowed_group),
@@ -726,7 +755,7 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
                         isViewingAsOtherParticipant={!!participantId}
                         // Если смотрим от лица другого участника, берём статус из его заявок (с защитой от пустых event)
                         initialIsRegistered={participantId ? myRegistrations.some(r => r && r.event && typeof r.event.id === 'number' && r.event.id === event.id) : undefined}
-                        onLocalRegistrationChange={handleEventRegistrationChange}
+                        onLocalRegistrationChange={handleLocalAndGlobalChange}
                       />
                     ))
                   )}
