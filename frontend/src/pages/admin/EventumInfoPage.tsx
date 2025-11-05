@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { useEventumSlug } from "../../hooks/useEventumSlug";
-import { getEventumDetails, updateEventumName, updateEventumDescription } from "../../api/eventum";
+import { getEventumDetails, updateEventumName, updateEventumDescription, updateEventumScheduleVisible } from "../../api/eventum";
 import { addEventumOrganizer, removeEventumOrganizer, searchUsers } from "../../api/organizers";
 import { useAuth } from "../../contexts/AuthContext";
 import type { EventumDetails, User } from "../../types";
@@ -26,6 +26,7 @@ const EventumInfoPage = () => {
   const [tempDescription, setTempDescription] = useState("");
   const [isSavingName, setIsSavingName] = useState(false);
   const [isSavingDescription, setIsSavingDescription] = useState(false);
+  const [isTogglingSchedule, setIsTogglingSchedule] = useState(false);
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   
@@ -116,6 +117,21 @@ const EventumInfoPage = () => {
       setTempDescription(eventum.description || "");
     }
     setIsEditingDescription(false);
+  };
+
+  const handleToggleScheduleVisible = async () => {
+    if (!eventumSlug || !eventum) return;
+    const newValue = !eventum.schedule_visible;
+    setIsTogglingSchedule(true);
+    try {
+      const updated = await updateEventumScheduleVisible(eventumSlug, newValue);
+      setEventum({ ...eventum, schedule_visible: updated.schedule_visible });
+    } catch (error) {
+      console.error('Ошибка изменения видимости расписания:', error);
+      alert('Не удалось изменить настройку видимости расписания');
+    } finally {
+      setIsTogglingSchedule(false);
+    }
   };
 
   const handleAddOrganizer = () => {
@@ -379,6 +395,27 @@ const EventumInfoPage = () => {
           <h2 className="text-lg font-semibold text-gray-900">Настройки</h2>
         </div>
         
+        {/* Карточка: видимость вкладки Расписание */}
+        <div className="bg-white border border-gray-200 rounded-lg p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-md font-medium text-gray-900">Вкладка «Расписание» для участников</h3>
+              <p className="text-sm text-gray-500">Управляет отображением вкладки расписания на странице участника</p>
+            </div>
+            <button
+              onClick={handleToggleScheduleVisible}
+              disabled={isTogglingSchedule}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${eventum.schedule_visible ? 'bg-blue-600' : 'bg-gray-300'} disabled:opacity-50`}
+              title={eventum.schedule_visible ? 'Скрыть вкладку для участников' : 'Показать вкладку для участников'}
+            >
+              <span
+                className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${eventum.schedule_visible ? 'translate-x-5' : 'translate-x-1'}`}
+              />
+            </button>
+          </div>
+        </div>
+
+        {/* Карточка: организаторы */}
         <div className="bg-white border border-gray-200 rounded-lg p-4">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-md font-medium text-gray-900">Организаторы</h3>
@@ -390,7 +427,6 @@ const EventumInfoPage = () => {
               Добавить
             </button>
           </div>
-          
           {eventum.organizers && eventum.organizers.length > 0 ? (
             <div className="space-y-2">
               {eventum.organizers.map((organizerRole) => (

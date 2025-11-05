@@ -5,6 +5,7 @@ export interface Eventum {
     description?: string;
     image_url?: string;
     registration_open: boolean;
+    schedule_visible: boolean;
     // password_hash мы не получаем на фронтенде, поэтому его здесь нет
 }
 

@@ -19,6 +19,10 @@ class Eventum(models.Model):
         default=True,
         help_text="Открыта ли регистрация на мероприятия"
     )
+    schedule_visible = models.BooleanField(
+        default=True,
+        help_text="Отображать ли вкладку расписания участникам"
+    )
 
     def save(self, *args, **kwargs):
         # Если slug не предоставлен, генерируем его из названия

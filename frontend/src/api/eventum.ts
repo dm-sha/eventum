@@ -51,3 +51,9 @@ export const updateEventumDescription = async (slug: string, description: string
     const response = await eventumApi.update(slug, { description });
     return response.data;
 };
+
+// Обновить видимость вкладки расписания
+export const updateEventumScheduleVisible = async (slug: string, schedule_visible: boolean): Promise<Eventum> => {
+    const response = await eventumApi.update(slug, { schedule_visible });
+    return response.data;
+};
