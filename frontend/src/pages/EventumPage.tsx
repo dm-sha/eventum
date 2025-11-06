@@ -467,9 +467,15 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
             {(() => {
               const participatingEvents = myRegistrations
                 .filter(registration => 
+                  registration.event && 
+                  registration.event.participants && 
+                  Array.isArray(registration.event.participants) &&
                   registration.event.participants.includes(currentParticipant!.id)
                 )
-                .sort((a, b) => new Date(a.event.start_time).getTime() - new Date(b.event.start_time).getTime());
+                .sort((a, b) => {
+                  if (!a.event?.start_time || !b.event?.start_time) return 0;
+                  return new Date(a.event.start_time).getTime() - new Date(b.event.start_time).getTime();
+                });
               
               return participatingEvents.length > 0 ? (
                 <div>
@@ -554,9 +560,15 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
             {(() => {
               const appliedEvents = myRegistrations
                 .filter(registration => 
+                  registration.event && 
+                  registration.event.participants && 
+                  Array.isArray(registration.event.participants) &&
                   !registration.event.participants.includes(currentParticipant!.id)
                 )
-                .sort((a, b) => new Date(a.event.start_time).getTime() - new Date(b.event.start_time).getTime());
+                .sort((a, b) => {
+                  if (!a.event?.start_time || !b.event?.start_time) return 0;
+                  return new Date(a.event.start_time).getTime() - new Date(b.event.start_time).getTime();
+                });
               
               return appliedEvents.length > 0 ? (
                 <div>
