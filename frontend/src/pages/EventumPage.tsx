@@ -121,6 +121,27 @@ const EventumPage = () => {
         
         setEventum(eventumData);
         setEventWaves(wavesData);
+        // Если просматриваем от лица другого участника, обновляем is_registered в events на основе myRegistrations
+        if (participantId) {
+          // Создаём Map для быстрого поиска регистраций по ID события
+          const registrationsMap = new Map<number, any>();
+          registrationsData.forEach((reg: any) => {
+            const eventId = reg.event?.id ?? reg.id;
+            if (eventId && typeof eventId === 'number') {
+              registrationsMap.set(eventId, reg);
+            }
+          });
+          eventsData.forEach(event => {
+            const reg = registrationsMap.get(event.id);
+            if (reg) {
+              // Используем is_registered из регистрации, если есть, иначе считаем что зарегистрирован
+              event.is_registered = reg.is_registered !== undefined ? reg.is_registered : true;
+            } else {
+              // Если регистрации нет, значит не зарегистрирован
+              event.is_registered = false;
+            }
+          });
+        }
         setEvents(eventsData);
         setCurrentParticipant(participantData);
         setMyRegistrations(registrationsData);
@@ -324,6 +345,7 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
   // Локальное отслеживание регистраций для быстрого обновления UI
   const [eventRegistrations, setEventRegistrations] = useState<Map<number, boolean>>(() => {
     const map = new Map<number, boolean>();
+    // events уже содержат правильные значения is_registered (обновлены в родительском компоненте)
     events.forEach(event => {
       map.set(event.id, event.is_registered);
     });
@@ -343,11 +365,13 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
   // Синхронизируем локальное состояние регистраций с пропсами
   useEffect(() => {
     const newMap = new Map<number, boolean>();
+    // Если просматриваем от лица другого участника, events уже обновлены с правильными is_registered
+    // Используем events напрямую, так как они уже содержат правильные значения is_registered
     events.forEach(event => {
       newMap.set(event.id, event.is_registered);
     });
     setEventRegistrations(newMap);
-  }, [events]);
+  }, [events, myRegistrations, participantId]);
 
   const getEventsForWave = useCallback((wave: EventWave) => {
     // Получаем актуальные события из массива events по ID из волны
@@ -365,9 +389,12 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
 
   const getRegisteredEventsCountForWave = (wave: EventWave) => {
     if (!currentParticipant) return 0;
-    const waveEvents = getEventsForWave(wave);
-    // Используем локальное состояние регистраций для актуального подсчёта
-    return waveEvents.filter(event => eventRegistrations.get(event.id) === true).length;
+    // Получаем все события волны (не фильтруем по доступности для подсчёта)
+    const waveEventIds = new Set(wave.events.map(e => e.id));
+    // Считаем все зарегистрированные события из волны, независимо от доступности
+    return events
+      .filter(event => waveEventIds.has(event.id))
+      .filter(event => eventRegistrations.get(event.id) === true).length;
   };
 
   // Callback для обновления регистрации события
@@ -751,14 +778,20 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
                   ) : (
                     waveEvents.map((event) => {
                       const reg = (wave.registrations || []).find((r: any) => r && r.event && typeof r.event.id === 'number' && r.event.id === event.id);
+                      // Для просмотра от лица другого участника: myRegistrations содержит Event[], поэтому проверяем по event.id напрямую
+                      const initialIsRegistered = participantId 
+                        ? myRegistrations.some((r: any) => {
+                            const eventId = r.event?.id ?? r.id;
+                            return eventId && typeof eventId === 'number' && eventId === event.id && (r.is_registered !== undefined ? r.is_registered : true);
+                          })
+                        : undefined;
                       return (
                         <EventCard 
                           key={`${event.id}-${event.is_registered}-${event.registrations_count}`} 
                           event={event} 
                           eventumSlug={eventumSlug} 
                           isViewingAsOtherParticipant={!!participantId}
-                          // Если смотрим от лица другого участника, берём статус из его заявок (с защитой от пустых event)
-                          initialIsRegistered={participantId ? myRegistrations.some(r => r && r.event && typeof r.event.id === 'number' && r.event.id === event.id) : undefined}
+                          initialIsRegistered={initialIsRegistered}
                           onLocalRegistrationChange={handleLocalAndGlobalChange}
                           registrationMaxParticipants={reg?.max_participants ?? null}
                         />

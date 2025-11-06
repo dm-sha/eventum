@@ -254,7 +254,8 @@ class ParticipantViewSet(CachedListMixin, EventumScopedViewSet):
             'locations', 'tags', 'registration'
         ).order_by('-start_time')
         
-        serializer = EventSerializer(events, many=True, context={'request': request})
+        # Передаём ID участника в контекст, чтобы is_registered проверял регистрацию именно этого участника
+        serializer = EventSerializer(events, many=True, context={'request': request, 'participant_id': participant.id})
         return Response(serializer.data)
     
     @action(detail=False, methods=['post'], permission_classes=[IsEventumOrganizer])

@@ -1387,23 +1387,36 @@ class EventSerializer(serializers.ModelSerializer):
         return 0
 
     def get_is_registered(self, obj):
-        """Проверить, записан ли текущий пользователь на мероприятие"""
+        """Проверить, записан ли текущий пользователь (или указанный участник) на мероприятие"""
         request = self.context.get('request')
-        if not request or not request.user.is_authenticated:
-            return False
+        participant_id = self.context.get('participant_id')
+        
+        # Если указан participant_id в контексте (для просмотра от лица другого участника),
+        # используем его вместо текущего пользователя
+        if participant_id:
+            participant = None
+            try:
+                from .models import Participant
+                participant = Participant.objects.get(id=participant_id, eventum=obj.eventum)
+            except Participant.DoesNotExist:
+                return False
+        else:
+            # Обычная логика для текущего пользователя
+            if not request or not request.user.is_authenticated:
+                return False
+            
+            # Получаем участника текущего пользователя
+            from .models import Participant
+            try:
+                participant = Participant.objects.get(user=request.user, eventum=obj.eventum)
+            except Participant.DoesNotExist:
+                return False
         
         # Проверяем, есть ли настройка регистрации
         if not hasattr(obj, 'registration'):
             return False
         
         registration = obj.registration
-        
-        # Получаем участника текущего пользователя
-        from .models import Participant
-        try:
-            participant = Participant.objects.get(user=request.user, eventum=obj.eventum)
-        except Participant.DoesNotExist:
-            return False
         
         # В зависимости от типа регистрации проверяем по-разному
         if registration.registration_type == EventRegistration.RegistrationType.BUTTON:
