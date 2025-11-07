@@ -1464,9 +1464,16 @@ const EventRegistrationPage: React.FC = () => {
     allowed_group?: number | null;
   }) => {
     if (!eventumSlug) return;
-    await updateEventRegistration(eventumSlug, id, data);
-    setEditingRegistrationId(null);
-    await load();
+    try {
+      const updatedRegistration = await updateEventRegistration(eventumSlug, id, data);
+      // Обновляем только конкретную регистрацию в массиве
+      setRegistrations(prevRegistrations => 
+        prevRegistrations.map(reg => reg.id === id ? updatedRegistration : reg)
+      );
+      setEditingRegistrationId(null);
+    } catch (error) {
+      console.error('Error updating registration:', error);
+    }
   };
 
   const handleDeleteRegistration = async (id: number) => {
