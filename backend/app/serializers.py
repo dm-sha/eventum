@@ -961,6 +961,9 @@ class EventWaveSerializer(serializers.ModelSerializer):
             is_allowed_group: Если True, группа используется как allowed_group для проверки доступа.
                              В этом случае, если группа не имеет явных inclusive связей, возвращается пустой список.
         """
+        # Импортируем модели в начале функции для доступа во всей функции
+        from .models import ParticipantGroupV2ParticipantRelation, ParticipantGroupV2GroupRelation
+        
         if not group:
             return set()
         
@@ -974,19 +977,27 @@ class EventWaveSerializer(serializers.ModelSerializer):
         visited_groups.add(group.id)
         
         # Получаем все participant_relations из prefetch_related
-        # ВАЖНО: не используем fallback к .all(), чтобы избежать запросов к БД
+        # Если prefetch не сработал, загружаем связи напрямую (fallback для отладки)
         participant_relations = []
         if hasattr(group, '_prefetched_objects_cache') and 'participant_relations' in group._prefetched_objects_cache:
             participant_relations = group._prefetched_objects_cache['participant_relations']
-        # Если prefetch не сработал, возвращаем пустой список (не делаем запрос к БД)
-        # Это может произойти только если prefetch не был настроен правильно
+        else:
+            # Fallback: если prefetch не сработал, загружаем связи напрямую
+            # Это может произойти если prefetch не был настроен правильно
+            participant_relations = list(ParticipantGroupV2ParticipantRelation.objects.filter(
+                group=group
+            ).select_related('participant'))
         
         # Получаем все group_relations из prefetch_related
-        # ВАЖНО: не используем fallback к .all(), чтобы избежать запросов к БД
+        # Если prefetch не сработал, загружаем связи напрямую (fallback для отладки)
         group_relations = []
         if hasattr(group, '_prefetched_objects_cache') and 'group_relations' in group._prefetched_objects_cache:
             group_relations = group._prefetched_objects_cache['group_relations']
-        # Если prefetch не сработал, возвращаем пустой список (не делаем запрос к БД)
+        else:
+            # Fallback: если prefetch не сработал, загружаем связи напрямую
+            group_relations = list(ParticipantGroupV2GroupRelation.objects.filter(
+                group=group
+            ).select_related('target_group'))
         
         # Проверяем, есть ли хотя бы одна inclusive связь
         has_inclusive_participants = any(
@@ -1006,7 +1017,9 @@ class EventWaveSerializer(serializers.ModelSerializer):
             if is_allowed_group:
                 return set()
             
-            # Для обычных групп (не allowed_group) возвращаем всех участников eventum
+            # Для обычных групп (не allowed_group):
+            # - Если нет никаких связей - возвращаем всех участников eventum
+            # - Если только exclusive связи - возвращаем всех участников eventum кроме exclusive
             # Используем all_participant_ids из контекста
             all_participant_ids = self.context.get('all_participant_ids', set())
             
@@ -1528,6 +1541,9 @@ class EventSerializer(serializers.ModelSerializer):
             is_allowed_group: Если True, группа используется как allowed_group для проверки доступа.
                              В этом случае, если группа не имеет явных inclusive связей, возвращается пустой список.
         """
+        # Импортируем модели в начале функции для доступа во всей функции
+        from .models import ParticipantGroupV2ParticipantRelation, ParticipantGroupV2GroupRelation
+        
         if not group:
             return set()
         
@@ -1541,19 +1557,27 @@ class EventSerializer(serializers.ModelSerializer):
         visited_groups.add(group.id)
         
         # Получаем все participant_relations из prefetch_related
-        # ВАЖНО: не используем fallback к .all(), чтобы избежать запросов к БД
+        # Если prefetch не сработал, загружаем связи напрямую (fallback для отладки)
         participant_relations = []
         if hasattr(group, '_prefetched_objects_cache') and 'participant_relations' in group._prefetched_objects_cache:
             participant_relations = group._prefetched_objects_cache['participant_relations']
-        # Если prefetch не сработал, возвращаем пустой список (не делаем запрос к БД)
-        # Это может произойти только если prefetch не был настроен правильно
+        else:
+            # Fallback: если prefetch не сработал, загружаем связи напрямую
+            # Это может произойти если prefetch не был настроен правильно
+            participant_relations = list(ParticipantGroupV2ParticipantRelation.objects.filter(
+                group=group
+            ).select_related('participant'))
         
         # Получаем все group_relations из prefetch_related
-        # ВАЖНО: не используем fallback к .all(), чтобы избежать запросов к БД
+        # Если prefetch не сработал, загружаем связи напрямую (fallback для отладки)
         group_relations = []
         if hasattr(group, '_prefetched_objects_cache') and 'group_relations' in group._prefetched_objects_cache:
             group_relations = group._prefetched_objects_cache['group_relations']
-        # Если prefetch не сработал, возвращаем пустой список (не делаем запрос к БД)
+        else:
+            # Fallback: если prefetch не сработал, загружаем связи напрямую
+            group_relations = list(ParticipantGroupV2GroupRelation.objects.filter(
+                group=group
+            ).select_related('target_group'))
         
         # Проверяем, есть ли хотя бы одна inclusive связь
         has_inclusive_participants = any(
@@ -1573,7 +1597,9 @@ class EventSerializer(serializers.ModelSerializer):
             if is_allowed_group:
                 return set()
             
-            # Для обычных групп (не allowed_group) возвращаем всех участников eventum
+            # Для обычных групп (не allowed_group):
+            # - Если нет никаких связей - возвращаем всех участников eventum
+            # - Если только exclusive связи - возвращаем всех участников eventum кроме exclusive
             # Используем all_participant_ids из контекста
             all_participant_ids = self.context.get('all_participant_ids', set())
             
