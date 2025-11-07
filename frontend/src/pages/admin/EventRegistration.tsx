@@ -104,38 +104,62 @@ const RegistrationCard: React.FC<RegistrationCardProps> = ({
 
     setIsLoadingEventParticipants(true);
     try {
-      // Получаем связи групп v2 с мероприятием
-      const relationsResponse = await eventRelationsV2Api.getAll(eventumSlug, { event_id: registration.event.id });
-      const relations = relationsResponse.data;
+      // Проверяем, есть ли прямая связь через event_group_v2_id
+      const eventGroupV2Id = (registration.event as any).event_group_v2_id;
+      
+      let groupIds: number[] = [];
+      
+      if (eventGroupV2Id) {
+        // Используем прямую связь 1:1
+        groupIds = [eventGroupV2Id];
+      } else {
+        // Получаем связи групп v2 с мероприятием через API
+        const relationsResponse = await eventRelationsV2Api.getAll(eventumSlug, { event_id: registration.event.id });
+        const relations = relationsResponse.data;
 
-      if (relations.length === 0) {
+        if (relations && relations.length > 0) {
+          groupIds = relations.map(rel => rel.group_id).filter((id): id is number => id != null);
+        }
+      }
+      
+      if (groupIds.length === 0) {
         setEventParticipants([]);
         return;
       }
 
-      // Получаем все группы v2, связанные с мероприятием
-      const groupIds = relations.map(rel => rel.group_id);
       const allGroupsResponse = await groupsV2Api.getAll(eventumSlug, { includeEventGroups: true });
-      const allGroups = allGroupsResponse.data;
-      const eventGroups = allGroups.filter(group => groupIds.includes(group.id));
+      const allGroups = allGroupsResponse.data || [];
+      const eventGroups = allGroups.filter(group => group && groupIds.includes(group.id));
+
+      if (eventGroups.length === 0) {
+        setEventParticipants([]);
+        return;
+      }
 
       // Собираем всех участников из всех групп
       const allParticipantIds = new Set<number>();
       for (const group of eventGroups) {
-        if (group.participant_relations) {
+        if (group && group.participant_relations && Array.isArray(group.participant_relations)) {
           for (const relation of group.participant_relations) {
-            if (relation.relation_type === 'inclusive' && relation.participant_id) {
+            if (relation && relation.relation_type === 'inclusive' && relation.participant_id) {
               allParticipantIds.add(relation.participant_id);
             }
           }
         }
       }
 
+      if (allParticipantIds.size === 0) {
+        setEventParticipants([]);
+        return;
+      }
+
       // Получаем данные участников
       const participantsResponses = await Promise.all(
         Array.from(allParticipantIds).map(id => participantsApi.getById(id, eventumSlug))
       );
-      const participantsData = participantsResponses.map(response => response.data);
+      const participantsData = participantsResponses
+        .map(response => response?.data)
+        .filter((p): p is Participant => p != null);
       setEventParticipants(participantsData);
     } catch (error) {
       console.error('Error loading event participants:', error);
@@ -146,10 +170,11 @@ const RegistrationCard: React.FC<RegistrationCardProps> = ({
   };
 
   const handleToggleEventParticipants = () => {
-    if (!isEventParticipantsExpanded && eventParticipants.length === 0) {
+    const willExpand = !isEventParticipantsExpanded;
+    if (willExpand && eventParticipants.length === 0 && !isLoadingEventParticipants) {
       loadEventParticipants();
     }
-    setIsEventParticipantsExpanded(!isEventParticipantsExpanded);
+    setIsEventParticipantsExpanded(willExpand);
   };
 
   const capacityInfo = (max?: number | null) => {
@@ -266,6 +291,9 @@ const RegistrationCard: React.FC<RegistrationCardProps> = ({
                 title="Показать участников мероприятия"
               >
                 <IconUsersCircle size={16} />
+                {registration.event_participants_count !== undefined && registration.event_participants_count > 0 && (
+                  <span>{registration.event_participants_count}</span>
+                )}
                 {isEventParticipantsExpanded ? (
                   <IconChevronDown size={14} className="transition-transform" />
                 ) : (
@@ -324,7 +352,7 @@ const RegistrationCard: React.FC<RegistrationCardProps> = ({
               </div>
             ) : eventParticipants.length === 0 ? (
               <div className="text-center py-4 text-sm text-gray-500">
-                Участники не найдены. Нет связанных групп v2 с мероприятием.
+                Участники не найдены. Проверьте, что группы v2 связаны с мероприятием и содержат участников.
               </div>
             ) : (
               <div className="space-y-2">

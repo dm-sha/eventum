@@ -752,8 +752,10 @@ class ParticipantGroupV2EventRelationViewSet(EventumScopedViewSet, viewsets.Mode
         group_id = self.request.query_params.get('group_id')
         event_id = self.request.query_params.get('event_id')
         
+        # Фильтруем по eventum группы И события, чтобы убедиться, что оба принадлежат одному eventum
         queryset = ParticipantGroupV2EventRelation.objects.filter(
-            group__eventum=eventum
+            group__eventum=eventum,
+            event__eventum=eventum
         ).select_related(
             'group',
             'event',
@@ -860,6 +862,7 @@ class EventRegistrationViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
         ).select_related(
             'event',
             'event__eventum',
+            'event__event_group_v2',  # Для подсчета участников мероприятия
             'allowed_group'
         ).prefetch_related(
             'event__locations',
@@ -886,7 +889,8 @@ class EventViewSet(CachedListMixin, EventumScopedViewSet, viewsets.ModelViewSet)
         
         # Базовый queryset с аннотациями
         queryset = Event.objects.filter(eventum=eventum).select_related(
-            'eventum'
+            'eventum',
+            'event_group_v2'  # Добавляем select_related для event_group_v2
         ).annotate(
             participants_count=Count('participants', distinct=True)
         )
