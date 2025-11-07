@@ -722,7 +722,17 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
     );
     return events
       .filter(event => waveEventIds.has(event.id))
-      .filter(event => allowedEventIds.has(event.id));
+      .filter(event => allowedEventIds.has(event.id))
+      .filter(event => {
+        // Скрываем мероприятия без свободных мест
+        // Если registration_max_participants задан и participants_count >= registration_max_participants, то скрываем
+        if (event.registration_max_participants != null && 
+            event.participants_count != null &&
+            event.participants_count >= event.registration_max_participants) {
+          return false;
+        }
+        return true;
+      });
   }, [events]);
 
   const getRegisteredEventsCountForWave = (wave: EventWave) => {
@@ -734,6 +744,17 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
       .filter(event => waveEventIds.has(event.id))
       .filter(event => eventRegistrations.get(event.id) === true).length;
   };
+
+  // Проверяем, записан ли пользователь на какое-то мероприятие с типом 'button' в волне
+  const isButtonEventRegisteredInWave = useCallback((wave: EventWave) => {
+    if (!currentParticipant) return false;
+    const waveEventIds = new Set(wave.events.map(e => e.id));
+    return events.some(event => 
+      waveEventIds.has(event.id) &&
+      event.registration_type === 'button' &&
+      eventRegistrations.get(event.id) === true
+    );
+  }, [events, currentParticipant, eventRegistrations]);
 
   // Callback для обновления регистрации события
   const handleEventRegistrationChange = useCallback((eventId: number, isRegistered: boolean) => {
@@ -929,6 +950,10 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
                             return eventId && typeof eventId === 'number' && eventId === event.id && (r.is_registered !== undefined ? r.is_registered : true);
                           })
                         : undefined;
+                      const hasButtonEventRegistered = isButtonEventRegisteredInWave(wave);
+                      const isThisEventButtonRegistered = event.registration_type === 'button' && eventRegistrations.get(event.id) === true;
+                      // Кнопка неактивна только для мероприятий с типом 'button', если записан на другое button-мероприятие в этой волне
+                      const isRegisterButtonDisabled = event.registration_type === 'button' && hasButtonEventRegistered && !isThisEventButtonRegistered;
                       return (
                         <EventCard 
                           key={`${event.id}-${event.is_registered}-${event.registrations_count}`} 
@@ -938,6 +963,7 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
                           initialIsRegistered={initialIsRegistered}
                           onLocalRegistrationChange={handleLocalAndGlobalChange}
                           registrationMaxParticipants={reg?.max_participants ?? null}
+                          isRegisterButtonDisabled={isRegisterButtonDisabled}
                         />
                       );
                     })
@@ -953,7 +979,7 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
 };
 
 // Компонент карточки мероприятия
-const EventCard: React.FC<{ event: Event; eventumSlug: string; isViewingAsOtherParticipant?: boolean; initialIsRegistered?: boolean; onLocalRegistrationChange?: (eventId: number, isRegistered: boolean) => void; registrationMaxParticipants?: number | null }> = ({ event, eventumSlug, isViewingAsOtherParticipant = false, initialIsRegistered, onLocalRegistrationChange, registrationMaxParticipants = null }) => {
+const EventCard: React.FC<{ event: Event; eventumSlug: string; isViewingAsOtherParticipant?: boolean; initialIsRegistered?: boolean; onLocalRegistrationChange?: (eventId: number, isRegistered: boolean) => void; registrationMaxParticipants?: number | null; isRegisterButtonDisabled?: boolean }> = ({ event, eventumSlug, isViewingAsOtherParticipant = false, initialIsRegistered, onLocalRegistrationChange, registrationMaxParticipants = null, isRegisterButtonDisabled = false }) => {
   // Отдельные состояния для отслеживания загрузки каждой операции
   const [isRegistering, setIsRegistering] = useState(false);
   const [isUnregistering, setIsUnregistering] = useState(false);
@@ -1192,7 +1218,7 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string; isViewingAsOtherP
             <div className="flex items-center">
               <button
                 onClick={handleRegister}
-                disabled={isRegistering || isUnregistering}
+                disabled={isRegistering || isUnregistering || isRegisterButtonDisabled}
                 className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isRegistering ? (event.registration_type === 'button' ? 'Запись...' : 'Подача заявки...') : (event.registration_type === 'button' ? 'Записаться' : 'Подать заявку')}
