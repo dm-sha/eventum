@@ -1,20 +1,20 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useDelayedLoading } from "../../hooks/useDelayedLoading";
 import { getParticipantsForEventum, createParticipant, updateParticipant, deleteParticipant } from "../../api/participant";
-import { getGroupsForEventum, updateGroup } from "../../api/group";
+import { groupsV2Api } from "../../api/eventumApi";
 import { groupTagApi } from "../../api/groupTag";
 import { IconUser, IconExternalLink, IconPencil, IconTrash, IconPlus, IconEye } from "../../components/icons";
 import ParticipantModal from "../../components/participant/ParticipantModal";
 import ParticipantsLoadingSkeleton from "../../components/participant/ParticipantsLoadingSkeleton";
 import LazyImage from "../../components/LazyImage";
-import type { Participant, ParticipantGroup, GroupTag } from "../../types";
+import type { Participant, ParticipantGroupV2, GroupTag } from "../../types";
 import { useEventumSlug } from "../../hooks/useEventumSlug";
 import { getEventumScopedPath } from "../../utils/eventumSlug";
 
 const AdminParticipantsPage = () => {
   const eventumSlug = useEventumSlug();
   const [participants, setParticipants] = useState<Participant[]>([]);
-  const [groups, setGroups] = useState<ParticipantGroup[]>([]);
+  const [groupsV2, setGroupsV2] = useState<ParticipantGroupV2[]>([]);
   const [groupTags, setGroupTags] = useState<GroupTag[]>([]);
   const [nameFilter, setNameFilter] = useState("");
   const [groupFilter, setGroupFilter] = useState<number | "">("");
@@ -27,6 +27,101 @@ const AdminParticipantsPage = () => {
   
   const showLoading = useDelayedLoading(isLoading, 300);
 
+  // Рекурсивно находим все группы, которые включают данную группу (через group_relations)
+  // Исключаем группы с is_event_group=true
+  const getGroupsThatInclude = useMemo(() => {
+    const groupsMap = new Map<number, ParticipantGroupV2>();
+    // Фильтруем только не-event группы
+    const nonEventGroups = groupsV2.filter(group => !group.is_event_group);
+    nonEventGroups.forEach(group => {
+      groupsMap.set(group.id, group);
+    });
+
+    const result = new Map<number, Set<number>>(); // groupId -> Set of groups that include it
+
+    const findIncludingGroups = (groupId: number, visited = new Set<number>()): Set<number> => {
+      if (visited.has(groupId)) {
+        return result.get(groupId) || new Set();
+      }
+      visited.add(groupId);
+
+      const includingGroups = new Set<number>();
+      const group = groupsMap.get(groupId);
+      if (!group) return includingGroups;
+
+      // Ищем все группы, которые включают эту группу через inclusive group_relations
+      // Учитываем только не-event группы
+      nonEventGroups.forEach(otherGroup => {
+        // Пропускаем event_group
+        if (otherGroup.is_event_group) return;
+        
+        otherGroup.group_relations.forEach(rel => {
+          if (rel.relation_type === 'inclusive' && 
+              (rel.target_group_id === groupId || rel.target_group?.id === groupId)) {
+            includingGroups.add(otherGroup.id);
+            // Рекурсивно находим группы, которые включают эту группу
+            const nestedIncluding = findIncludingGroups(otherGroup.id, new Set(visited));
+            nestedIncluding.forEach(id => includingGroups.add(id));
+          }
+        });
+      });
+
+      result.set(groupId, includingGroups);
+      return includingGroups;
+    };
+
+    // Предварительно вычисляем для всех не-event групп
+    nonEventGroups.forEach(group => {
+      findIncludingGroups(group.id);
+    });
+
+    return result;
+  }, [groupsV2]);
+
+  // Вычисляем группы для каждого участника на основе v2 групп (с учетом вложенных групп)
+  // Исключаем группы с is_event_group=true
+  const participantGroupsMap = useMemo(() => {
+    const map = new Map<number, ParticipantGroupV2[]>();
+    const groupsMap = new Map<number, ParticipantGroupV2>();
+    // Фильтруем только не-event группы
+    const nonEventGroups = groupsV2.filter(group => !group.is_event_group);
+    nonEventGroups.forEach(group => {
+      groupsMap.set(group.id, group);
+    });
+
+    // Обрабатываем только не-event группы
+    nonEventGroups.forEach(group => {
+      group.participant_relations.forEach(rel => {
+        if (rel.relation_type === 'inclusive') {
+          const participantId = rel.participant_id || rel.participant?.id;
+          if (participantId) {
+            if (!map.has(participantId)) {
+              map.set(participantId, []);
+            }
+            // Добавляем прямую группу (уже не-event, так как мы фильтруем)
+            if (!map.get(participantId)!.some(g => g.id === group.id)) {
+              map.get(participantId)!.push(group);
+            }
+            
+            // Добавляем все группы, которые включают эту группу
+            const includingGroups = getGroupsThatInclude.get(group.id);
+            if (includingGroups) {
+              includingGroups.forEach(includingGroupId => {
+                const includingGroup = groupsMap.get(includingGroupId);
+                // Дополнительная проверка на is_event_group (на всякий случай)
+                if (includingGroup && !includingGroup.is_event_group && 
+                    !map.get(participantId)!.some(g => g.id === includingGroup.id)) {
+                  map.get(participantId)!.push(includingGroup);
+                }
+              });
+            }
+          }
+        }
+      });
+    });
+    return map;
+  }, [groupsV2, getGroupsThatInclude]);
+
   useEffect(() => {
     if (eventumSlug) {
       loadData();
@@ -38,13 +133,13 @@ const AdminParticipantsPage = () => {
     
     setIsLoading(true);
     try {
-      const [participantsData, groupsData, tagsData] = await Promise.all([
+      const [participantsData, groupsV2Response, tagsData] = await Promise.all([
         getParticipantsForEventum(eventumSlug),
-        getGroupsForEventum(eventumSlug),
+        groupsV2Api.getAll(eventumSlug, { includeEventGroups: true }),
         groupTagApi.getGroupTags(eventumSlug)
       ]);
       setParticipants(participantsData);
-      setGroups(groupsData);
+      setGroupsV2(groupsV2Response.data);
       setGroupTags(tagsData);
     } catch (error) {
       console.error("Ошибка при загрузке данных:", error);
@@ -57,17 +152,15 @@ const AdminParticipantsPage = () => {
     .filter((participant) => {
       const matchesName = participant.name.toLowerCase().includes(nameFilter.toLowerCase());
       
-      if (groupFilter && participant.groups) {
-        const matchesGroup = participant.groups.some(group => group.id === groupFilter);
+      const participantGroups = participantGroupsMap.get(participant.id) || [];
+      
+      if (groupFilter) {
+        const matchesGroup = participantGroups.some(group => group.id === groupFilter);
         if (!matchesGroup) return false;
       }
       
-      if (tagFilter && participant.groups) {
-        const matchesTag = participant.groups.some(group => 
-          group.tags && group.tags.some(tag => tag.id === tagFilter)
-        );
-        if (!matchesTag) return false;
-      }
+      // Фильтр по тегам - в v2 группах тегов нет напрямую, но можно оставить для обратной совместимости
+      // если теги будут добавлены в v2 группы в будущем
       
       return matchesName;
     })
@@ -95,16 +188,24 @@ const AdminParticipantsPage = () => {
           const participantId = editingParticipant.id;
           await Promise.all(
             removedGroupIds.map(async (groupId) => {
-              const group = groups.find((g) => g.id === groupId);
-              if (!group) return;
+              const group = groupsV2.find((g) => g.id === groupId);
+              // Пропускаем event_group и несуществующие группы
+              if (!group || group.is_event_group) return;
 
-              const updatedParticipantIds = group.participants.filter((id) => id !== participantId);
+              // Обновляем группу, удаляя связи с участником
+              const updatedRelations = group.participant_relations
+                .filter(rel => rel.participant_id !== participantId)
+                .map(rel => ({
+                  participant_id: rel.participant_id,
+                  relation_type: rel.relation_type
+                }));
+
               try {
-                await updateGroup(eventumSlug, groupId, {
-                  participants: updatedParticipantIds
-                });
+                await groupsV2Api.update(groupId, {
+                  participant_relations: updatedRelations
+                }, eventumSlug);
               } catch (groupError) {
-                console.error(`Ошибка при обновлении группы ${groupId}:`, groupError);
+                console.error(`Ошибка при обновлении группы v2 ${groupId}:`, groupError);
               }
             })
           );
@@ -177,7 +278,7 @@ const AdminParticipantsPage = () => {
             className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
           >
             <option value="">Все группы</option>
-            {groups.map((group) => (
+            {groupsV2.filter(group => !group.is_event_group).map((group) => (
               <option key={group.id} value={group.id}>
                 {group.name}
               </option>
@@ -261,19 +362,22 @@ const AdminParticipantsPage = () => {
                     )}
                   </div>
                   
-                  {/* Группы участника */}
-                  {participant.groups && participant.groups.length > 0 && (
-                    <div className="flex flex-wrap gap-1">
-                      {participant.groups.map((group) => (
-                        <span
-                          key={group.id}
-                          className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700"
-                        >
-                          {group.name}
-                        </span>
-                      ))}
-                    </div>
-                  )}
+                  {/* Группы участника v2 */}
+                  {(() => {
+                    const participantGroups = participantGroupsMap.get(participant.id) || [];
+                    return participantGroups.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {participantGroups.map((group) => (
+                          <span
+                            key={group.id}
+                            className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700"
+                          >
+                            {group.name}
+                          </span>
+                        ))}
+                      </div>
+                    );
+                  })()}
                 </div>
                 
                 {/* Кнопки действий справа */}
@@ -325,6 +429,7 @@ const AdminParticipantsPage = () => {
         onClose={() => setIsModalOpen(false)}
         onSave={handleSaveParticipant}
         participant={editingParticipant}
+        participantGroupsV2={editingParticipant ? (participantGroupsMap.get(editingParticipant.id) || []) : []}
         isLoading={isSaving}
       />
     </div>

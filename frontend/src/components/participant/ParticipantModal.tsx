@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { IconX, IconUser, IconSearch, IconCheck } from "../icons";
-import type { Participant, ParticipantGroup, User } from "../../types";
+import type { Participant, ParticipantGroupV2, User } from "../../types";
 import { searchUsers } from "../../api/organizers";
 import { usersApi } from "../../api/eventumApi";
 
@@ -11,6 +11,7 @@ interface ParticipantModalProps {
     data: { name: string; user_id?: number | null; removedGroupIds?: number[] }
   ) => Promise<void>;
   participant?: Participant | null;
+  participantGroupsV2?: ParticipantGroupV2[];
   isLoading?: boolean;
 }
 
@@ -19,6 +20,7 @@ const ParticipantModal = ({
   onClose, 
   onSave, 
   participant,
+  participantGroupsV2 = [],
   isLoading = false
 }: ParticipantModalProps) => {
   const [name, setName] = useState("");
@@ -28,7 +30,7 @@ const ParticipantModal = ({
   const [isSearching, setIsSearching] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showAddUserModal, setShowAddUserModal] = useState(false);
-  const [participantGroups, setParticipantGroups] = useState<ParticipantGroup[]>([]);
+  const [participantGroups, setParticipantGroups] = useState<ParticipantGroupV2[]>([]);
   const [initialGroupIds, setInitialGroupIds] = useState<number[]>([]);
 
   useEffect(() => {
@@ -36,9 +38,9 @@ const ParticipantModal = ({
       setName(participant.name);
       setSelectedUser(participant.user || null);
       setUserSearchQuery(participant.user?.name || "");
-      const groups = participant.groups ?? [];
-      setParticipantGroups(groups);
-      setInitialGroupIds(groups.map((group) => group.id));
+      // Используем переданные группы v2
+      setParticipantGroups(participantGroupsV2);
+      setInitialGroupIds(participantGroupsV2.map((group) => group.id));
     } else {
       setName("");
       setSelectedUser(null);
@@ -46,7 +48,7 @@ const ParticipantModal = ({
       setParticipantGroups([]);
       setInitialGroupIds([]);
     }
-  }, [participant, isOpen]);
+  }, [participant, participantGroupsV2, isOpen]);
 
   // Дополнительная синхронизация: если поле поиска пустое, но selectedUser не null, очищаем selectedUser
   useEffect(() => {
@@ -336,18 +338,6 @@ const ParticipantModal = ({
                   <div key={group.id} className="flex items-center gap-2 text-sm">
                     <IconUser size={16} className="text-gray-400" />
                     <span className="text-gray-900">{group.name}</span>
-                    {group.tags && group.tags.length > 0 && (
-                      <div className="flex gap-1">
-                        {group.tags.map((tag) => (
-                          <span
-                            key={tag.id}
-                            className="rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-800"
-                          >
-                            {tag.name}
-                          </span>
-                        ))}
-                      </div>
-                    )}
                     <button
                       type="button"
                       onClick={() => handleRemoveGroup(group.id)}
