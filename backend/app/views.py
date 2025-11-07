@@ -1793,15 +1793,133 @@ def participant_calendar_ics(request, eventum_slug=None, participant_id=None):
         except Participant.DoesNotExist:
             return Response({'error': f'Participant with ID {participant_id} not found in this eventum'}, status=status.HTTP_404_NOT_FOUND)
         
-        # Упрощенная логика: используем только event_group_v2
+        # Используем ту же логику, что и в EventSerializer.get_is_participant
         # Если event_group_v2 is None - участник участвует (все участники eventum)
         # Если event_group_v2 существует - проверяем через связи группы
         
         from django.db.models import Prefetch
         from .models import ParticipantGroupV2ParticipantRelation, ParticipantGroupV2GroupRelation
         
-        # Получаем всех участников eventum для передачи в get_participants
+        # Получаем всех участников eventum для передачи в _get_group_participant_ids
         all_participant_ids = set(Participant.objects.filter(eventum=eventum).values_list('id', flat=True))
+        
+        # Вспомогательная функция для получения ID участников группы (копия из EventSerializer)
+        def _get_group_participant_ids(group, visited_groups=None, is_allowed_group=False):
+            """Получает ID участников группы используя уже загруженные данные (prefetch_related)"""
+            if not group:
+                return set()
+            
+            if visited_groups is None:
+                visited_groups = set()
+            
+            # Предотвращаем циклические ссылки
+            if group.id in visited_groups:
+                return set()
+            
+            visited_groups.add(group.id)
+            
+            # Получаем все participant_relations из prefetch_related
+            participant_relations = []
+            if hasattr(group, '_prefetched_objects_cache') and 'participant_relations' in group._prefetched_objects_cache:
+                participant_relations = group._prefetched_objects_cache['participant_relations']
+            else:
+                # Fallback: если prefetch не сработал
+                participant_relations = list(ParticipantGroupV2ParticipantRelation.objects.filter(
+                    group=group
+                ).select_related('participant'))
+            
+            # Получаем все group_relations из prefetch_related
+            group_relations = []
+            if hasattr(group, '_prefetched_objects_cache') and 'group_relations' in group._prefetched_objects_cache:
+                group_relations = group._prefetched_objects_cache['group_relations']
+                # Для вложенных групп также prefetch'им их связи, если они еще не загружены
+                for group_rel in group_relations:
+                    target_group = group_rel.target_group
+                    if target_group and not hasattr(target_group, '_prefetched_objects_cache'):
+                        # Если у target_group нет prefetch'нутых данных, загружаем их
+                        target_group._prefetched_objects_cache = {}
+                        target_group._prefetched_objects_cache['participant_relations'] = list(
+                            ParticipantGroupV2ParticipantRelation.objects.filter(
+                                group=target_group
+                            ).select_related('participant')
+                        )
+                        target_group._prefetched_objects_cache['group_relations'] = list(
+                            ParticipantGroupV2GroupRelation.objects.filter(
+                                group=target_group
+                            ).select_related('target_group')
+                        )
+            else:
+                # Fallback: если prefetch не сработал
+                group_relations = list(ParticipantGroupV2GroupRelation.objects.filter(
+                    group=group
+                ).select_related('target_group'))
+            
+            # Проверяем, есть ли хотя бы одна inclusive связь
+            has_inclusive_participants = any(
+                rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.INCLUSIVE
+                for rel in participant_relations
+            )
+            has_inclusive_groups = any(
+                rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.INCLUSIVE
+                for rel in group_relations
+            )
+            
+            # Если нет ни участников, ни inclusive групп
+            if not has_inclusive_participants and not has_inclusive_groups:
+                if is_allowed_group:
+                    return set()
+                
+                # Исключаем excluded участников
+                excluded_participant_ids = set()
+                for rel in participant_relations:
+                    if rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.EXCLUSIVE:
+                        excluded_participant_ids.add(rel.participant_id)
+                
+                # Исключаем участников из excluded групп (рекурсивно)
+                for group_rel in group_relations:
+                    if group_rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.EXCLUSIVE:
+                        target_group = group_rel.target_group
+                        excluded_participant_ids.update(
+                            _get_group_participant_ids(target_group, visited_groups.copy(), is_allowed_group=False)
+                        )
+                
+                result = all_participant_ids - excluded_participant_ids
+                return result
+            else:
+                # Стандартная логика включений/исключений
+                included_participant_ids = set()
+                excluded_participant_ids = set()
+                
+                # Обрабатываем прямые связи с участниками
+                for rel in participant_relations:
+                    if rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.INCLUSIVE:
+                        included_participant_ids.add(rel.participant_id)
+                    elif rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.EXCLUSIVE:
+                        excluded_participant_ids.add(rel.participant_id)
+                
+                # Обрабатываем связи с группами
+                for group_rel in group_relations:
+                    target_group = group_rel.target_group
+                    target_participant_ids = _get_group_participant_ids(target_group, visited_groups.copy(), is_allowed_group=is_allowed_group)
+                    
+                    if group_rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.INCLUSIVE:
+                        included_participant_ids.update(target_participant_ids)
+                    elif group_rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.EXCLUSIVE:
+                        excluded_participant_ids.update(target_participant_ids)
+                
+                # Исключаем участников из списка включенных
+                included_participant_ids -= excluded_participant_ids
+                
+                return included_participant_ids
+        
+        # Вспомогательная функция для проверки участия в группе (копия из EventSerializer)
+        def _has_participant_in_group(group, participant_id, is_allowed_group=False):
+            """Проверяет участие в группе используя уже загруженные данные"""
+            if not group:
+                return False
+            
+            participant_ids = _get_group_participant_ids(group, is_allowed_group=is_allowed_group)
+            return participant_id in participant_ids
         
         # Получаем все события eventum с prefetch для event_group_v2
         all_events = Event.objects.filter(
@@ -1822,18 +1940,21 @@ def participant_calendar_ics(request, eventum_slug=None, participant_id=None):
                 queryset=ParticipantGroupV2GroupRelation.objects.select_related('target_group')
             ),
             'event_group_v2__group_relations__target_group__participant_relations',
+            'event_group_v2__group_relations__target_group__group_relations',
+            'event_group_v2__group_relations__target_group__group_relations__target_group__participant_relations',
         )
         
-        # Фильтруем события в Python, используя логику event_group_v2
+        # Фильтруем события в Python, используя ту же логику, что и в EventSerializer.get_is_participant
         filtered_events = []
         for event in all_events:
-            # Если у события нет event_group_v2 - участник участвует (все участники eventum)
-            if event.event_group_v2 is None:
-                filtered_events.append(event)
-            else:
-                # Если группа есть - проверяем, входит ли участник в группу
-                if event.event_group_v2.has_participant(participant_id):
+            # Если есть event_group_v2, проверяем участие через него
+            if event.event_group_v2:
+                if _has_participant_in_group(event.event_group_v2, participant_id):
                     filtered_events.append(event)
+            else:
+                # Для мероприятий без регистрации (без event_group_v2)
+                # все участники eventum должны видеть такие мероприятия
+                filtered_events.append(event)
         
         # Создаем iCalendar календарь
         cal = Calendar()
