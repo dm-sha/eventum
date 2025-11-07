@@ -1453,8 +1453,11 @@ class EventSerializer(serializers.ModelSerializer):
                 return obj.event_group_v2.has_participant(participant.id)
             return False
         else:
-            # Для типа application проверяем, есть ли участник в applicants
-            return registration.applicants.filter(id=participant.id).exists()
+            # Для типа application проверяем участие через event_group_v2
+            # (участник участвует только если он в event_group_v2, а не просто в applicants)
+            if obj.event_group_v2:
+                return obj.event_group_v2.has_participant(participant.id)
+            return False
     
     def get_registration_max_participants(self, obj):
         """Получить максимальное количество участников из регистрации"""

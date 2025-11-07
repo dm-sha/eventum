@@ -465,35 +465,36 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
           <div className="space-y-6">
             {/* Мероприятия, в которых участник участвует */}
             {(() => {
+              // myRegistrations - это массив Event объектов (не EventRegistration), у которых есть поле is_registered
+              // которое правильно вычисляется на бэкенде с учетом v2 групп
+              // Участвует только если is_registered строго равно true (участник в event_group_v2)
               const participatingEvents = myRegistrations
-                .filter(registration => 
-                  registration.event && 
-                  registration.event.participants && 
-                  Array.isArray(registration.event.participants) &&
-                  registration.event.participants.includes(currentParticipant!.id)
+                .filter((event: any) => 
+                  event && 
+                  event.is_registered === true
                 )
-                .sort((a, b) => {
-                  if (!a.event?.start_time || !b.event?.start_time) return 0;
-                  return new Date(a.event.start_time).getTime() - new Date(b.event.start_time).getTime();
+                .sort((a: any, b: any) => {
+                  if (!a?.start_time || !b?.start_time) return 0;
+                  return new Date(a.start_time).getTime() - new Date(b.start_time).getTime();
                 });
               
               return participatingEvents.length > 0 ? (
                 <div>
                   <h4 className="text-lg font-semibold text-gray-900 mb-4">Мероприятия, в которых вы участвуете</h4>
                   <div className="space-y-3">
-                    {participatingEvents.map((registration) => (
-                      <div key={registration.id} className="bg-green-50 rounded-lg border border-green-200 p-4 overflow-hidden">
+                    {participatingEvents.map((event: any) => (
+                      <div key={event.id} className="bg-green-50 rounded-lg border border-green-200 p-4 overflow-hidden">
                         <div className="flex items-start gap-2">
                           <div className="flex-1 min-w-0 overflow-hidden">
                             <div className="flex items-center gap-2 mb-2">
-                              <h5 className="text-lg font-medium text-gray-900">{registration.event.name}</h5>
+                              <h5 className="text-lg font-medium text-gray-900">{event.name}</h5>
                               <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
                                 Участвуете
                               </span>
                             </div>
-                            {registration.event.description && (
+                            {event.description && (
                               <ExpandableText 
-                                text={registration.event.description} 
+                                text={event.description} 
                                 maxLength={120}
                                 className="mt-1 text-gray-600 text-sm"
                               />
@@ -503,7 +504,7 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
                               </svg>
                               <span>
-                                {new Date(registration.event.start_time).toLocaleDateString('ru-RU', {
+                                {new Date(event.start_time).toLocaleDateString('ru-RU', {
                                   day: 'numeric',
                                   month: 'long',
                                   year: 'numeric',
@@ -512,7 +513,7 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
                                 })}
                               </span>
                             </div>
-                            {registration.event.locations && registration.event.locations.length > 0 && (
+                            {event.locations && event.locations.length > 0 && (
                               <div className="mt-1 flex items-center text-sm text-gray-500">
                                 <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -532,18 +533,18 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
                                       return Array.from(allParts);
                                     };
                                     
-                                    const uniqueParts = getUniqueLocationParts(registration.event.locations);
+                                    const uniqueParts = getUniqueLocationParts(event.locations);
                                     return uniqueParts.join(', ');
                                   })()}
                                 </span>
                               </div>
                             )}
                           </div>
-                          {registration.event.image_url && (
+                          {event.image_url && (
                             <div className="flex-shrink-0 max-w-[min(48px,20%)] sm:max-w-none">
                               <img
-                                src={registration.event.image_url}
-                                alt={registration.event.name}
+                                src={event.image_url}
+                                alt={event.name}
                                 className="w-12 h-auto sm:w-16 max-w-full object-contain rounded-lg shadow"
                               />
                             </div>
@@ -558,32 +559,32 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
 
             {/* Мероприятия, на которые подавал заявку, но не участвует */}
             {(() => {
+              // Мероприятия, на которые подали заявку (есть в myRegistrations), но не участвуете
+              // (is_registered !== true, т.е. заявка есть, но участник не в event_group_v2)
               const appliedEvents = myRegistrations
-                .filter(registration => 
-                  registration.event && 
-                  registration.event.participants && 
-                  Array.isArray(registration.event.participants) &&
-                  !registration.event.participants.includes(currentParticipant!.id)
+                .filter((event: any) => 
+                  event && 
+                  event.is_registered !== true
                 )
-                .sort((a, b) => {
-                  if (!a.event?.start_time || !b.event?.start_time) return 0;
-                  return new Date(a.event.start_time).getTime() - new Date(b.event.start_time).getTime();
+                .sort((a: any, b: any) => {
+                  if (!a?.start_time || !b?.start_time) return 0;
+                  return new Date(a.start_time).getTime() - new Date(b.start_time).getTime();
                 });
               
               return appliedEvents.length > 0 ? (
                 <div>
-                  <h4 className="text-lg font-semibold text-gray-900 mb-4">Мероприятия, на которые вы не попали</h4>
+                  <h4 className="text-lg font-semibold text-gray-900 mb-4">Мероприятия, на которые была подана заявка</h4>
                   <div className="space-y-3">
-                    {appliedEvents.map((registration) => (
-                      <div key={registration.id} className="bg-white rounded-lg border border-gray-200 p-4 overflow-hidden">
+                    {appliedEvents.map((event: any) => (
+                      <div key={event.id} className="bg-white rounded-lg border border-gray-200 p-4 overflow-hidden">
                         <div className="flex items-start gap-2">
                           <div className="flex-1 min-w-0 overflow-hidden">
                             <div className="flex items-center gap-2 mb-2">
-                              <h5 className="text-lg font-medium text-gray-900">{registration.event.name}</h5>
+                              <h5 className="text-lg font-medium text-gray-900">{event.name}</h5>
                             </div>
-                            {registration.event.description && (
+                            {event.description && (
                               <ExpandableText 
-                                text={registration.event.description} 
+                                text={event.description} 
                                 maxLength={120}
                                 className="mt-1 text-gray-600 text-sm"
                               />
@@ -593,7 +594,7 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
                               </svg>
                               <span>
-                                {new Date(registration.event.start_time).toLocaleDateString('ru-RU', {
+                                {new Date(event.start_time).toLocaleDateString('ru-RU', {
                                   day: 'numeric',
                                   month: 'long',
                                   year: 'numeric',
@@ -602,7 +603,7 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
                                 })}
                               </span>
                             </div>
-                            {registration.event.locations && registration.event.locations.length > 0 && (
+                            {event.locations && event.locations.length > 0 && (
                               <div className="mt-1 flex items-center text-sm text-gray-500">
                                 <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -622,18 +623,18 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
                                       return Array.from(allParts);
                                     };
                                     
-                                    const uniqueParts = getUniqueLocationParts(registration.event.locations);
+                                    const uniqueParts = getUniqueLocationParts(event.locations);
                                     return uniqueParts.join(', ');
                                   })()}
                                 </span>
                               </div>
                             )}
                           </div>
-                          {registration.event.image_url && (
+                          {event.image_url && (
                             <div className="flex-shrink-0 max-w-[min(48px,20%)] sm:max-w-none">
                               <img
-                                src={registration.event.image_url}
-                                alt={registration.event.name}
+                                src={event.image_url}
+                                alt={event.name}
                                 className="w-12 h-auto sm:w-16 max-w-full object-contain rounded-lg shadow"
                               />
                             </div>
