@@ -330,6 +330,18 @@ const EventumPage = () => {
             >
               Подача заявок на мероприятия
             </button>
+            {currentParticipant && (
+              <button
+                onClick={() => handleTabChange('distribution')}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  currentTab === 'distribution'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Распределение на мероприятия
+              </button>
+            )}
             {eventum && (eventum.schedule_visible || (isUserOrganizer(eventum.id) && participantId)) && (
               <button
                 onClick={() => handleTabChange('schedule')}
@@ -360,6 +372,12 @@ const EventumPage = () => {
               myRegistrations={myRegistrations} 
               participantId={participantId}
               onEventRegistrationChange={handleEventRegistrationChangeGlobal}
+            />
+          )}
+          {currentTab === 'distribution' && eventumSlug && (
+            <DistributionTab 
+              myRegistrations={myRegistrations}
+              currentParticipant={currentParticipant}
             />
           )}
           {currentTab === 'schedule' && eventumSlug && eventum && (eventum.schedule_visible || (isUserOrganizer(eventum.id) && participantId)) && (
@@ -395,6 +413,251 @@ const GeneralTab: React.FC<{ eventum: Eventum }> = ({ eventum }) => {
           </div>
         )}
       </div>
+    </div>
+  );
+};
+
+// Компонент для вкладки "Распределение на мероприятия"
+const DistributionTab: React.FC<{ myRegistrations: EventRegistration[]; currentParticipant: Participant | null }> = ({ myRegistrations, currentParticipant }) => {
+  // Если пользователь не является участником
+  if (!currentParticipant) {
+    return (
+      <div className="text-center py-8">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-amber-100">
+          <svg
+            className="h-8 w-8 text-amber-600"
+            fill="none"
+            viewBox="0 0 24 24"
+            strokeWidth="1.5"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"
+            />
+          </svg>
+        </div>
+        <h3 className="mt-4 text-lg font-semibold text-gray-900">Вы не являетесь участником</h3>
+        <p className="mt-2 text-gray-600">
+          Чтобы просматривать распределение на мероприятия, вам нужно стать участником этого события. 
+          Обратитесь к организаторам для получения доступа.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {myRegistrations.length > 0 ? (
+        <div className="space-y-6">
+          {/* Мероприятия, в которых участник участвует */}
+          {(() => {
+            // myRegistrations - это массив Event объектов (не EventRegistration), у которых есть поле is_registered
+            // которое правильно вычисляется на бэкенде с учетом v2 групп
+            // Участвует только если is_registered строго равно true (участник в event_group_v2)
+            const participatingEvents = myRegistrations
+              .filter((event: any) => 
+                event && 
+                event.is_registered === true
+              )
+              .sort((a: any, b: any) => {
+                if (!a?.start_time || !b?.start_time) return 0;
+                return new Date(a.start_time).getTime() - new Date(b.start_time).getTime();
+              });
+            
+            return participatingEvents.length > 0 ? (
+              <div>
+                <h4 className="text-lg font-semibold text-gray-900 mb-4">Мероприятия, в которых вы участвуете</h4>
+                <div className="space-y-3">
+                  {participatingEvents.map((event: any) => (
+                    <div key={event.id} className="bg-green-50 rounded-lg border border-green-200 p-4 overflow-hidden">
+                      <div className="flex items-start gap-2">
+                        <div className="flex-1 min-w-0 overflow-hidden">
+                          <div className="flex items-center gap-2 mb-2">
+                            <h5 className="text-lg font-medium text-gray-900">{event.name}</h5>
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                              Участвуете
+                            </span>
+                          </div>
+                          {event.description && (
+                            <ExpandableText 
+                              text={event.description} 
+                              maxLength={120}
+                              className="mt-1 text-gray-600 text-sm"
+                            />
+                          )}
+                          <div className="mt-2 flex items-center text-sm text-gray-500">
+                            <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+                            </svg>
+                            <span>
+                              {new Date(event.start_time).toLocaleDateString('ru-RU', {
+                                day: 'numeric',
+                                month: 'long',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </span>
+                          </div>
+                          {event.locations && event.locations.length > 0 && (
+                            <div className="mt-1 flex items-center text-sm text-gray-500">
+                              <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25s-7.5-4.108-7.5-11.25a7.5 7.5 0 1115 0z" />
+                              </svg>
+                              <span>
+                                {(() => {
+                                  // Функция для получения уникальных частей пути локаций
+                                  const getUniqueLocationParts = (locations: any[]) => {
+                                    const allParts = new Set<string>();
+                                    
+                                    locations.forEach(loc => {
+                                      const parts = loc.full_path.split(', ');
+                                      parts.forEach((part: string) => allParts.add(part.trim()));
+                                    });
+                                    
+                                    return Array.from(allParts);
+                                  };
+                                  
+                                  const uniqueParts = getUniqueLocationParts(event.locations);
+                                  return uniqueParts.join(', ');
+                                })()}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                        {event.image_url && (
+                          <div className="flex-shrink-0 max-w-[min(48px,20%)] sm:max-w-none">
+                            <img
+                              src={event.image_url}
+                              alt={event.name}
+                              className="w-12 h-auto sm:w-16 max-w-full object-contain rounded-lg shadow"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null;
+          })()}
+
+          {/* Мероприятия, на которые подавал заявку, но не участвует */}
+          {(() => {
+            // Мероприятия, на которые подали заявку (есть в myRegistrations), но не участвуете
+            // (is_registered !== true, т.е. заявка есть, но участник не в event_group_v2)
+            const appliedEvents = myRegistrations
+              .filter((event: any) => 
+                event && 
+                event.is_registered !== true
+              )
+              .sort((a: any, b: any) => {
+                if (!a?.start_time || !b?.start_time) return 0;
+                return new Date(a.start_time).getTime() - new Date(b.start_time).getTime();
+              });
+            
+            return appliedEvents.length > 0 ? (
+              <div>
+                <h4 className="text-lg font-semibold text-gray-900 mb-4">Мероприятия, на которые была подана заявка</h4>
+                <div className="space-y-3">
+                  {appliedEvents.map((event: any) => (
+                    <div key={event.id} className="bg-white rounded-lg border border-gray-200 p-4 overflow-hidden">
+                      <div className="flex items-start gap-2">
+                        <div className="flex-1 min-w-0 overflow-hidden">
+                          <div className="flex items-center gap-2 mb-2">
+                            <h5 className="text-lg font-medium text-gray-900">{event.name}</h5>
+                          </div>
+                          {event.description && (
+                            <ExpandableText 
+                              text={event.description} 
+                              maxLength={120}
+                              className="mt-1 text-gray-600 text-sm"
+                            />
+                          )}
+                          <div className="mt-2 flex items-center text-sm text-gray-500">
+                            <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+                            </svg>
+                            <span>
+                              {new Date(event.start_time).toLocaleDateString('ru-RU', {
+                                day: 'numeric',
+                                month: 'long',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </span>
+                          </div>
+                          {event.locations && event.locations.length > 0 && (
+                            <div className="mt-1 flex items-center text-sm text-gray-500">
+                              <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25s-7.5-4.108-7.5-11.25a7.5 7.5 0 1115 0z" />
+                              </svg>
+                              <span>
+                                {(() => {
+                                  // Функция для получения уникальных частей пути локаций
+                                  const getUniqueLocationParts = (locations: any[]) => {
+                                    const allParts = new Set<string>();
+                                    
+                                    locations.forEach(loc => {
+                                      const parts = loc.full_path.split(', ');
+                                      parts.forEach((part: string) => allParts.add(part.trim()));
+                                    });
+                                    
+                                    return Array.from(allParts);
+                                  };
+                                  
+                                  const uniqueParts = getUniqueLocationParts(event.locations);
+                                  return uniqueParts.join(', ');
+                                })()}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                        {event.image_url && (
+                          <div className="flex-shrink-0 max-w-[min(48px,20%)] sm:max-w-none">
+                            <img
+                              src={event.image_url}
+                              alt={event.name}
+                              className="w-12 h-auto sm:w-16 max-w-full object-contain rounded-lg shadow"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null;
+          })()}
+        </div>
+      ) : (
+        <div className="text-center py-8">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">
+            <svg
+              className="h-6 w-6 text-gray-400"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth="1.5"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2 2 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z"
+              />
+            </svg>
+          </div>
+          <h4 className="mt-3 text-lg font-semibold text-gray-900">Заявок не подано</h4>
+          <p className="mt-1 text-gray-600">
+            Вы не подавали заявки на мероприятия в этом событии.
+          </p>
+        </div>
+      )}
     </div>
   );
 };
@@ -487,249 +750,24 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
 
   // Если регистрация закрыта
   if (!eventum.registration_open) {
-    // Если пользователь не является участником, показываем обычное сообщение
-    if (!currentParticipant) {
-      return (
-        <div className="text-center py-8">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-red-100">
-            <svg
-              className="h-8 w-8 text-red-600"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth="1.5"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
-              />
-            </svg>
-          </div>
-          <h3 className="mt-4 text-lg font-semibold text-gray-900">Регистрация закрыта</h3>
-          <p className="mt-2 text-gray-600">
-            Регистрация на мероприятия закрыта. В ближайшее время будет проведено распределение участников по мероприятиям.
-          </p>
-        </div>
-      );
-    }
-
-    // Если пользователь является участником, показываем его заявки
     return (
-      <div className="space-y-6">
-        <div className="text-center py-4">
-          <h3 className="text-lg font-semibold text-gray-900">Регистрация завершена</h3>
+      <div className="text-center py-8">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-gray-100">
+          <svg
+            className="h-8 w-8 text-gray-600"
+            fill="none"
+            viewBox="0 0 24 24"
+            strokeWidth="1.5"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
+            />
+          </svg>
         </div>
-
-        {myRegistrations.length > 0 ? (
-          <div className="space-y-6">
-            {/* Мероприятия, в которых участник участвует */}
-            {(() => {
-              // myRegistrations - это массив Event объектов (не EventRegistration), у которых есть поле is_registered
-              // которое правильно вычисляется на бэкенде с учетом v2 групп
-              // Участвует только если is_registered строго равно true (участник в event_group_v2)
-              const participatingEvents = myRegistrations
-                .filter((event: any) => 
-                  event && 
-                  event.is_registered === true
-                )
-                .sort((a: any, b: any) => {
-                  if (!a?.start_time || !b?.start_time) return 0;
-                  return new Date(a.start_time).getTime() - new Date(b.start_time).getTime();
-                });
-              
-              return participatingEvents.length > 0 ? (
-                <div>
-                  <h4 className="text-lg font-semibold text-gray-900 mb-4">Мероприятия, в которых вы участвуете</h4>
-                  <div className="space-y-3">
-                    {participatingEvents.map((event: any) => (
-                      <div key={event.id} className="bg-green-50 rounded-lg border border-green-200 p-4 overflow-hidden">
-                        <div className="flex items-start gap-2">
-                          <div className="flex-1 min-w-0 overflow-hidden">
-                            <div className="flex items-center gap-2 mb-2">
-                              <h5 className="text-lg font-medium text-gray-900">{event.name}</h5>
-                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                Участвуете
-                              </span>
-                            </div>
-                            {event.description && (
-                              <ExpandableText 
-                                text={event.description} 
-                                maxLength={120}
-                                className="mt-1 text-gray-600 text-sm"
-                              />
-                            )}
-                            <div className="mt-2 flex items-center text-sm text-gray-500">
-                              <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
-                              </svg>
-                              <span>
-                                {new Date(event.start_time).toLocaleDateString('ru-RU', {
-                                  day: 'numeric',
-                                  month: 'long',
-                                  year: 'numeric',
-                                  hour: '2-digit',
-                                  minute: '2-digit'
-                                })}
-                              </span>
-                            </div>
-                            {event.locations && event.locations.length > 0 && (
-                              <div className="mt-1 flex items-center text-sm text-gray-500">
-                                <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25s-7.5-4.108-7.5-11.25a7.5 7.5 0 1115 0z" />
-                                </svg>
-                                <span>
-                                  {(() => {
-                                    // Функция для получения уникальных частей пути локаций
-                                    const getUniqueLocationParts = (locations: any[]) => {
-                                      const allParts = new Set<string>();
-                                      
-                                      locations.forEach(loc => {
-                                        const parts = loc.full_path.split(', ');
-                                        parts.forEach((part: string) => allParts.add(part.trim()));
-                                      });
-                                      
-                                      return Array.from(allParts);
-                                    };
-                                    
-                                    const uniqueParts = getUniqueLocationParts(event.locations);
-                                    return uniqueParts.join(', ');
-                                  })()}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                          {event.image_url && (
-                            <div className="flex-shrink-0 max-w-[min(48px,20%)] sm:max-w-none">
-                              <img
-                                src={event.image_url}
-                                alt={event.name}
-                                className="w-12 h-auto sm:w-16 max-w-full object-contain rounded-lg shadow"
-                              />
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : null;
-            })()}
-
-            {/* Мероприятия, на которые подавал заявку, но не участвует */}
-            {(() => {
-              // Мероприятия, на которые подали заявку (есть в myRegistrations), но не участвуете
-              // (is_registered !== true, т.е. заявка есть, но участник не в event_group_v2)
-              const appliedEvents = myRegistrations
-                .filter((event: any) => 
-                  event && 
-                  event.is_registered !== true
-                )
-                .sort((a: any, b: any) => {
-                  if (!a?.start_time || !b?.start_time) return 0;
-                  return new Date(a.start_time).getTime() - new Date(b.start_time).getTime();
-                });
-              
-              return appliedEvents.length > 0 ? (
-                <div>
-                  <h4 className="text-lg font-semibold text-gray-900 mb-4">Мероприятия, на которые была подана заявка</h4>
-                  <div className="space-y-3">
-                    {appliedEvents.map((event: any) => (
-                      <div key={event.id} className="bg-white rounded-lg border border-gray-200 p-4 overflow-hidden">
-                        <div className="flex items-start gap-2">
-                          <div className="flex-1 min-w-0 overflow-hidden">
-                            <div className="flex items-center gap-2 mb-2">
-                              <h5 className="text-lg font-medium text-gray-900">{event.name}</h5>
-                            </div>
-                            {event.description && (
-                              <ExpandableText 
-                                text={event.description} 
-                                maxLength={120}
-                                className="mt-1 text-gray-600 text-sm"
-                              />
-                            )}
-                            <div className="mt-2 flex items-center text-sm text-gray-500">
-                              <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
-                              </svg>
-                              <span>
-                                {new Date(event.start_time).toLocaleDateString('ru-RU', {
-                                  day: 'numeric',
-                                  month: 'long',
-                                  year: 'numeric',
-                                  hour: '2-digit',
-                                  minute: '2-digit'
-                                })}
-                              </span>
-                            </div>
-                            {event.locations && event.locations.length > 0 && (
-                              <div className="mt-1 flex items-center text-sm text-gray-500">
-                                <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25s-7.5-4.108-7.5-11.25a7.5 7.5 0 1115 0z" />
-                                </svg>
-                                <span>
-                                  {(() => {
-                                    // Функция для получения уникальных частей пути локаций
-                                    const getUniqueLocationParts = (locations: any[]) => {
-                                      const allParts = new Set<string>();
-                                      
-                                      locations.forEach(loc => {
-                                        const parts = loc.full_path.split(', ');
-                                        parts.forEach((part: string) => allParts.add(part.trim()));
-                                      });
-                                      
-                                      return Array.from(allParts);
-                                    };
-                                    
-                                    const uniqueParts = getUniqueLocationParts(event.locations);
-                                    return uniqueParts.join(', ');
-                                  })()}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                          {event.image_url && (
-                            <div className="flex-shrink-0 max-w-[min(48px,20%)] sm:max-w-none">
-                              <img
-                                src={event.image_url}
-                                alt={event.name}
-                                className="w-12 h-auto sm:w-16 max-w-full object-contain rounded-lg shadow"
-                              />
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : null;
-            })()}
-          </div>
-        ) : (
-          <div className="text-center py-8">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">
-              <svg
-                className="h-6 w-6 text-gray-400"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth="1.5"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2 2 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z"
-                />
-              </svg>
-            </div>
-            <h4 className="mt-3 text-lg font-semibold text-gray-900">Заявок не подано</h4>
-            <p className="mt-1 text-gray-600">
-              Вы не подавали заявки на мероприятия в этом событии.
-            </p>
-          </div>
-        )}
+        <h3 className="mt-4 text-lg font-semibold text-gray-900">Регистрация завершена</h3>
       </div>
     );
   }

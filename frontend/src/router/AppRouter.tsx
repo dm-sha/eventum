@@ -82,6 +82,7 @@ export const AppRouter = () => {
             <Route index element={<Navigate to="general" replace />} />
             <Route path="general" element={isAuthenticated ? <EventumPage /> : <VKAuth />} />
             <Route path="registration" element={isAuthenticated ? <EventumPage /> : <VKAuth />} />
+            <Route path="distribution" element={isAuthenticated ? <EventumPage /> : <VKAuth />} />
             <Route path="schedule" element={isAuthenticated ? <EventumPage /> : <VKAuth />} />
           </>
         ) : (
@@ -90,6 +91,7 @@ export const AppRouter = () => {
             <Route index element={<Navigate to="general" replace />} />
             <Route path="general" element={<EventumPage />} />
             <Route path="registration" element={<EventumPage />} />
+            <Route path="distribution" element={<EventumPage />} />
             <Route path="schedule" element={<EventumPage />} />
           </Route>
         )}
