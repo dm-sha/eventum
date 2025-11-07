@@ -263,6 +263,14 @@ const RegistrationCard: React.FC<RegistrationCardProps> = ({
                   <span className="font-medium text-gray-900">{registration.registered_count}</span>
                 </div>
                 <div>
+                  <span className="text-gray-500">Свободно мест:</span>{' '}
+                  <span className="font-medium text-gray-900">
+                    {registration.max_participants != null
+                      ? Math.max(0, registration.max_participants - (registration.event.participants_count || 0))
+                      : 'без лимита'}
+                  </span>
+                </div>
+                <div>
                   <span className="text-gray-500">Доступно для:</span>{' '}
                   <span className="font-medium text-gray-900">{allowedGroup ? allowedGroup.name : 'всех'}</span>
                 </div>

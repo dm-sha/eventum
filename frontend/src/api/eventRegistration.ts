@@ -9,6 +9,7 @@ export interface EventRegistration {
     description: string;
     start_time: string;
     end_time: string;
+    participants_count?: number; // Количество участников мероприятия (реально попавших)
   };
   registration_type: 'button' | 'application';
   max_participants: number | null;
