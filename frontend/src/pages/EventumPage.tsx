@@ -1017,8 +1017,7 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string; isViewingAsOtherP
       const nextIsRegistered = typeof initialIsRegistered === 'boolean' ? initialIsRegistered : event.is_registered;
       setLocalIsRegistered(nextIsRegistered);
       setLocalRegistrationsCount(event.registrations_count);
-      // Очищаем ошибку при синхронизации состояния
-      setRegistrationError(null);
+      // Не очищаем ошибку здесь - она должна оставаться видимой до следующей попытки
     }
     if (!isRegistering && !isUnregistering) {
       hasLocalUpdate.current = false;
