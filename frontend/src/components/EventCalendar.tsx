@@ -26,17 +26,28 @@ const EventCalendar: React.FC<EventCalendarProps> = ({ events, participantId, cu
     if (!participantId || !currentParticipant) return events;
 
     return events.filter(event => {
-      // Мероприятия для всех участников
+      // Используем is_participant, которое правильно вычисляется на бэкенде
+      // с учетом вложенных v2 групп для всех типов мероприятий
+      // (работает и для мероприятий с регистрацией, и без)
+      if (event.is_participant !== undefined) {
+        return event.is_participant;
+      }
+      
+      // Fallback для старых данных без is_participant (обратная совместимость)
+      // Если у мероприятия есть event_group_v2, используем is_registered
+      if (event.event_group_v2_id || event.event_group_v2) {
+        return event.is_registered;
+      }
+      
+      // Для старых мероприятий без event_group_v2 используем старую логику
       if (event.participant_type === 'all') {
         return true;
       }
       
-      // Мероприятия по записи - показываем если участник подал заявку
       if (event.participant_type === 'registration') {
         return event.is_registered;
       }
       
-      // Мероприятия вручную - проверяем различные способы назначения
       if (event.participant_type === 'manual') {
         // 1. Прямое назначение участника
         if (event.participants.includes(participantId)) {

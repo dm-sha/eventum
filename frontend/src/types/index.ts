@@ -64,7 +64,8 @@ export interface Event {
   max_participants?: number; // Максимальное количество участников (для типа registration)
   image_url?: string; // URL изображения события
   registrations_count: number; // Количество записанных участников
-  is_registered: boolean; // Записан ли текущий пользователь
+  is_registered: boolean; // Записан ли текущий пользователь (только для мероприятий с регистрацией)
+  is_participant?: boolean; // Участвует ли участник в мероприятии (для расписания, работает для всех мероприятий)
   registration_type?: RegistrationType | null; // Тип регистрации: 'button' - по кнопке, 'application' - по заявкам
   registration_max_participants?: number | null; // Максимальное количество участников для регистрации
   registration_is_full?: boolean; // Заполнена ли регистрация
@@ -73,6 +74,8 @@ export interface Event {
   groups: number[];
   tags: EventTag[]; // Объекты тегов для чтения
   group_tags: GroupTag[]; // Объекты тегов групп для чтения
+  event_group_v2?: { id: number; name: string } | null; // Связанная группа V2 (для регистрации)
+  event_group_v2_id?: number | null; // ID связанной группы V2
 }
 
 export interface UserEvent extends Event {

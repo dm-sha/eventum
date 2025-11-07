@@ -1288,6 +1288,7 @@ class EventSerializer(serializers.ModelSerializer):
     )
     registrations_count = serializers.SerializerMethodField()
     is_registered = serializers.SerializerMethodField()
+    is_participant = serializers.SerializerMethodField()
     # participant_type теперь вычисляемое поле на основе event_group_v2
     participant_type = serializers.SerializerMethodField(read_only=True)
     # registration_type - тип регистрации из EventRegistration
@@ -1307,7 +1308,7 @@ class EventSerializer(serializers.ModelSerializer):
             'participant_type', 'max_participants', 'image_url',
             'participants', 'groups', 'tags', 'tag_ids', 'group_tags', 'group_tag_ids', 
             'locations', 'location_ids', 'event_group_v2', 'event_group_v2_id', 'event_group_v2_id_write',
-            'registrations_count', 'is_registered', 'registration_type',
+            'registrations_count', 'is_registered', 'is_participant', 'registration_type',
             'registration_max_participants', 'registration_is_full'
         ]
         extra_kwargs = {
@@ -1458,6 +1459,65 @@ class EventSerializer(serializers.ModelSerializer):
             if obj.event_group_v2:
                 return obj.event_group_v2.has_participant(participant.id)
             return False
+    
+    def get_is_participant(self, obj):
+        """Проверить, участвует ли участник в мероприятии (для расписания, без проверки регистрации)"""
+        request = self.context.get('request')
+        participant_id = self.context.get('participant_id')
+        
+        # Если указан participant_id в контексте (для просмотра от лица другого участника),
+        # используем его вместо текущего пользователя
+        if participant_id:
+            participant = None
+            try:
+                from .models import Participant
+                participant = Participant.objects.get(id=participant_id, eventum=obj.eventum)
+            except Participant.DoesNotExist:
+                return False
+        else:
+            # Обычная логика для текущего пользователя
+            if not request or not request.user.is_authenticated:
+                return False
+            
+            # Получаем участника текущего пользователя
+            from .models import Participant
+            try:
+                participant = Participant.objects.get(user=request.user, eventum=obj.eventum)
+            except Participant.DoesNotExist:
+                return False
+        
+        # Если есть event_group_v2, проверяем участие через него
+        # (это работает для всех мероприятий, включая те, где нет регистрации)
+        if obj.event_group_v2:
+            return obj.event_group_v2.has_participant(participant.id)
+        
+        # Для старых мероприятий без v2 групп используем старую логику
+        # participant_type уже вычислен как строка через get_participant_type
+        if obj.participant_type == 'all':
+            return True
+        
+        if obj.participant_type == 'manual':
+            # Прямое назначение участника
+            if obj.participants.filter(id=participant.id).exists():
+                return True
+            
+            # Назначение через группы участника (старые группы)
+            participant_group_ids = set(
+                participant.groups.values_list('id', flat=True)
+            )
+            event_group_ids = set(obj.groups.values_list('id', flat=True))
+            if participant_group_ids & event_group_ids:
+                return True
+            
+            # Назначение через теги групп участника
+            participant_group_tag_ids = set(
+                participant.groups.values_list('tags__id', flat=True)
+            )
+            event_group_tag_ids = set(obj.group_tags.values_list('id', flat=True))
+            if participant_group_tag_ids & event_group_tag_ids:
+                return True
+        
+        return False
     
     def get_registration_max_participants(self, obj):
         """Получить максимальное количество участников из регистрации"""
