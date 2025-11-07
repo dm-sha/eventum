@@ -1000,6 +1000,8 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string; isViewingAsOtherP
   // Отдельные состояния для отслеживания загрузки каждой операции
   const [isRegistering, setIsRegistering] = useState(false);
   const [isUnregistering, setIsUnregistering] = useState(false);
+  // Состояние для отображения ошибки регистрации
+  const [registrationError, setRegistrationError] = useState<string | null>(null);
   // Локальное состояние для оптимистичного обновления UI
   const [localIsRegistered, setLocalIsRegistered] = useState(
     typeof initialIsRegistered === 'boolean' ? initialIsRegistered : event.is_registered
@@ -1015,6 +1017,8 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string; isViewingAsOtherP
       const nextIsRegistered = typeof initialIsRegistered === 'boolean' ? initialIsRegistered : event.is_registered;
       setLocalIsRegistered(nextIsRegistered);
       setLocalRegistrationsCount(event.registrations_count);
+      // Очищаем ошибку при синхронизации состояния
+      setRegistrationError(null);
     }
     if (!isRegistering && !isUnregistering) {
       hasLocalUpdate.current = false;
@@ -1023,6 +1027,9 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string; isViewingAsOtherP
 
   const handleRegister = async () => {
     if (isRegistering || isUnregistering || localIsRegistered) return;
+    
+    // Очищаем предыдущую ошибку при новой попытке
+    setRegistrationError(null);
     
     // Для типа application заявок может быть больше чем max_participants,
     // администратор потом выберет, кого одобрить, поэтому проверка не нужна
@@ -1040,6 +1047,8 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string; isViewingAsOtherP
       setLocalIsRegistered(true);
       // Уведомляем родительский компонент об изменении для обновления счётчика в волне
       onLocalRegistrationChange?.(event.id, true);
+      // Очищаем ошибку при успехе
+      setRegistrationError(null);
     } catch (error: any) {
       console.error('Ошибка подачи заявки на мероприятие:', error);
       // Откатываем оптимистичное обновление счётчика при ошибке
@@ -1050,6 +1059,13 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string; isViewingAsOtherP
         hasLocalUpdate.current = true;
         setLocalIsRegistered(true);
         onLocalRegistrationChange?.(event.id, true);
+        setRegistrationError(null);
+      } else if (error?.response?.data?.error === 'Event registration is full') {
+        // Обрабатываем ошибку о том, что места закончились
+        setRegistrationError('Места на это мероприятие уже закончились');
+      } else {
+        // Для других ошибок показываем общее сообщение
+        setRegistrationError('Не удалось зарегистрироваться на мероприятие. Попробуйте позже.');
       }
     } finally {
       setIsRegistering(false);
@@ -1248,14 +1264,24 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string; isViewingAsOtherP
               </button>
             </div>
           ) : (
-            <div className="flex items-center">
-              <button
-                onClick={handleRegister}
-                disabled={isRegistering || isUnregistering || isRegisterButtonDisabled}
-                className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isRegistering ? (event.registration_type === 'button' ? 'Запись...' : 'Подача заявки...') : (event.registration_type === 'button' ? 'Записаться' : 'Подать заявку')}
-              </button>
+            <div className="space-y-2">
+              <div className="flex items-center">
+                <button
+                  onClick={handleRegister}
+                  disabled={isRegistering || isUnregistering || isRegisterButtonDisabled}
+                  className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isRegistering ? (event.registration_type === 'button' ? 'Запись...' : 'Подача заявки...') : (event.registration_type === 'button' ? 'Записаться' : 'Подать заявку')}
+                </button>
+              </div>
+              {registrationError && (
+                <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md p-2">
+                  <svg className="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                  </svg>
+                  <span>{registrationError}</span>
+                </div>
+              )}
             </div>
           )}
         </div>
