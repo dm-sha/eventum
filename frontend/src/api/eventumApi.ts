@@ -201,11 +201,35 @@ export const groupsV2Api = {
 
 // ============= EVENT RELATIONS V2 API =============
 
+export interface EventRelationV2 {
+  id: number;
+  group_id: number;
+  event_id: number;
+  event?: Event;
+}
+
 export const eventRelationsV2Api = {
+  // Получить все связи группа↔событие V2
+  getAll: (eventumSlug?: string, options?: { event_id?: number; group_id?: number }) => {
+    const params = new URLSearchParams();
+    if (options?.event_id) params.append('event_id', options.event_id.toString());
+    if (options?.group_id) params.append('group_id', options.group_id.toString());
+    const query = params.toString();
+    const url = query ? `/event-relations-v2/?${query}` : '/event-relations-v2/';
+    return createApiRequest<EventRelationV2[]>(
+      'GET',
+      url,
+      getEventumSlugForRequest(eventumSlug)
+    );
+  },
+  
   // Создать связь группа↔событие V2 (one-to-one предполагается с нашей стороны)
   create: (params: { group_id: number; event_id: number }, eventumSlug?: string) =>
     createApiRequest<{ id: number }>('POST', '/event-relations-v2/', getEventumSlugForRequest(eventumSlug), params),
-  // Примечание: удаление/получение существующей связи добавим отдельно при необходимости
+  
+  // Удалить связь
+  delete: (id: number, eventumSlug?: string) =>
+    createApiRequest<void>('DELETE', `/event-relations-v2/${id}/`, getEventumSlugForRequest(eventumSlug)),
 };
 
 // ============= EVENTS API =============

@@ -8,15 +8,14 @@ import {
   deleteEventRegistration 
 } from '../../api/eventRegistration';
 import type { EventRegistration } from '../../api/eventRegistration';
-import { IconPencil, IconTrash, IconCheck, IconX, IconPlus, IconInformationCircle } from '../../components/icons';
+import { IconPencil, IconTrash, IconCheck, IconX, IconPlus, IconInformationCircle, IconChevronDown, IconChevronRight, IconUser, IconUsersCircle } from '../../components/icons';
 import { useEventumSlug } from '../../hooks/useEventumSlug';
 import WavesLoadingSkeleton from '../../components/admin/skeletons/WavesLoadingSkeleton';
 import { eventumApi } from '../../api/eventumApi';
 import { getEventumBySlug } from '../../api/eventum';
 import type { Eventum } from '../../types';
-import { eventsApi } from '../../api/eventumApi';
-import { groupsV2Api } from '../../api/eventumApi';
-import type { Event } from '../../types';
+import { eventsApi, participantsApi, eventRelationsV2Api, groupsV2Api } from '../../api/eventumApi';
+import type { Event, Participant } from '../../types';
 
 type Mode = 'view' | 'edit' | 'create';
 
@@ -50,15 +49,108 @@ const RegistrationCard: React.FC<RegistrationCardProps> = ({
   onCancel,
   groups
 }) => {
+  const eventumSlug = useEventumSlug();
   const [registrationType, setRegistrationType] = useState<'button' | 'application'>(registration.registration_type);
   const [maxParticipants, setMaxParticipants] = useState<string>(registration.max_participants?.toString() || '');
   const [allowedGroupId, setAllowedGroupId] = useState<string>(registration.allowed_group?.toString() || '');
+  const [isParticipantsExpanded, setIsParticipantsExpanded] = useState(false);
+  const [participants, setParticipants] = useState<Participant[]>([]);
+  const [isLoadingParticipants, setIsLoadingParticipants] = useState(false);
+  const [isEventParticipantsExpanded, setIsEventParticipantsExpanded] = useState(false);
+  const [eventParticipants, setEventParticipants] = useState<Participant[]>([]);
+  const [isLoadingEventParticipants, setIsLoadingEventParticipants] = useState(false);
 
   useEffect(() => {
     setRegistrationType(registration.registration_type);
     setMaxParticipants(registration.max_participants?.toString() || '');
     setAllowedGroupId(registration.allowed_group?.toString() || '');
+    // Сбрасываем состояние участников при изменении регистрации
+    setIsParticipantsExpanded(false);
+    setParticipants([]);
+    setIsEventParticipantsExpanded(false);
+    setEventParticipants([]);
   }, [registration]);
+
+  const loadParticipants = async () => {
+    if (!eventumSlug || !registration.applicants || registration.applicants.length === 0) {
+      return;
+    }
+
+    setIsLoadingParticipants(true);
+    try {
+      const participantsResponses = await Promise.all(
+        registration.applicants.map(id => participantsApi.getById(id, eventumSlug))
+      );
+      const participantsData = participantsResponses.map(response => response.data);
+      setParticipants(participantsData);
+    } catch (error) {
+      console.error('Error loading participants:', error);
+    } finally {
+      setIsLoadingParticipants(false);
+    }
+  };
+
+  const handleToggleParticipants = () => {
+    if (!isParticipantsExpanded && participants.length === 0 && registration.applicants && registration.applicants.length > 0) {
+      loadParticipants();
+    }
+    setIsParticipantsExpanded(!isParticipantsExpanded);
+  };
+
+  const loadEventParticipants = async () => {
+    if (!eventumSlug || !registration.event.id) {
+      return;
+    }
+
+    setIsLoadingEventParticipants(true);
+    try {
+      // Получаем связи групп v2 с мероприятием
+      const relationsResponse = await eventRelationsV2Api.getAll(eventumSlug, { event_id: registration.event.id });
+      const relations = relationsResponse.data;
+
+      if (relations.length === 0) {
+        setEventParticipants([]);
+        return;
+      }
+
+      // Получаем все группы v2, связанные с мероприятием
+      const groupIds = relations.map(rel => rel.group_id);
+      const allGroupsResponse = await groupsV2Api.getAll(eventumSlug, { includeEventGroups: true });
+      const allGroups = allGroupsResponse.data;
+      const eventGroups = allGroups.filter(group => groupIds.includes(group.id));
+
+      // Собираем всех участников из всех групп
+      const allParticipantIds = new Set<number>();
+      for (const group of eventGroups) {
+        if (group.participant_relations) {
+          for (const relation of group.participant_relations) {
+            if (relation.relation_type === 'inclusive' && relation.participant_id) {
+              allParticipantIds.add(relation.participant_id);
+            }
+          }
+        }
+      }
+
+      // Получаем данные участников
+      const participantsResponses = await Promise.all(
+        Array.from(allParticipantIds).map(id => participantsApi.getById(id, eventumSlug))
+      );
+      const participantsData = participantsResponses.map(response => response.data);
+      setEventParticipants(participantsData);
+    } catch (error) {
+      console.error('Error loading event participants:', error);
+      setEventParticipants([]);
+    } finally {
+      setIsLoadingEventParticipants(false);
+    }
+  };
+
+  const handleToggleEventParticipants = () => {
+    if (!isEventParticipantsExpanded && eventParticipants.length === 0) {
+      loadEventParticipants();
+    }
+    setIsEventParticipantsExpanded(!isEventParticipantsExpanded);
+  };
 
   const capacityInfo = (max?: number | null) => {
     if (max == null) return 'без лимита';
@@ -153,6 +245,33 @@ const RegistrationCard: React.FC<RegistrationCardProps> = ({
               </div>
             </div>
             <div className="flex items-center gap-2">
+              {registration.registration_type === 'application' && registration.applicants && registration.applicants.length > 0 && (
+                <button
+                  onClick={handleToggleParticipants}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors"
+                  title="Показать участников, подавших заявку"
+                >
+                  <IconUser size={16} />
+                  <span>{registration.applicants.length}</span>
+                  {isParticipantsExpanded ? (
+                    <IconChevronDown size={14} className="transition-transform" />
+                  ) : (
+                    <IconChevronRight size={14} className="transition-transform" />
+                  )}
+                </button>
+              )}
+              <button
+                onClick={handleToggleEventParticipants}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-blue-600 hover:text-blue-900 hover:bg-blue-50 transition-colors"
+                title="Показать участников мероприятия"
+              >
+                <IconUsersCircle size={16} />
+                {isEventParticipantsExpanded ? (
+                  <IconChevronDown size={14} className="transition-transform" />
+                ) : (
+                  <IconChevronRight size={14} className="transition-transform" />
+                )}
+              </button>
               <button
                 onClick={onStartEdit}
                 className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
@@ -161,6 +280,70 @@ const RegistrationCard: React.FC<RegistrationCardProps> = ({
                 <IconPencil size={16} />
               </button>
             </div>
+          </div>
+        )}
+
+        {/* Список участников, подавших заявку */}
+        {mode !== 'edit' && isParticipantsExpanded && registration.registration_type === 'application' && (
+          <div className="border-t pt-3 mt-3">
+            {isLoadingParticipants ? (
+              <div className="text-center py-4 text-sm text-gray-500">
+                Загрузка участников...
+              </div>
+            ) : participants.length === 0 ? (
+              <div className="text-center py-4 text-sm text-gray-500">
+                Участники не найдены
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="text-sm font-medium text-gray-700 mb-2">
+                  Участники, подавшие заявку ({participants.length}):
+                </div>
+                <div className="space-y-1.5 max-h-60 overflow-y-auto">
+                  {participants.map((participant) => (
+                    <div
+                      key={participant.id}
+                      className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
+                    >
+                      <IconUser size={16} className="text-gray-400" />
+                      <span className="text-sm text-gray-900">{participant.name}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Список участников мероприятия */}
+        {mode !== 'edit' && isEventParticipantsExpanded && (
+          <div className="border-t pt-3 mt-3">
+            {isLoadingEventParticipants ? (
+              <div className="text-center py-4 text-sm text-gray-500">
+                Загрузка участников...
+              </div>
+            ) : eventParticipants.length === 0 ? (
+              <div className="text-center py-4 text-sm text-gray-500">
+                Участники не найдены. Нет связанных групп v2 с мероприятием.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="text-sm font-medium text-gray-700 mb-2">
+                  Участники мероприятия ({eventParticipants.length}):
+                </div>
+                <div className="space-y-1.5 max-h-60 overflow-y-auto">
+                  {eventParticipants.map((participant) => (
+                    <div
+                      key={participant.id}
+                      className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 hover:bg-blue-100 transition-colors"
+                    >
+                      <IconUsersCircle size={16} className="text-blue-400" />
+                      <span className="text-sm text-gray-900">{participant.name}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
