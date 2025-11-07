@@ -680,9 +680,15 @@ class EventWaveViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
             'registrations__event__eventum',
             'registrations__event__locations',
             'registrations__event__tags',
+            'registrations__event__group_tags',  # Для EventSerializer
             'registrations__event__event_group_v2',  # Для EventSerializer
             'registrations__event__event_group_v2__participant_relations',
             'registrations__event__event_group_v2__group_relations',
+            # Рекурсивные prefetch'ы для event_group_v2 (для _get_group_participant_ids)
+            'registrations__event__event_group_v2__group_relations__target_group__participant_relations',
+            'registrations__event__event_group_v2__group_relations__target_group__group_relations',
+            'registrations__event__registration',  # OneToOne связь для EventSerializer
+            'registrations__event__registration__applicants',  # Для get_is_registered
             'registrations__applicants',  # Для get_registered_count и is_full
             'registrations__applicants__user',
             'registrations__allowed_group',
