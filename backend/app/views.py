@@ -803,6 +803,9 @@ class EventWaveViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
     permission_classes = [IsEventumOrganizerOrReadOnly]
 
     def get_queryset(self):
+        from django.db.models import Prefetch
+        from .models import ParticipantGroupV2ParticipantRelation, ParticipantGroupV2GroupRelation
+        
         eventum = self.get_eventum()
         return EventWave.objects.filter(eventum=eventum).select_related(
             'eventum'
@@ -812,11 +815,22 @@ class EventWaveViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
             'registrations__event__eventum',
             'registrations__event__locations',
             'registrations__event__tags',
+            'registrations__event__event_group_v2',  # Для EventSerializer
+            'registrations__event__event_group_v2__participant_relations',
+            'registrations__event__event_group_v2__group_relations',
+            'registrations__applicants',  # Для get_registered_count и is_full
+            'registrations__applicants__user',
             'registrations__allowed_group',
-            'registrations__allowed_group__participant_relations',
-            'registrations__allowed_group__participant_relations__participant',
-            'registrations__allowed_group__group_relations',
-            'registrations__allowed_group__group_relations__target_group',
+            # КРИТИЧНО: загружаем все participant_relations и group_relations
+            # чтобы избежать N+1 запросов в has_participant
+            Prefetch(
+                'registrations__allowed_group__participant_relations',
+                queryset=ParticipantGroupV2ParticipantRelation.objects.select_related('participant')
+            ),
+            Prefetch(
+                'registrations__allowed_group__group_relations',
+                queryset=ParticipantGroupV2GroupRelation.objects.select_related('target_group')
+            ),
             'registrations__allowed_group__group_relations__target_group__participant_relations',
             'registrations__allowed_group__group_relations__target_group__group_relations',
         ).order_by('id')
@@ -827,6 +841,22 @@ class EventWaveViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
         eventum = self.get_eventum()
         context['eventum'] = eventum
 
+        # ЗАГРУЖАЕМ participant заранее, если пользователь аутентифицирован
+        request = self.request
+        if request and request.user.is_authenticated:
+            try:
+                from .models import Participant
+                participant = Participant.objects.select_related('user', 'eventum').prefetch_related(
+                    'groups',
+                    'groups__tags'
+                ).get(user=request.user, eventum=eventum)
+                context['_current_participant'] = participant
+                context['current_participant'] = participant  # Для совместимости
+            except Participant.DoesNotExist:
+                context['_current_participant'] = None
+                context['current_participant'] = None
+
+        # Проверяем query-параметр для просмотра от лица другого участника
         participant_param = self.request.query_params.get('participant')
         if participant_param:
             try:
@@ -840,11 +870,22 @@ class EventWaveViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
                 is_organizer = UserRole.objects.filter(user=self.request.user, eventum=eventum, role='organizer').exists()
                 if is_organizer:
                     try:
-                        participant = Participant.objects.get(id=participant_id, eventum=eventum)
+                        participant = Participant.objects.select_related('user', 'eventum').prefetch_related(
+                            'groups',
+                            'groups__tags'
+                        ).get(id=participant_id, eventum=eventum)
                         context['_current_participant'] = participant
+                        context['current_participant'] = participant
                     except Participant.DoesNotExist:
                         # Игнорируем неверный participant_id
                         pass
+
+        # Также загружаем всех участников eventum для вычисления групп
+        # (если event_group_v2 не имеет inclusive связей, возвращаются все участники)
+        if self.action in ['list', 'retrieve']:
+            from .models import Participant
+            all_participants = Participant.objects.filter(eventum=eventum).values_list('id', flat=True)
+            context['all_participant_ids'] = set(all_participants)
 
         return context
 
@@ -883,7 +924,8 @@ class EventViewSet(CachedListMixin, EventumScopedViewSet, viewsets.ModelViewSet)
     
     def get_queryset(self):
         """Оптимизированный queryset для списка событий с prefetch_related"""
-        from django.db.models import Count, Exists, OuterRef
+        from django.db.models import Count, Exists, OuterRef, Prefetch
+        from .models import ParticipantGroupV2ParticipantRelation, ParticipantGroupV2GroupRelation
         
         eventum = self.get_eventum()
         
@@ -906,15 +948,58 @@ class EventViewSet(CachedListMixin, EventumScopedViewSet, viewsets.ModelViewSet)
         
         # Условный prefetch для участников и регистраций только если нужно
         if self.action in ['list', 'retrieve']:
+            # Prefetch для event_group_v2 со всеми связями для оптимизации has_participant
             queryset = queryset.prefetch_related(
                 'participants',
                 'participants__user',
                 'registration',
                 'registration__applicants',
                 'registration__applicants__user',
+                # КРИТИЧНО: загружаем все participant_relations и group_relations
+                # чтобы избежать N+1 запросов в has_participant
+                Prefetch(
+                    'event_group_v2__participant_relations',
+                    queryset=ParticipantGroupV2ParticipantRelation.objects.select_related('participant')
+                ),
+                Prefetch(
+                    'event_group_v2__group_relations',
+                    queryset=ParticipantGroupV2GroupRelation.objects.select_related('target_group')
+                ),
+                # Для рекурсивных групп (если нужно)
+                'event_group_v2__group_relations__target_group__participant_relations',
             )
         
         return queryset
+    
+    def get_serializer_context(self):
+        """Добавляем participant в контекст, чтобы не делать запросы в сериализаторе"""
+        context = super().get_serializer_context()
+        eventum = self.get_eventum()
+        context['eventum'] = eventum
+        
+        # ЗАГРУЖАЕМ participant заранее, если пользователь аутентифицирован
+        request = self.request
+        if request and request.user.is_authenticated:
+            try:
+                from .models import Participant
+                participant = Participant.objects.select_related('user', 'eventum').prefetch_related(
+                    'groups',
+                    'groups__tags'
+                ).get(user=request.user, eventum=eventum)
+                context['current_participant'] = participant
+            except Participant.DoesNotExist:
+                context['current_participant'] = None
+        else:
+            context['current_participant'] = None
+        
+        # Также загружаем всех участников eventum для вычисления групп
+        # (если event_group_v2 не имеет inclusive связей, возвращаются все участники)
+        if self.action in ['list', 'retrieve']:
+            from .models import Participant
+            all_participants = Participant.objects.filter(eventum=eventum).values_list('id', flat=True)
+            context['all_participant_ids'] = set(all_participants)
+        
+        return context
 
     @log_execution_time("Получение списка событий")
     def list(self, request, *args, **kwargs):

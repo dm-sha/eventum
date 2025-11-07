@@ -948,16 +948,131 @@ class EventWaveSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'eventum', 'events']
 
+    def _get_group_participant_ids(self, group, visited_groups=None):
+        """
+        Получает ID участников группы используя уже загруженные данные (prefetch_related).
+        Работает полностью в памяти Python без дополнительных запросов к БД.
+        Для рекурсивных групп может потребоваться дополнительная обработка.
+        """
+        if not group:
+            return set()
+        
+        if visited_groups is None:
+            visited_groups = set()
+        
+        # Предотвращаем циклические ссылки
+        if group.id in visited_groups:
+            return set()
+        
+        visited_groups.add(group.id)
+        
+        # Пытаемся использовать кеш
+        from django.core.cache import cache
+        cache_key = f'group_participants_{group.id}_{group.eventum_id}'
+        cached_ids = cache.get(cache_key)
+        if cached_ids is not None:
+            return set(cached_ids)
+        
+        # Получаем все participant_relations из prefetch_related
+        participant_relations = []
+        if hasattr(group, '_prefetched_objects_cache') and 'participant_relations' in group._prefetched_objects_cache:
+            participant_relations = group._prefetched_objects_cache['participant_relations']
+        else:
+            # Fallback: если prefetch не сработал, используем обычный запрос
+            participant_relations = list(group.participant_relations.all())
+        
+        # Получаем все group_relations из prefetch_related
+        group_relations = []
+        if hasattr(group, '_prefetched_objects_cache') and 'group_relations' in group._prefetched_objects_cache:
+            group_relations = group._prefetched_objects_cache['group_relations']
+        else:
+            # Fallback: если prefetch не сработал, используем обычный запрос
+            group_relations = list(group.group_relations.all())
+        
+        # Проверяем, есть ли хотя бы одна inclusive связь
+        has_inclusive_participants = any(
+            rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.INCLUSIVE
+            for rel in participant_relations
+        )
+        has_inclusive_groups = any(
+            rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.INCLUSIVE
+            for rel in group_relations
+        )
+        
+        # Если нет ни участников, ни inclusive групп, возвращаем всех участников eventum
+        if not has_inclusive_participants and not has_inclusive_groups:
+            # Используем all_participant_ids из контекста
+            all_participant_ids = self.context.get('all_participant_ids', set())
+            
+            # Исключаем excluded участников
+            excluded_participant_ids = set()
+            for rel in participant_relations:
+                if rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.EXCLUSIVE:
+                    excluded_participant_ids.add(rel.participant_id)
+            
+            # Исключаем участников из excluded групп (рекурсивно)
+            for group_rel in group_relations:
+                if group_rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.EXCLUSIVE:
+                    target_group = group_rel.target_group
+                    excluded_participant_ids.update(
+                        self._get_group_participant_ids(target_group, visited_groups.copy())
+                    )
+            
+            return all_participant_ids - excluded_participant_ids
+        else:
+            # Стандартная логика включений/исключений
+            included_participant_ids = set()
+            excluded_participant_ids = set()
+            
+            # Обрабатываем прямые связи с участниками
+            for rel in participant_relations:
+                if rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.INCLUSIVE:
+                    included_participant_ids.add(rel.participant_id)
+                elif rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.EXCLUSIVE:
+                    excluded_participant_ids.add(rel.participant_id)
+            
+            # Обрабатываем связи с группами
+            for group_rel in group_relations:
+                target_group = group_rel.target_group
+                target_participant_ids = self._get_group_participant_ids(target_group, visited_groups.copy())
+                
+                if group_rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.INCLUSIVE:
+                    included_participant_ids.update(target_participant_ids)
+                elif group_rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.EXCLUSIVE:
+                    excluded_participant_ids.update(target_participant_ids)
+            
+            # Исключаем участников из списка включенных
+            included_participant_ids -= excluded_participant_ids
+            
+            return included_participant_ids
+    
+    def _has_participant_in_group(self, group, participant_id):
+        """
+        Проверяет участие в группе используя уже загруженные данные (prefetch_related).
+        Работает полностью в памяти Python без дополнительных запросов к БД.
+        """
+        if not group:
+            return False
+        
+        participant_ids = self._get_group_participant_ids(group)
+        return participant_id in participant_ids
+    
     def get_registrations(self, obj):
         """Получить регистрации волны"""
         if obj.pk:
-            # Используем отложенный импорт, так как EventRegistrationSerializer определен ниже
-            registrations = obj.registrations.all().select_related('event', 'allowed_group').prefetch_related('applicants')
+            # ИСПОЛЬЗУЕМ prefetch'енные registrations вместо нового запроса
+            if hasattr(obj, '_prefetched_objects_cache') and 'registrations' in obj._prefetched_objects_cache:
+                registrations = obj._prefetched_objects_cache['registrations']
+            else:
+                # Fallback: если prefetch не сработал
+                registrations = obj.registrations.all().select_related('event', 'allowed_group').prefetch_related('applicants')
 
             request = self.context.get('request')
-            # Кэш текущего участника в контексте сериализатора
-            participant_cached = self.context.get('_current_participant', None)
+            # ИСПОЛЬЗУЕМ participant из контекста вместо запроса к БД
+            participant_cached = self.context.get('_current_participant') or self.context.get('current_participant')
             if participant_cached is None and request and getattr(request, 'user', None) and request.user.is_authenticated:
+                # Если participant не загружен в контексте, пытаемся загрузить
+                # (это не должно происходить, если ViewSet правильно настроен)
                 try:
                     sample_eventum = None
                     for r in registrations:
@@ -972,8 +1087,6 @@ class EventWaveSerializer(serializers.ModelSerializer):
                     participant_cached = False
                 self.context['_current_participant'] = participant_cached
 
-            membership_cache = self.context.setdefault('_allowed_group_membership', {})
-
             # Создаем минимальное представление регистраций
             result = []
             for reg in registrations:
@@ -982,58 +1095,15 @@ class EventWaveSerializer(serializers.ModelSerializer):
                     is_accessible = True
                 elif not reg.allowed_group_id:
                     is_accessible = True
-                elif participant_cached is False:
+                elif participant_cached is False or participant_cached is None:
                     is_accessible = False
                 else:
-                    # FAST-PATH проверки на основе уже префетченных связей группы
+                    # ИСПОЛЬЗУЕМ метод, который работает с уже загруженными данными
                     grp = reg.allowed_group
-                    pr_all = list(getattr(grp, 'participant_relations').all()) if hasattr(grp, 'participant_relations') else []
-                    gr_all = list(getattr(grp, 'group_relations').all()) if hasattr(grp, 'group_relations') else []
-
-                    has_inclusive_participants = any(
-                        rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.INCLUSIVE
-                        for rel in pr_all
-                    )
-                    has_inclusive_groups = any(
-                        rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.INCLUSIVE
-                        for rel in gr_all
-                    )
-                    has_exclusive_participants = any(
-                        rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.EXCLUSIVE
-                        for rel in pr_all
-                    )
-                    has_exclusive_groups = any(
-                        rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.EXCLUSIVE
-                        for rel in gr_all
-                    )
-
-                    # Если нет инклюзивов и вообще нет эксклюзивов — доступно всем
-                    if not has_inclusive_participants and not has_inclusive_groups and not has_exclusive_participants and not has_exclusive_groups:
-                        is_accessible = True
+                    if grp:
+                        is_accessible = self._has_participant_in_group(grp, participant_cached.id)
                     else:
-                        # Прямые включения/исключения участника
-                        direct_inclusive = any(
-                            rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.INCLUSIVE and rel.participant_id == participant_cached.id
-                            for rel in pr_all
-                        )
-                        if direct_inclusive:
-                            is_accessible = True
-                        else:
-                            direct_exclusive = any(
-                                rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.EXCLUSIVE and rel.participant_id == participant_cached.id
-                                for rel in pr_all
-                            )
-                            if direct_exclusive:
-                                is_accessible = False
-                            else:
-                                # Fallback к кэшу проверки через get_participants
-                                key = (reg.allowed_group_id, participant_cached.id)
-                                if key in membership_cache:
-                                    is_accessible = membership_cache[key]
-                                else:
-                                    # Используем оптимизированный метод с кешем
-                                    is_accessible = grp.has_participant(participant_cached.id)
-                                    membership_cache[key] = is_accessible
+                        is_accessible = True
 
                 result.append({
                     'id': reg.id,
@@ -1057,8 +1127,13 @@ class EventWaveSerializer(serializers.ModelSerializer):
         if not obj.pk:
             return []
 
-        # Используем уже префетченные registrations -> event, чтобы избежать лишних запросов
-        registrations = list(obj.registrations.all())
+        # ИСПОЛЬЗУЕМ prefetch'енные registrations вместо нового запроса
+        if hasattr(obj, '_prefetched_objects_cache') and 'registrations' in obj._prefetched_objects_cache:
+            registrations = obj._prefetched_objects_cache['registrations']
+        else:
+            # Fallback: если prefetch не сработал
+            registrations = list(obj.registrations.all())
+        
         events = []
         seen_ids = set()
         for reg in registrations:
@@ -1414,30 +1489,133 @@ class EventSerializer(serializers.ModelSerializer):
         # Если нет настройки регистрации, возвращаем 0
         return 0
 
+    def _get_group_participant_ids(self, group, visited_groups=None):
+        """
+        Получает ID участников группы используя уже загруженные данные (prefetch_related).
+        Работает полностью в памяти Python без дополнительных запросов к БД.
+        Для рекурсивных групп может потребоваться дополнительная обработка.
+        """
+        if not group:
+            return set()
+        
+        if visited_groups is None:
+            visited_groups = set()
+        
+        # Предотвращаем циклические ссылки
+        if group.id in visited_groups:
+            return set()
+        
+        visited_groups.add(group.id)
+        
+        # Пытаемся использовать кеш
+        from django.core.cache import cache
+        cache_key = f'group_participants_{group.id}_{group.eventum_id}'
+        cached_ids = cache.get(cache_key)
+        if cached_ids is not None:
+            return set(cached_ids)
+        
+        # Получаем все participant_relations из prefetch_related
+        participant_relations = []
+        if hasattr(group, '_prefetched_objects_cache') and 'participant_relations' in group._prefetched_objects_cache:
+            participant_relations = group._prefetched_objects_cache['participant_relations']
+        else:
+            # Fallback: если prefetch не сработал, используем обычный запрос
+            participant_relations = list(group.participant_relations.all())
+        
+        # Получаем все group_relations из prefetch_related
+        group_relations = []
+        if hasattr(group, '_prefetched_objects_cache') and 'group_relations' in group._prefetched_objects_cache:
+            group_relations = group._prefetched_objects_cache['group_relations']
+        else:
+            # Fallback: если prefetch не сработал, используем обычный запрос
+            group_relations = list(group.group_relations.all())
+        
+        # Проверяем, есть ли хотя бы одна inclusive связь
+        has_inclusive_participants = any(
+            rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.INCLUSIVE
+            for rel in participant_relations
+        )
+        has_inclusive_groups = any(
+            rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.INCLUSIVE
+            for rel in group_relations
+        )
+        
+        # Если нет ни участников, ни inclusive групп, возвращаем всех участников eventum
+        if not has_inclusive_participants and not has_inclusive_groups:
+            # Используем all_participant_ids из контекста
+            all_participant_ids = self.context.get('all_participant_ids', set())
+            
+            # Исключаем excluded участников
+            excluded_participant_ids = set()
+            for rel in participant_relations:
+                if rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.EXCLUSIVE:
+                    excluded_participant_ids.add(rel.participant_id)
+            
+            # Исключаем участников из excluded групп (рекурсивно)
+            for group_rel in group_relations:
+                if group_rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.EXCLUSIVE:
+                    target_group = group_rel.target_group
+                    excluded_participant_ids.update(
+                        self._get_group_participant_ids(target_group, visited_groups.copy())
+                    )
+            
+            return all_participant_ids - excluded_participant_ids
+        else:
+            # Стандартная логика включений/исключений
+            included_participant_ids = set()
+            excluded_participant_ids = set()
+            
+            # Обрабатываем прямые связи с участниками
+            for rel in participant_relations:
+                if rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.INCLUSIVE:
+                    included_participant_ids.add(rel.participant_id)
+                elif rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.EXCLUSIVE:
+                    excluded_participant_ids.add(rel.participant_id)
+            
+            # Обрабатываем связи с группами
+            for group_rel in group_relations:
+                target_group = group_rel.target_group
+                target_participant_ids = self._get_group_participant_ids(target_group, visited_groups.copy())
+                
+                if group_rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.INCLUSIVE:
+                    included_participant_ids.update(target_participant_ids)
+                elif group_rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.EXCLUSIVE:
+                    excluded_participant_ids.update(target_participant_ids)
+            
+            # Исключаем участников из списка включенных
+            included_participant_ids -= excluded_participant_ids
+            
+            return included_participant_ids
+    
+    def _has_participant_in_group(self, group, participant_id):
+        """
+        Проверяет участие в группе используя уже загруженные данные (prefetch_related).
+        Работает полностью в памяти Python без дополнительных запросов к БД.
+        """
+        if not group:
+            return False
+        
+        participant_ids = self._get_group_participant_ids(group)
+        return participant_id in participant_ids
+    
     def get_is_registered(self, obj):
         """Проверить, записан ли текущий пользователь (или указанный участник) на мероприятие"""
         request = self.context.get('request')
         participant_id = self.context.get('participant_id')
         
-        # Если указан participant_id в контексте (для просмотра от лица другого участника),
-        # используем его вместо текущего пользователя
+        # ИСПОЛЬЗУЕМ participant из контекста вместо запроса к БД
         if participant_id:
-            participant = None
+            # Для просмотра от лица другого участника
+            # Можно также добавить в контекст, если нужно
+            from .models import Participant
             try:
-                from .models import Participant
                 participant = Participant.objects.get(id=participant_id, eventum=obj.eventum)
             except Participant.DoesNotExist:
                 return False
         else:
-            # Обычная логика для текущего пользователя
-            if not request or not request.user.is_authenticated:
-                return False
-            
-            # Получаем участника текущего пользователя
-            from .models import Participant
-            try:
-                participant = Participant.objects.get(user=request.user, eventum=obj.eventum)
-            except Participant.DoesNotExist:
+            # ИСПОЛЬЗУЕМ participant из контекста
+            participant = self.context.get('current_participant')
+            if not participant:
                 return False
         
         # Проверяем, есть ли настройка регистрации
@@ -1450,14 +1628,14 @@ class EventSerializer(serializers.ModelSerializer):
         if registration.registration_type == EventRegistration.RegistrationType.BUTTON:
             # Для типа button проверяем, входит ли участник в event_group_v2
             if obj.event_group_v2:
-                # Используем оптимизированный метод с кешем
-                return obj.event_group_v2.has_participant(participant.id)
+                # ИСПОЛЬЗУЕМ метод, который работает с уже загруженными данными
+                return self._has_participant_in_group(obj.event_group_v2, participant.id)
             return False
         else:
             # Для типа application проверяем участие через event_group_v2
             # (участник участвует только если он в event_group_v2, а не просто в applicants)
             if obj.event_group_v2:
-                return obj.event_group_v2.has_participant(participant.id)
+                return self._has_participant_in_group(obj.event_group_v2, participant.id)
             return False
     
     def get_is_participant(self, obj):
@@ -1465,31 +1643,25 @@ class EventSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         participant_id = self.context.get('participant_id')
         
-        # Если указан participant_id в контексте (для просмотра от лица другого участника),
-        # используем его вместо текущего пользователя
+        # ИСПОЛЬЗУЕМ participant из контекста вместо запроса к БД
         if participant_id:
-            participant = None
+            # Для просмотра от лица другого участника
+            from .models import Participant
             try:
-                from .models import Participant
                 participant = Participant.objects.get(id=participant_id, eventum=obj.eventum)
             except Participant.DoesNotExist:
                 return False
         else:
-            # Обычная логика для текущего пользователя
-            if not request or not request.user.is_authenticated:
-                return False
-            
-            # Получаем участника текущего пользователя
-            from .models import Participant
-            try:
-                participant = Participant.objects.get(user=request.user, eventum=obj.eventum)
-            except Participant.DoesNotExist:
+            # ИСПОЛЬЗУЕМ participant из контекста
+            participant = self.context.get('current_participant')
+            if not participant:
                 return False
         
         # Если есть event_group_v2, проверяем участие через него
         # (это работает для всех мероприятий, включая те, где нет регистрации)
         if obj.event_group_v2:
-            return obj.event_group_v2.has_participant(participant.id)
+            # ИСПОЛЬЗУЕМ метод, который работает с уже загруженными данными
+            return self._has_participant_in_group(obj.event_group_v2, participant.id)
         
         # Для старых мероприятий без v2 групп используем старую логику
         # participant_type уже вычислен как строка через get_participant_type
@@ -1497,23 +1669,48 @@ class EventSerializer(serializers.ModelSerializer):
             return True
         
         if obj.participant_type == 'manual':
-            # Прямое назначение участника
-            if obj.participants.filter(id=participant.id).exists():
-                return True
+            # Прямое назначение участника - используем уже загруженные participants
+            if hasattr(obj, '_prefetched_objects_cache') and 'participants' in obj._prefetched_objects_cache:
+                participant_ids = {p.id for p in obj._prefetched_objects_cache['participants']}
+                if participant.id in participant_ids:
+                    return True
+            else:
+                # Fallback, если prefetch не сработал
+                if obj.participants.filter(id=participant.id).exists():
+                    return True
             
-            # Назначение через группы участника (старые группы)
-            participant_group_ids = set(
-                participant.groups.values_list('id', flat=True)
-            )
-            event_group_ids = set(obj.groups.values_list('id', flat=True))
+            # Назначение через группы участника (старые группы) - используем загруженные данные
+            if hasattr(participant, '_prefetched_objects_cache') and 'groups' in participant._prefetched_objects_cache:
+                participant_group_ids = {g.id for g in participant._prefetched_objects_cache['groups']}
+            else:
+                participant_group_ids = set(participant.groups.values_list('id', flat=True))
+            
+            if hasattr(obj, '_prefetched_objects_cache') and 'groups' in obj._prefetched_objects_cache:
+                event_group_ids = {g.id for g in obj._prefetched_objects_cache['groups']}
+            else:
+                event_group_ids = set(obj.groups.values_list('id', flat=True))
+            
             if participant_group_ids & event_group_ids:
                 return True
             
-            # Назначение через теги групп участника
-            participant_group_tag_ids = set(
-                participant.groups.values_list('tags__id', flat=True)
-            )
-            event_group_tag_ids = set(obj.group_tags.values_list('id', flat=True))
+            # Назначение через теги групп участника - используем загруженные данные
+            if hasattr(participant, '_prefetched_objects_cache') and 'groups' in participant._prefetched_objects_cache:
+                participant_group_tag_ids = set()
+                for group in participant._prefetched_objects_cache['groups']:
+                    if hasattr(group, '_prefetched_objects_cache') and 'tags' in group._prefetched_objects_cache:
+                        participant_group_tag_ids.update(tag.id for tag in group._prefetched_objects_cache['tags'])
+                    else:
+                        participant_group_tag_ids.update(group.tags.values_list('id', flat=True))
+            else:
+                participant_group_tag_ids = set(
+                    participant.groups.values_list('tags__id', flat=True)
+                )
+            
+            if hasattr(obj, '_prefetched_objects_cache') and 'group_tags' in obj._prefetched_objects_cache:
+                event_group_tag_ids = {tag.id for tag in obj._prefetched_objects_cache['group_tags']}
+            else:
+                event_group_tag_ids = set(obj.group_tags.values_list('id', flat=True))
+            
             if participant_group_tag_ids & event_group_tag_ids:
                 return True
         
