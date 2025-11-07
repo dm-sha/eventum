@@ -1067,25 +1067,8 @@ class EventWaveSerializer(serializers.ModelSerializer):
                 # Fallback: если prefetch не сработал
                 registrations = obj.registrations.all().select_related('event', 'allowed_group').prefetch_related('applicants')
 
-            request = self.context.get('request')
-            # ИСПОЛЬЗУЕМ participant из контекста вместо запроса к БД
-            participant_cached = self.context.get('_current_participant') or self.context.get('current_participant')
-            if participant_cached is None and request and getattr(request, 'user', None) and request.user.is_authenticated:
-                # Если participant не загружен в контексте, пытаемся загрузить
-                # (это не должно происходить, если ViewSet правильно настроен)
-                try:
-                    sample_eventum = None
-                    for r in registrations:
-                        if getattr(r, 'event', None) is not None:
-                            sample_eventum = r.event.eventum
-                            break
-                    if sample_eventum is not None:
-                        participant_cached = Participant.objects.get(user=request.user, eventum=sample_eventum)
-                    else:
-                        participant_cached = False
-                except Participant.DoesNotExist:
-                    participant_cached = False
-                self.context['_current_participant'] = participant_cached
+            # Получаем participant из контекста (загружается в ViewSet)
+            participant = self.context.get('_current_participant') or self.context.get('current_participant')
 
             # Создаем минимальное представление регистраций
             result = []
@@ -1097,17 +1080,17 @@ class EventWaveSerializer(serializers.ModelSerializer):
                     is_accessible = True
                 else:
                     # Если группа доступа указана, проверяем вхождение участника
-                    if participant_cached is False or participant_cached is None:
+                    if participant is None or participant is False:
                         # Участник не найден - событие недоступно
                         is_accessible = False
-                    elif not hasattr(participant_cached, 'id'):
-                        # participant_cached не является объектом Participant - событие недоступно
+                    elif not hasattr(participant, 'id'):
+                        # participant не является объектом Participant - событие недоступно
                         is_accessible = False
                     else:
                         # Проверяем вхождение участника в allowed_group
                         grp = reg.allowed_group
                         if grp:
-                            is_accessible = self._has_participant_in_group(grp, participant_cached.id)
+                            is_accessible = self._has_participant_in_group(grp, participant.id)
                         else:
                             # Если allowed_group_id есть, но группа не загружена - считаем недоступным
                             # (это может произойти, если группа была удалена или prefetch не сработал)
