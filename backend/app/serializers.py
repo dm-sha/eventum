@@ -974,20 +974,19 @@ class EventWaveSerializer(serializers.ModelSerializer):
             return set(cached_ids)
         
         # Получаем все participant_relations из prefetch_related
+        # ВАЖНО: не используем fallback к .all(), чтобы избежать запросов к БД
         participant_relations = []
         if hasattr(group, '_prefetched_objects_cache') and 'participant_relations' in group._prefetched_objects_cache:
             participant_relations = group._prefetched_objects_cache['participant_relations']
-        else:
-            # Fallback: если prefetch не сработал, используем обычный запрос
-            participant_relations = list(group.participant_relations.all())
+        # Если prefetch не сработал, возвращаем пустой список (не делаем запрос к БД)
+        # Это может произойти только если prefetch не был настроен правильно
         
         # Получаем все group_relations из prefetch_related
+        # ВАЖНО: не используем fallback к .all(), чтобы избежать запросов к БД
         group_relations = []
         if hasattr(group, '_prefetched_objects_cache') and 'group_relations' in group._prefetched_objects_cache:
             group_relations = group._prefetched_objects_cache['group_relations']
-        else:
-            # Fallback: если prefetch не сработал, используем обычный запрос
-            group_relations = list(group.group_relations.all())
+        # Если prefetch не сработал, возвращаем пустой список (не делаем запрос к БД)
         
         # Проверяем, есть ли хотя бы одна inclusive связь
         has_inclusive_participants = any(
@@ -1105,6 +1104,28 @@ class EventWaveSerializer(serializers.ModelSerializer):
                     else:
                         is_accessible = True
 
+                # Оптимизированный подсчет зарегистрированных участников
+                # Используем prefetch'енные данные вместо запросов к БД
+                if reg.registration_type == EventRegistration.RegistrationType.BUTTON:
+                    # Для типа button считаем участников в event_group_v2
+                    if reg.event.event_group_v2:
+                        participant_ids = self._get_group_participant_ids(reg.event.event_group_v2)
+                        registered_count = len(participant_ids)
+                    else:
+                        registered_count = 0
+                else:
+                    # Для типа application считаем заявки из prefetch'енных applicants
+                    if hasattr(reg, '_prefetched_objects_cache') and 'applicants' in reg._prefetched_objects_cache:
+                        registered_count = len(reg._prefetched_objects_cache['applicants'])
+                    else:
+                        # Fallback: если prefetch не сработал
+                        registered_count = reg.applicants.count()
+                
+                # Проверяем, заполнена ли регистрация
+                is_full = False
+                if reg.max_participants:
+                    is_full = registered_count >= reg.max_participants
+
                 result.append({
                     'id': reg.id,
                     'event': {
@@ -1114,8 +1135,8 @@ class EventWaveSerializer(serializers.ModelSerializer):
                     'registration_type': reg.registration_type,
                     'max_participants': reg.max_participants,
                     'allowed_group': reg.allowed_group_id,
-                    'registered_count': reg.get_registered_count(),
-                    'is_full': reg.is_full(),
+                    'registered_count': registered_count,
+                    'is_full': is_full,
                     'is_accessible': is_accessible,
                 })
 
@@ -1515,20 +1536,19 @@ class EventSerializer(serializers.ModelSerializer):
             return set(cached_ids)
         
         # Получаем все participant_relations из prefetch_related
+        # ВАЖНО: не используем fallback к .all(), чтобы избежать запросов к БД
         participant_relations = []
         if hasattr(group, '_prefetched_objects_cache') and 'participant_relations' in group._prefetched_objects_cache:
             participant_relations = group._prefetched_objects_cache['participant_relations']
-        else:
-            # Fallback: если prefetch не сработал, используем обычный запрос
-            participant_relations = list(group.participant_relations.all())
+        # Если prefetch не сработал, возвращаем пустой список (не делаем запрос к БД)
+        # Это может произойти только если prefetch не был настроен правильно
         
         # Получаем все group_relations из prefetch_related
+        # ВАЖНО: не используем fallback к .all(), чтобы избежать запросов к БД
         group_relations = []
         if hasattr(group, '_prefetched_objects_cache') and 'group_relations' in group._prefetched_objects_cache:
             group_relations = group._prefetched_objects_cache['group_relations']
-        else:
-            # Fallback: если prefetch не сработал, используем обычный запрос
-            group_relations = list(group.group_relations.all())
+        # Если prefetch не сработал, возвращаем пустой список (не делаем запрос к БД)
         
         # Проверяем, есть ли хотя бы одна inclusive связь
         has_inclusive_participants = any(
@@ -1604,17 +1624,24 @@ class EventSerializer(serializers.ModelSerializer):
         participant_id = self.context.get('participant_id')
         
         # ИСПОЛЬЗУЕМ participant из контекста вместо запроса к БД
+        # Сначала проверяем, есть ли уже загруженный participant в контексте
+        participant = self.context.get('current_participant')
+        
         if participant_id:
             # Для просмотра от лица другого участника
-            # Можно также добавить в контекст, если нужно
-            from .models import Participant
-            try:
-                participant = Participant.objects.get(id=participant_id, eventum=obj.eventum)
-            except Participant.DoesNotExist:
-                return False
+            # Если participant уже загружен в контексте, используем его
+            if participant and participant.id == participant_id:
+                # Уже загружен, используем
+                pass
+            else:
+                # Если не загружен, загружаем (fallback)
+                from .models import Participant
+                try:
+                    participant = Participant.objects.get(id=participant_id, eventum=obj.eventum)
+                except Participant.DoesNotExist:
+                    return False
         else:
-            # ИСПОЛЬЗУЕМ participant из контекста
-            participant = self.context.get('current_participant')
+            # Обычная логика для текущего пользователя
             if not participant:
                 return False
         
@@ -1632,11 +1659,20 @@ class EventSerializer(serializers.ModelSerializer):
                 return self._has_participant_in_group(obj.event_group_v2, participant.id)
             return False
         else:
-            # Для типа application проверяем участие через event_group_v2
-            # (участник участвует только если он в event_group_v2, а не просто в applicants)
+            # Для типа application проверяем:
+            # 1. Участник в event_group_v2 (заявка одобрена и он добавлен в группу)
+            # 2. ИЛИ участник в applicants (подал заявку, но еще не одобрена)
             if obj.event_group_v2:
-                return self._has_participant_in_group(obj.event_group_v2, participant.id)
-            return False
+                if self._has_participant_in_group(obj.event_group_v2, participant.id):
+                    return True
+            
+            # Проверяем applicants (используем prefetch'енные данные)
+            if hasattr(registration, '_prefetched_objects_cache') and 'applicants' in registration._prefetched_objects_cache:
+                applicant_ids = {app.id for app in registration._prefetched_objects_cache['applicants']}
+                return participant.id in applicant_ids
+            else:
+                # Fallback: если prefetch не сработал
+                return registration.applicants.filter(id=participant.id).exists()
     
     def get_is_participant(self, obj):
         """Проверить, участвует ли участник в мероприятии (для расписания, без проверки регистрации)"""
@@ -1644,16 +1680,24 @@ class EventSerializer(serializers.ModelSerializer):
         participant_id = self.context.get('participant_id')
         
         # ИСПОЛЬЗУЕМ participant из контекста вместо запроса к БД
+        # Сначала проверяем, есть ли уже загруженный participant в контексте
+        participant = self.context.get('current_participant')
+        
         if participant_id:
             # Для просмотра от лица другого участника
-            from .models import Participant
-            try:
-                participant = Participant.objects.get(id=participant_id, eventum=obj.eventum)
-            except Participant.DoesNotExist:
-                return False
+            # Если participant уже загружен в контексте, используем его
+            if participant and participant.id == participant_id:
+                # Уже загружен, используем
+                pass
+            else:
+                # Если не загружен, загружаем (fallback)
+                from .models import Participant
+                try:
+                    participant = Participant.objects.get(id=participant_id, eventum=obj.eventum)
+                except Participant.DoesNotExist:
+                    return False
         else:
-            # ИСПОЛЬЗУЕМ participant из контекста
-            participant = self.context.get('current_participant')
+            # Обычная логика для текущего пользователя
             if not participant:
                 return False
         

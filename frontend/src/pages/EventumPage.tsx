@@ -190,7 +190,7 @@ const EventumPage = () => {
           }
         }
         
-        // Если просматриваем от лица другого участника, обновляем is_registered в events на основе myRegistrations
+        // Если просматриваем от лица другого участника, обновляем is_registered и is_participant в events на основе myRegistrations
         if (participantId) {
           // Создаём Map для быстрого поиска регистраций по ID события
           const registrationsMap = new Map<number, any>();
@@ -205,9 +205,12 @@ const EventumPage = () => {
             if (reg) {
               // Используем is_registered из регистрации, если есть, иначе считаем что зарегистрирован
               event.is_registered = reg.is_registered !== undefined ? reg.is_registered : true;
+              // Используем is_participant из регистрации для определения участия
+              event.is_participant = reg.is_participant !== undefined ? reg.is_participant : false;
             } else {
-              // Если регистрации нет, значит не зарегистрирован
+              // Если регистрации нет, значит не зарегистрирован и не участвует
               event.is_registered = false;
+              event.is_participant = false;
             }
           });
         }
@@ -461,106 +464,110 @@ const DistributionTab: React.FC<{ myRegistrations: EventRegistration[]; currentP
         <div className="space-y-6">
           {/* Мероприятия, в которых участник участвует */}
           {(() => {
-            // myRegistrations - это массив Event объектов (не EventRegistration), у которых есть поле is_registered
-            // которое правильно вычисляется на бэкенде с учетом v2 групп
-            // Участвует только если is_registered строго равно true (участник в event_group_v2)
+            // myRegistrations - это массив Event объектов (не EventRegistration), у которых есть поле is_participant
+            // которое правильно вычисляется на бэкенде с учетом v2 групп и других способов участия
+            // Участвует только если is_participant строго равно true (участник в event_group_v2 или назначен вручную)
             const participatingEvents = myRegistrations
               .filter((event: any) => 
                 event && 
-                event.is_registered === true
+                event.is_participant === true
               )
               .sort((a: any, b: any) => {
                 if (!a?.start_time || !b?.start_time) return 0;
                 return new Date(a.start_time).getTime() - new Date(b.start_time).getTime();
               });
             
-            return participatingEvents.length > 0 ? (
+            return (
               <div>
                 <h4 className="text-lg font-semibold text-gray-900 mb-4">Мероприятия, в которых вы участвуете</h4>
-                <div className="space-y-3">
-                  {participatingEvents.map((event: any) => (
-                    <div key={event.id} className="bg-green-50 rounded-lg border border-green-200 p-4 overflow-hidden">
-                      <div className="flex items-start gap-2">
-                        <div className="flex-1 min-w-0 overflow-hidden">
-                          <div className="flex items-center gap-2 mb-2">
-                            <h5 className="text-lg font-medium text-gray-900">{event.name}</h5>
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                              Участвуете
-                            </span>
-                          </div>
-                          {event.description && (
-                            <ExpandableText 
-                              text={event.description} 
-                              maxLength={120}
-                              className="mt-1 text-gray-600 text-sm"
-                            />
-                          )}
-                          <div className="mt-2 flex items-center text-sm text-gray-500">
-                            <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
-                            </svg>
-                            <span>
-                              {new Date(event.start_time).toLocaleDateString('ru-RU', {
-                                day: 'numeric',
-                                month: 'long',
-                                year: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              })}
-                            </span>
-                          </div>
-                          {event.locations && event.locations.length > 0 && (
-                            <div className="mt-1 flex items-center text-sm text-gray-500">
+                {participatingEvents.length > 0 ? (
+                  <div className="space-y-3">
+                    {participatingEvents.map((event: any) => (
+                      <div key={event.id} className="bg-green-50 rounded-lg border border-green-200 p-4 overflow-hidden">
+                        <div className="flex items-start gap-2">
+                          <div className="flex-1 min-w-0 overflow-hidden">
+                            <div className="flex items-center gap-2 mb-2">
+                              <h5 className="text-lg font-medium text-gray-900">{event.name}</h5>
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                Участвуете
+                              </span>
+                            </div>
+                            {event.description && (
+                              <ExpandableText 
+                                text={event.description} 
+                                maxLength={120}
+                                className="mt-1 text-gray-600 text-sm"
+                              />
+                            )}
+                            <div className="mt-2 flex items-center text-sm text-gray-500">
                               <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25s-7.5-4.108-7.5-11.25a7.5 7.5 0 1115 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
                               </svg>
                               <span>
-                                {(() => {
-                                  // Функция для получения уникальных частей пути локаций
-                                  const getUniqueLocationParts = (locations: any[]) => {
-                                    const allParts = new Set<string>();
-                                    
-                                    locations.forEach(loc => {
-                                      const parts = loc.full_path.split(', ');
-                                      parts.forEach((part: string) => allParts.add(part.trim()));
-                                    });
-                                    
-                                    return Array.from(allParts);
-                                  };
-                                  
-                                  const uniqueParts = getUniqueLocationParts(event.locations);
-                                  return uniqueParts.join(', ');
-                                })()}
+                                {new Date(event.start_time).toLocaleDateString('ru-RU', {
+                                  day: 'numeric',
+                                  month: 'long',
+                                  year: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
                               </span>
+                            </div>
+                            {event.locations && event.locations.length > 0 && (
+                              <div className="mt-1 flex items-center text-sm text-gray-500">
+                                <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25s-7.5-4.108-7.5-11.25a7.5 7.5 0 1115 0z" />
+                                </svg>
+                                <span>
+                                  {(() => {
+                                    // Функция для получения уникальных частей пути локаций
+                                    const getUniqueLocationParts = (locations: any[]) => {
+                                      const allParts = new Set<string>();
+                                      
+                                      locations.forEach(loc => {
+                                        const parts = loc.full_path.split(', ');
+                                        parts.forEach((part: string) => allParts.add(part.trim()));
+                                      });
+                                      
+                                      return Array.from(allParts);
+                                    };
+                                    
+                                    const uniqueParts = getUniqueLocationParts(event.locations);
+                                    return uniqueParts.join(', ');
+                                  })()}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                          {event.image_url && (
+                            <div className="flex-shrink-0 max-w-[min(48px,20%)] sm:max-w-none">
+                              <img
+                                src={event.image_url}
+                                alt={event.name}
+                                className="w-12 h-auto sm:w-16 max-w-full object-contain rounded-lg shadow"
+                              />
                             </div>
                           )}
                         </div>
-                        {event.image_url && (
-                          <div className="flex-shrink-0 max-w-[min(48px,20%)] sm:max-w-none">
-                            <img
-                              src={event.image_url}
-                              alt={event.name}
-                              className="w-12 h-auto sm:w-16 max-w-full object-contain rounded-lg shadow"
-                            />
-                          </div>
-                        )}
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-500 text-center py-4">Пусто</p>
+                )}
               </div>
-            ) : null;
+            );
           })()}
 
           {/* Мероприятия, на которые подавал заявку, но не участвует */}
           {(() => {
             // Мероприятия, на которые подали заявку (есть в myRegistrations), но не участвуете
-            // (is_registered !== true, т.е. заявка есть, но участник не в event_group_v2)
+            // (is_participant !== true, т.е. заявка есть, но участник не участвует)
             const appliedEvents = myRegistrations
               .filter((event: any) => 
                 event && 
-                event.is_registered !== true
+                event.is_participant !== true
               )
               .sort((a: any, b: any) => {
                 if (!a?.start_time || !b?.start_time) return 0;

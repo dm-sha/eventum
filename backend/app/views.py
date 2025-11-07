@@ -186,6 +186,9 @@ class ParticipantViewSet(CachedListMixin, EventumScopedViewSet):
     @require_authentication
     def my_registrations(self, request, eventum_slug=None):
         """Получить мероприятия, на которые зарегистрирован текущий участник"""
+        from django.db.models import Q, Exists, OuterRef, Prefetch
+        from .models import Participant, ParticipantGroupV2ParticipantRelation, ParticipantGroupV2GroupRelation
+        
         eventum = self.get_eventum()
         
         try:
@@ -196,8 +199,6 @@ class ParticipantViewSet(CachedListMixin, EventumScopedViewSet):
         # Получаем события, на которые участник зарегистрирован или подал заявку
         # Для типа button: участник в event_group_v2
         # Для типа application: участник в applicants
-        from django.db.models import Q, Exists, OuterRef
-        
         button_events = Event.objects.filter(
             eventum=eventum,
             registration__registration_type=EventRegistration.RegistrationType.BUTTON,
@@ -212,13 +213,35 @@ class ParticipantViewSet(CachedListMixin, EventumScopedViewSet):
         ).distinct()
         
         # Объединяем результаты
+        
         events = (button_events | application_events).distinct().select_related(
             'eventum', 'event_group_v2'
         ).prefetch_related(
-            'locations', 'tags', 'registration'
+            'locations', 'tags', 'registration',
+            'registration__applicants',  # Для проверки is_registered для APPLICATION типа
+            # КРИТИЧНО: загружаем все participant_relations и group_relations
+            # чтобы избежать N+1 запросов в has_participant
+            Prefetch(
+                'event_group_v2__participant_relations',
+                queryset=ParticipantGroupV2ParticipantRelation.objects.select_related('participant')
+            ),
+            Prefetch(
+                'event_group_v2__group_relations',
+                queryset=ParticipantGroupV2GroupRelation.objects.select_related('target_group')
+            ),
+            'event_group_v2__group_relations__target_group__participant_relations',
         ).order_by('-start_time')
         
-        serializer = EventSerializer(events, many=True, context={'request': request})
+        # Загружаем всех участников eventum для вычисления групп
+        all_participants = Participant.objects.filter(eventum=eventum).values_list('id', flat=True)
+        
+        # Передаём participant в контекст для правильного вычисления is_participant и is_registered
+        serializer = EventSerializer(events, many=True, context={
+            'request': request,
+            'participant_id': participant.id,
+            'current_participant': participant,  # Для оптимизации
+            'all_participant_ids': set(all_participants)  # Для оптимизации
+        })
         return Response(serializer.data)
     
     @action(detail=True, methods=['get'], permission_classes=[IsEventumOrganizer])
@@ -232,7 +255,8 @@ class ParticipantViewSet(CachedListMixin, EventumScopedViewSet):
             return Response({'error': 'Participant not found'}, status=status.HTTP_404_NOT_FOUND)
         
         # Получаем события, на которые участник зарегистрирован или подал заявку
-        from django.db.models import Q
+        from django.db.models import Q, Prefetch
+        from .models import ParticipantGroupV2ParticipantRelation, ParticipantGroupV2GroupRelation
         
         button_events = Event.objects.filter(
             eventum=eventum,
@@ -248,14 +272,37 @@ class ParticipantViewSet(CachedListMixin, EventumScopedViewSet):
         ).distinct()
         
         # Объединяем результаты
+        
         events = (button_events | application_events).distinct().select_related(
             'eventum', 'event_group_v2'
         ).prefetch_related(
-            'locations', 'tags', 'registration'
+            'locations', 'tags', 'registration',
+            'registration__applicants',  # Для проверки is_registered для APPLICATION типа
+            # КРИТИЧНО: загружаем все participant_relations и group_relations
+            # чтобы избежать N+1 запросов в has_participant
+            Prefetch(
+                'event_group_v2__participant_relations',
+                queryset=ParticipantGroupV2ParticipantRelation.objects.select_related('participant')
+            ),
+            Prefetch(
+                'event_group_v2__group_relations',
+                queryset=ParticipantGroupV2GroupRelation.objects.select_related('target_group')
+            ),
+            'event_group_v2__group_relations__target_group__participant_relations',
         ).order_by('-start_time')
         
+        # Загружаем всех участников eventum для вычисления групп
+        from .models import Participant
+        all_participants = Participant.objects.filter(eventum=eventum).values_list('id', flat=True)
+        
         # Передаём ID участника в контекст, чтобы is_registered проверял регистрацию именно этого участника
-        serializer = EventSerializer(events, many=True, context={'request': request, 'participant_id': participant.id})
+        # Также передаем participant объект и all_participant_ids для оптимизации
+        serializer = EventSerializer(events, many=True, context={
+            'request': request, 
+            'participant_id': participant.id,
+            'current_participant': participant,  # Для оптимизации
+            'all_participant_ids': set(all_participants)  # Для оптимизации
+        })
         return Response(serializer.data)
     
     @action(detail=False, methods=['post'], permission_classes=[IsEventumOrganizer])
