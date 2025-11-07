@@ -251,9 +251,21 @@ const EventumPage = () => {
     setEvents(prev => prev.map(ev => {
       if (ev.id !== eventId) return ev;
       const delta = isRegistered ? 1 : -1;
+      // Для типа 'button' при регистрации участник сразу становится участником
+      // При отписке сбрасываем is_participant только если это было установлено автоматически
+      let isParticipant = ev.is_participant;
+      if (isRegistered && ev.registration_type === 'button') {
+        // При регистрации на мероприятие типа 'button' участник сразу становится участником
+        isParticipant = true;
+      } else if (!isRegistered && ev.registration_type === 'button' && ev.is_participant) {
+        // При отписке от мероприятия типа 'button' сбрасываем is_participant
+        // (только если он был установлен автоматически при регистрации)
+        isParticipant = false;
+      }
       return {
         ...ev,
         is_registered: isRegistered,
+        is_participant: isParticipant,
         registrations_count: Math.max(0, (ev.registrations_count ?? 0) + delta),
       };
     }));
@@ -724,6 +736,11 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
       .filter(event => waveEventIds.has(event.id))
       .filter(event => allowedEventIds.has(event.id))
       .filter(event => {
+        // Если участник уже участвует в мероприятии (is_participant === true),
+        // показываем его даже если мест нет
+        if (event.is_participant === true) {
+          return true;
+        }
         // Скрываем мероприятия без свободных мест
         // Если registration_max_participants задан и participants_count >= registration_max_participants, то скрываем
         if (event.registration_max_participants != null && 
