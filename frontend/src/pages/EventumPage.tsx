@@ -118,32 +118,40 @@ const EventumPage = () => {
           return roleEventumId === eventumData.id && role.role === 'organizer';
         });
         
-        // Загружаем остальные данные, обрабатывая ошибки 403 для организаторов
+        // Загружаем остальные данные параллельно, обрабатывая ошибки 403 для организаторов
         let wavesData: EventWave[] = [];
         let eventsData: Event[] = [];
         
-        try {
-          wavesData = await listEventWaves(eventumSlug, participantId ? { participant: parseInt(participantId) } : undefined);
-        } catch (err) {
-          const error = err as { response?: { status?: number } };
+        // Выполняем оба запроса параллельно
+        const [wavesResult, eventsResult] = await Promise.allSettled([
+          listEventWaves(eventumSlug, participantId ? { participant: parseInt(participantId) } : undefined),
+          getEventsForEventum(eventumSlug)
+        ]);
+        
+        // Обрабатываем результат загрузки волн
+        if (wavesResult.status === 'fulfilled') {
+          wavesData = wavesResult.value;
+        } else {
+          const error = wavesResult.reason as { response?: { status?: number } };
           if (error?.response?.status === 403 && !isOrganizer) {
             setError('У вас нет доступа к этому событию. Вы должны быть участником или организатором, чтобы просматривать информацию о событии.');
             return;
           }
           // Для организаторов игнорируем ошибки 403 при просмотре от лица другого участника
-          console.error('Ошибка загрузки волн мероприятий:', err);
+          console.error('Ошибка загрузки волн мероприятий:', wavesResult.reason);
         }
         
-        try {
-          eventsData = await getEventsForEventum(eventumSlug);
-        } catch (err) {
-          const error = err as { response?: { status?: number } };
+        // Обрабатываем результат загрузки мероприятий
+        if (eventsResult.status === 'fulfilled') {
+          eventsData = eventsResult.value;
+        } else {
+          const error = eventsResult.reason as { response?: { status?: number } };
           if (error?.response?.status === 403 && !isOrganizer) {
             setError('У вас нет доступа к этому событию. Вы должны быть участником или организатором, чтобы просматривать информацию о событии.');
             return;
           }
           // Для организаторов игнорируем ошибки 403 при просмотре от лица другого участника
-          console.error('Ошибка загрузки мероприятий:', err);
+          console.error('Ошибка загрузки мероприятий:', eventsResult.reason);
         }
         
         setEventWaves(wavesData);
