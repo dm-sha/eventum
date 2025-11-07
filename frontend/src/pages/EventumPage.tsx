@@ -64,9 +64,13 @@ const EventumPage = () => {
 
   // Функция для проверки, является ли пользователь организатором данного eventum
   const isUserOrganizer = (eventumId: number): boolean => {
-    return userRoles.some(role => 
-      role.eventum === eventumId && role.role === 'organizer'
-    );
+    return userRoles.some(role => {
+      // API может возвращать eventum как число или как объект с id
+      const roleEventumId = typeof role.eventum === 'object' && role.eventum !== null 
+        ? (role.eventum as { id: number }).id 
+        : role.eventum;
+      return roleEventumId === eventumId && role.role === 'organizer';
+    });
   };
 
   useEffect(() => {
@@ -77,13 +81,72 @@ const EventumPage = () => {
         setLoading(true);
         setError(null);
         
-        // Загружаем основные данные параллельно (кроме участника)
-        const [eventumData, wavesData, eventsData, rolesData] = await Promise.all([
-          getEventumBySlug(eventumSlug),
-          listEventWaves(eventumSlug, participantId ? { participant: parseInt(participantId) } : undefined),
-          getEventsForEventum(eventumSlug),
-          authApi.getRoles()
-        ]);
+        // Сначала загружаем роли, чтобы знать, является ли пользователь организатором
+        const rolesData = await authApi.getRoles();
+        setUserRoles(rolesData.data);
+        
+        // Загружаем eventum
+        let eventumData: Eventum;
+        try {
+          eventumData = await getEventumBySlug(eventumSlug);
+        } catch (err) {
+          const error = err as { response?: { status?: number } };
+          if (error?.response?.status === 403) {
+            // Если 403, проверяем, является ли пользователь организатором любого eventum
+            // Если да, то продолжаем (возможно, это ошибка API при просмотре от лица другого участника)
+            const hasAnyOrganizerRole = rolesData.data.some(role => role.role === 'organizer');
+            if (!hasAnyOrganizerRole) {
+              setError('У вас нет доступа к этому событию. Вы должны быть участником или организатором, чтобы просматривать информацию о событии.');
+              return;
+            }
+            // Если пользователь организатор, но получили 403, пробуем продолжить
+            // Возможно, нужно загрузить eventum по-другому или просто показать ошибку
+            setError('У вас нет доступа к этому событию. Вы должны быть участником или организатором, чтобы просматривать информацию о событии.');
+            return;
+          } else {
+            throw err;
+          }
+        }
+        
+        setEventum(eventumData);
+        
+        // Проверяем, является ли пользователь организатором этого eventum
+        const isOrganizer = rolesData.data.some(role => {
+          const roleEventumId = typeof role.eventum === 'object' && role.eventum !== null 
+            ? (role.eventum as { id: number }).id 
+            : role.eventum;
+          return roleEventumId === eventumData.id && role.role === 'organizer';
+        });
+        
+        // Загружаем остальные данные, обрабатывая ошибки 403 для организаторов
+        let wavesData: EventWave[] = [];
+        let eventsData: Event[] = [];
+        
+        try {
+          wavesData = await listEventWaves(eventumSlug, participantId ? { participant: parseInt(participantId) } : undefined);
+        } catch (err) {
+          const error = err as { response?: { status?: number } };
+          if (error?.response?.status === 403 && !isOrganizer) {
+            setError('У вас нет доступа к этому событию. Вы должны быть участником или организатором, чтобы просматривать информацию о событии.');
+            return;
+          }
+          // Для организаторов игнорируем ошибки 403 при просмотре от лица другого участника
+          console.error('Ошибка загрузки волн мероприятий:', err);
+        }
+        
+        try {
+          eventsData = await getEventsForEventum(eventumSlug);
+        } catch (err) {
+          const error = err as { response?: { status?: number } };
+          if (error?.response?.status === 403 && !isOrganizer) {
+            setError('У вас нет доступа к этому событию. Вы должны быть участником или организатором, чтобы просматривать информацию о событии.');
+            return;
+          }
+          // Для организаторов игнорируем ошибки 403 при просмотре от лица другого участника
+          console.error('Ошибка загрузки мероприятий:', err);
+        }
+        
+        setEventWaves(wavesData);
         
         // Загружаем данные участника отдельно, чтобы 404 не ломал всю страницу
         let participantData = null;
@@ -119,8 +182,6 @@ const EventumPage = () => {
           }
         }
         
-        setEventum(eventumData);
-        setEventWaves(wavesData);
         // Если просматриваем от лица другого участника, обновляем is_registered в events на основе myRegistrations
         if (participantId) {
           // Создаём Map для быстрого поиска регистраций по ID события
@@ -145,7 +206,6 @@ const EventumPage = () => {
         setEvents(eventsData);
         setCurrentParticipant(participantData);
         setMyRegistrations(registrationsData);
-        setUserRoles(rolesData.data);
       } catch (err) {
         console.error('Ошибка загрузки данных:', err);
         const error = err as { response?: { status?: number } };
