@@ -1211,7 +1211,16 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string; isViewingAsOtherP
       {/* Кнопка подачи заявки для мероприятий с регистрацией (button или application) */}
       {(event.registration_type === 'button' || event.registration_type === 'application') && !isViewingAsOtherParticipant && (
         <div className="mt-4 pt-4 border-t border-gray-100">
-          {localIsRegistered ? (
+          {event.is_participant === true ? (
+            <div className="flex items-center gap-4">
+              <button
+                disabled
+                className="px-4 py-2 text-sm bg-gray-200 text-gray-600 rounded-md cursor-not-allowed"
+              >
+                Записан
+              </button>
+            </div>
+          ) : localIsRegistered ? (
             <div className="flex items-center gap-4">
               <button
                 onClick={handleUnregister}
@@ -1239,7 +1248,16 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string; isViewingAsOtherP
       {(event.registration_type === 'button' || event.registration_type === 'application') && isViewingAsOtherParticipant && (
         <div className="mt-4 pt-4 border-t border-gray-100">
           <div className="flex items-center gap-2 text-sm">
-            {localIsRegistered ? (
+            {event.is_participant === true ? (
+              <>
+                <svg className="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span className="text-gray-600">
+                  Записан
+                </span>
+              </>
+            ) : localIsRegistered ? (
               <>
                 <svg className="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
