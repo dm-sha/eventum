@@ -86,7 +86,7 @@ const EventModal: React.FC<EventModalProps> = ({ event, isOpen, onClose }) => {
                 <img
                   src={event.image_url}
                   alt={event.name}
-                  className="w-full h-48 object-cover rounded-lg shadow-sm"
+                  className="w-full h-auto object-contain rounded-lg shadow-sm"
                 />
               </div>
             )}
