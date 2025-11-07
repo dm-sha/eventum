@@ -1091,19 +1091,27 @@ class EventWaveSerializer(serializers.ModelSerializer):
             result = []
             for reg in registrations:
                 # Вычисляем доступность на уровне регистрации
-                if not request or not getattr(request, 'user', None) or not request.user.is_authenticated:
+                # Простая логика: если allowed_group указан, проверяем вхождение участника в группу
+                if not reg.allowed_group_id:
+                    # Если группа доступа не указана, событие доступно всем
                     is_accessible = True
-                elif not reg.allowed_group_id:
-                    is_accessible = True
-                elif participant_cached is False or participant_cached is None:
-                    is_accessible = False
                 else:
-                    # ИСПОЛЬЗУЕМ метод, который работает с уже загруженными данными
-                    grp = reg.allowed_group
-                    if grp:
-                        is_accessible = self._has_participant_in_group(grp, participant_cached.id)
+                    # Если группа доступа указана, проверяем вхождение участника
+                    if participant_cached is False or participant_cached is None:
+                        # Участник не найден - событие недоступно
+                        is_accessible = False
+                    elif not hasattr(participant_cached, 'id'):
+                        # participant_cached не является объектом Participant - событие недоступно
+                        is_accessible = False
                     else:
-                        is_accessible = True
+                        # Проверяем вхождение участника в allowed_group
+                        grp = reg.allowed_group
+                        if grp:
+                            is_accessible = self._has_participant_in_group(grp, participant_cached.id)
+                        else:
+                            # Если allowed_group_id есть, но группа не загружена - считаем недоступным
+                            # (это может произойти, если группа была удалена или prefetch не сработал)
+                            is_accessible = False
 
                 # Оптимизированный подсчет зарегистрированных участников
                 # Используем prefetch'енные данные вместо запросов к БД
