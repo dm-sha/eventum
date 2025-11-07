@@ -270,7 +270,7 @@ const EventumPage = () => {
             >
               Подача заявок на мероприятия
             </button>
-            {eventum && (isUserOrganizer(eventum.id) || eventum.schedule_visible) && (
+            {eventum && (eventum.schedule_visible || (isUserOrganizer(eventum.id) && participantId)) && (
               <button
                 onClick={() => handleTabChange('schedule')}
                 className={`py-2 px-1 border-b-2 font-medium text-sm ${
@@ -302,7 +302,7 @@ const EventumPage = () => {
               onEventRegistrationChange={handleEventRegistrationChangeGlobal}
             />
           )}
-          {currentTab === 'schedule' && eventumSlug && eventum && (isUserOrganizer(eventum.id) || eventum.schedule_visible) && (
+          {currentTab === 'schedule' && eventumSlug && eventum && (eventum.schedule_visible || (isUserOrganizer(eventum.id) && participantId)) && (
             <ScheduleTab events={events} currentParticipant={currentParticipant} participantId={participantId} />
           )}
         </div>
