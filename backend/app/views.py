@@ -10,7 +10,6 @@ from django.shortcuts import get_object_or_404
 from django.http import Http404, HttpResponse
 from django.utils import timezone
 from django.conf import settings
-from django.core.cache import cache
 from django.db.models import Prefetch, Count
 import requests
 import json
@@ -30,7 +29,7 @@ from .serializers import (
 from .permissions import IsEventumOrganizer, IsEventumParticipant, IsEventumOrganizerOrReadOnly, IsEventumOrganizerOrReadOnlyForList, IsEventumOrganizerOrPublicReadOnly
 from .utils import log_execution_time, csrf_exempt_class_api
 from .auth_utils import EventumMixin, require_authentication, require_eventum_role, get_eventum_from_request
-from .base_views import EventumScopedViewSet, CachedListMixin
+from .base_views import EventumScopedViewSet
 import logging
 import mimetypes
 import boto3
@@ -120,7 +119,7 @@ class EventumViewSet(EventumMixin, viewsets.ModelViewSet):
         return Response(serializer.data)
 
 
-class ParticipantViewSet(CachedListMixin, EventumScopedViewSet):
+class ParticipantViewSet(EventumScopedViewSet):
     queryset = Participant.objects.select_related('user', 'eventum').all()
     serializer_class = ParticipantSerializer
     permission_classes = [IsEventumOrganizerOrReadOnly]  # Организаторы CRUD, участники только чтение
@@ -388,49 +387,8 @@ class ParticipantViewSet(CachedListMixin, EventumScopedViewSet):
         serializer = self.get_serializer(participants, many=True)
         return Response(serializer.data)
     
-    def perform_create(self, serializer):
-        """Переопределяем для инвалидации кэша при создании"""
-        super().perform_create(serializer)
-        eventum_slug = self.kwargs.get('eventum_slug')
-        cache_key = f"participants_list_{eventum_slug}"
-        cache.delete(cache_key)
-        # Инвалидируем кэш iCalendar файлов для всех участников этого eventum
-        self._invalidate_ical_cache(eventum_slug)
-    
-    def perform_update(self, serializer):
-        """Переопределяем для инвалидации кэша при обновлении"""
-        super().perform_update(serializer)
-        eventum_slug = self.kwargs.get('eventum_slug')
-        cache_key = f"participants_list_{eventum_slug}"
-        cache.delete(cache_key)
-        # Инвалидируем кэш iCalendar файлов для всех участников этого eventum
-        self._invalidate_ical_cache(eventum_slug)
-    
-    def perform_destroy(self, instance):
-        """Переопределяем для инвалидации кэша при удалении"""
-        eventum_slug = self.kwargs.get('eventum_slug')
-        super().perform_destroy(instance)
-        cache_key = f"participants_list_{eventum_slug}"
-        cache.delete(cache_key)
-        # Инвалидируем кэш iCalendar файлов для всех участников этого eventum
-        self._invalidate_ical_cache(eventum_slug)
-    
-    def _invalidate_ical_cache(self, eventum_slug):
-        """Инвалидирует кэш iCalendar файлов для всех участников eventum"""
-        try:
-            # Получаем всех участников этого eventum
-            participant_ids = Participant.objects.filter(eventum__slug=eventum_slug).values_list('id', flat=True)
-            
-            # Удаляем кэш для каждого участника
-            for participant_id in participant_ids:
-                cache_key = f"ical_calendar_{eventum_slug}_{participant_id}"
-                cache.delete(cache_key)
-            
-            logger.info(f"Инвалидирован кэш iCalendar для {len(participant_ids)} участников eventum {eventum_slug}")
-        except Exception as e:
-            logger.error(f"Ошибка при инвалидации кэша iCalendar: {str(e)}")
 
-class ParticipantGroupViewSet(CachedListMixin, EventumScopedViewSet):
+class ParticipantGroupViewSet(EventumScopedViewSet):
     queryset = ParticipantGroup.objects.all().prefetch_related(
         'participants',
         'participants__user',  # Добавляем prefetch для пользователей участников
@@ -449,75 +407,7 @@ class ParticipantGroupViewSet(CachedListMixin, EventumScopedViewSet):
             'tags',
             'participants__eventum'
         ).select_related('eventum')  # Добавляем select_related для eventum
-    
-    @log_execution_time("Получение списка групп участников")
-    def list(self, request, *args, **kwargs):
-        """Переопределяем list для добавления кэширования"""
-        # Для пагинированных запросов не используем кэширование
-        if request.GET.get('page'):
-            return super().list(request, *args, **kwargs)
-        
-        eventum_slug = kwargs.get('eventum_slug')
-        cache_key = f"groups_list_{eventum_slug}"
-        
-        # Пытаемся получить данные из кэша
-        cached_data = cache.get(cache_key)
-        if cached_data is not None:
-            logger.info(f"Данные групп получены из кэша для {eventum_slug}")
-            return Response(cached_data)
-        
-        # Если данных нет в кэше, выполняем запрос
-        logger.info(f"Загрузка групп из БД для {eventum_slug}")
-        queryset = self.filter_queryset(self.get_queryset())
-        serializer = self.get_serializer(queryset, many=True)
-        
-        # Кэшируем результат на 5 минут
-        cache.set(cache_key, serializer.data, 300)
-        logger.info(f"Кэшировано {len(serializer.data)} групп для {eventum_slug}")
-        
-        return Response(serializer.data)
-    
-    def perform_create(self, serializer):
-        """Переопределяем для инвалидации кэша при создании"""
-        super().perform_create(serializer)
-        eventum_slug = self.kwargs.get('eventum_slug')
-        cache_key = f"groups_list_{eventum_slug}"
-        cache.delete(cache_key)
-        # Инвалидируем кэш iCalendar файлов для всех участников этого eventum
-        self._invalidate_ical_cache(eventum_slug)
-    
-    def perform_update(self, serializer):
-        """Переопределяем для инвалидации кэша при обновлении"""
-        super().perform_update(serializer)
-        eventum_slug = self.kwargs.get('eventum_slug')
-        cache_key = f"groups_list_{eventum_slug}"
-        cache.delete(cache_key)
-        # Инвалидируем кэш iCalendar файлов для всех участников этого eventum
-        self._invalidate_ical_cache(eventum_slug)
-    
-    def perform_destroy(self, instance):
-        """Переопределяем для инвалидации кэша при удалении"""
-        super().perform_destroy(instance)
-        eventum_slug = self.kwargs.get('eventum_slug')
-        cache_key = f"groups_list_{eventum_slug}"
-        cache.delete(cache_key)
-        # Инвалидируем кэш iCalendar файлов для всех участников этого eventum
-        self._invalidate_ical_cache(eventum_slug)
-    
-    def _invalidate_ical_cache(self, eventum_slug):
-        """Инвалидирует кэш iCalendar файлов для всех участников eventum"""
-        try:
-            # Получаем всех участников этого eventum
-            participant_ids = Participant.objects.filter(eventum__slug=eventum_slug).values_list('id', flat=True)
-            
-            # Удаляем кэш для каждого участника
-            for participant_id in participant_ids:
-                cache_key = f"ical_calendar_{eventum_slug}_{participant_id}"
-                cache.delete(cache_key)
-            
-            logger.info(f"Инвалидирован кэш iCalendar для {len(participant_ids)} участников eventum {eventum_slug}")
-        except Exception as e:
-            logger.error(f"Ошибка при инвалидации кэша iCalendar: {str(e)}")
+
 
 class GroupTagViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
     queryset = GroupTag.objects.all().prefetch_related(
@@ -537,61 +427,6 @@ class GroupTagViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
         ).select_related('eventum')
     
     @log_execution_time("Получение списка тегов групп")
-    def list(self, request, *args, **kwargs):
-        """Переопределяем list для добавления кэширования"""
-        # Для пагинированных запросов не используем кэширование
-        if request.GET.get('page'):
-            return super().list(request, *args, **kwargs)
-        
-        eventum_slug = kwargs.get('eventum_slug')
-        cache_key = f"group_tags_list_{eventum_slug}"
-        
-        # Пытаемся получить данные из кэша
-        cached_data = cache.get(cache_key)
-        if cached_data is not None:
-            logger.info(f"Данные тегов групп получены из кэша для {eventum_slug}")
-            return Response(cached_data)
-        
-        # Если данных нет в кэше, выполняем запрос
-        logger.info(f"Загрузка тегов групп из БД для {eventum_slug}")
-        queryset = self.filter_queryset(self.get_queryset())
-        serializer = self.get_serializer(queryset, many=True)
-        
-        # Кэшируем результат на 5 минут
-        cache.set(cache_key, serializer.data, 300)
-        logger.info(f"Кэшировано {len(serializer.data)} тегов групп для {eventum_slug}")
-        
-        return Response(serializer.data)
-    
-    def perform_create(self, serializer):
-        """Переопределяем для инвалидации кэша при создании"""
-        eventum = self.get_eventum()
-        serializer.save(eventum=eventum)
-        # Инвалидируем кэш
-        cache_key = f"group_tags_list_{eventum.slug}"
-        cache.delete(cache_key)
-        # Также инвалидируем кэш групп, так как теги влияют на группы
-        cache.delete(f"groups_list_{eventum.slug}")
-    
-    def perform_update(self, serializer):
-        """Переопределяем для инвалидации кэша при обновлении"""
-        eventum = self.get_eventum()
-        serializer.save()
-        # Инвалидируем кэш
-        cache_key = f"group_tags_list_{eventum.slug}"
-        cache.delete(cache_key)
-        # Также инвалидируем кэш групп
-        cache.delete(f"groups_list_{eventum.slug}")
-    
-    def perform_destroy(self, instance):
-        """Переопределяем для инвалидации кэша при удалении"""
-        eventum = self.get_eventum()
-        instance.delete()
-        # Инвалидируем кэш
-        cache_key = f"group_tags_list_{eventum.slug}"
-        cache.delete(cache_key)
-        # Также инвалидируем кэш групп
-        cache.delete(f"groups_list_{eventum.slug}")
 
     @action(detail=True, methods=['get'])
     def groups(self, request, eventum_slug=None, pk=None):
@@ -608,9 +443,6 @@ class GroupTagViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
         try:
             group = ParticipantGroup.objects.get(id=group_id, eventum__slug=eventum_slug)
             group_tag.groups.add(group)
-            # Инвалидируем кэш
-            cache.delete(f"group_tags_list_{eventum_slug}")
-            cache.delete(f"groups_list_{eventum_slug}")
             return Response({'status': 'success'}, status=status.HTTP_200_OK)
         except ParticipantGroup.DoesNotExist:
             return Response({'error': 'Group not found'}, status=status.HTTP_404_NOT_FOUND)
@@ -622,9 +454,6 @@ class GroupTagViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
         try:
             group = ParticipantGroup.objects.get(id=group_id, eventum__slug=eventum_slug)
             group_tag.groups.remove(group)
-            # Инвалидируем кэш
-            cache.delete(f"group_tags_list_{eventum_slug}")
-            cache.delete(f"groups_list_{eventum_slug}")
             return Response({'status': 'success'}, status=status.HTTP_200_OK)
         except ParticipantGroup.DoesNotExist:
             return Response({'error': 'Group not found'}, status=status.HTTP_404_NOT_FOUND)
@@ -908,7 +737,7 @@ class EventRegistrationViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
 
 
 @csrf_exempt_class_api
-class EventViewSet(CachedListMixin, EventumScopedViewSet, viewsets.ModelViewSet):
+class EventViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
     queryset = Event.objects.all()
     serializer_class = EventSerializer
     permission_classes = [IsEventumOrganizerOrPublicReadOnly]  # Организаторы CRUD, все остальные только чтение
@@ -968,73 +797,6 @@ class EventViewSet(CachedListMixin, EventumScopedViewSet, viewsets.ModelViewSet)
         return super().get_serializer_context()
 
     @log_execution_time("Получение списка событий")
-    def list(self, request, *args, **kwargs):
-        """Переопределяем list для добавления кэширования"""
-        # Для пагинированных запросов не используем кэширование
-        if request.GET.get('page'):
-            return super().list(request, *args, **kwargs)
-        
-        eventum_slug = kwargs.get('eventum_slug')
-        cache_key = f"events_list_{eventum_slug}"
-        
-        # Пытаемся получить данные из кэша
-        cached_data = cache.get(cache_key)
-        if cached_data is not None:
-            logger.info(f"Данные событий получены из кэша для {eventum_slug}")
-            return Response(cached_data)
-        
-        # Если данных нет в кэше, выполняем запрос
-        logger.info(f"Загрузка событий из БД для {eventum_slug}")
-        queryset = self.filter_queryset(self.get_queryset())
-        serializer = self.get_serializer(queryset, many=True)
-        
-        # Кэшируем результат на 2 минуты (события могут часто изменяться)
-        cache.set(cache_key, serializer.data, 120)
-        logger.info(f"Кэшировано {len(serializer.data)} событий для {eventum_slug}")
-        
-        return Response(serializer.data)
-
-    def perform_create(self, serializer):
-        """Переопределяем для инвалидации кэша при создании"""
-        super().perform_create(serializer)
-        eventum_slug = self.kwargs.get('eventum_slug')
-        cache_key = f"events_list_{eventum_slug}"
-        cache.delete(cache_key)
-        # Инвалидируем кэш iCalendar файлов для всех участников этого eventum
-        self._invalidate_ical_cache(eventum_slug)
-    
-    def perform_update(self, serializer):
-        """Переопределяем для инвалидации кэша при обновлении"""
-        super().perform_update(serializer)
-        eventum_slug = self.kwargs.get('eventum_slug')
-        cache_key = f"events_list_{eventum_slug}"
-        cache.delete(cache_key)
-        # Инвалидируем кэш iCalendar файлов для всех участников этого eventum
-        self._invalidate_ical_cache(eventum_slug)
-    
-    def perform_destroy(self, instance):
-        """Переопределяем для инвалидации кэша при удалении"""
-        eventum_slug = self.kwargs.get('eventum_slug')
-        super().perform_destroy(instance)
-        cache_key = f"events_list_{eventum_slug}"
-        cache.delete(cache_key)
-        # Инвалидируем кэш iCalendar файлов для всех участников этого eventum
-        self._invalidate_ical_cache(eventum_slug)
-    
-    def _invalidate_ical_cache(self, eventum_slug):
-        """Инвалидирует кэш iCalendar файлов для всех участников eventum"""
-        try:
-            # Получаем всех участников этого eventum
-            participant_ids = Participant.objects.filter(eventum__slug=eventum_slug).values_list('id', flat=True)
-            
-            # Удаляем кэш для каждого участника
-            for participant_id in participant_ids:
-                cache_key = f"ical_calendar_{eventum_slug}_{participant_id}"
-                cache.delete(cache_key)
-            
-            logger.info(f"Инвалидирован кэш iCalendar для {len(participant_ids)} участников eventum {eventum_slug}")
-        except Exception as e:
-            logger.error(f"Ошибка при инвалидации кэша iCalendar: {str(e)}")
 
     def _get_participant(self, request, eventum):
         """Получить участника для текущего пользователя"""
@@ -1099,11 +861,6 @@ class EventViewSet(CachedListMixin, EventumScopedViewSet, viewsets.ModelViewSet)
                         defaults={'relation_type': ParticipantGroupV2ParticipantRelation.RelationType.INCLUSIVE}
                     )
                     
-                    # Инвалидируем кеш списка событий
-                    cache_key = f"events_list_{eventum_slug}"
-                    cache.delete(cache_key)
-                    self._invalidate_ical_cache(eventum_slug)
-                    
                     return Response({'status': 'success', 'message': 'Successfully registered for event'}, status=status.HTTP_201_CREATED)
                 
                 else:  # APPLICATION
@@ -1117,11 +874,6 @@ class EventViewSet(CachedListMixin, EventumScopedViewSet, viewsets.ModelViewSet)
                     
                     # Добавляем участника в applicants
                     registration.applicants.add(participant)
-                    
-                    # Инвалидируем кеш списка событий
-                    cache_key = f"events_list_{eventum_slug}"
-                    cache.delete(cache_key)
-                    self._invalidate_ical_cache(eventum_slug)
                     
                     return Response({'status': 'success', 'message': 'Application submitted successfully'}, status=status.HTTP_201_CREATED)
                 
@@ -1172,11 +924,6 @@ class EventViewSet(CachedListMixin, EventumScopedViewSet, viewsets.ModelViewSet)
                     if deleted_count == 0:
                         return Response({'error': 'Not registered for this event'}, status=status.HTTP_404_NOT_FOUND)
                     
-                    # Инвалидируем кеш списка событий
-                    cache_key = f"events_list_{eventum_slug}"
-                    cache.delete(cache_key)
-                    self._invalidate_ical_cache(eventum_slug)
-                    
                     return Response({'status': 'success', 'message': 'Successfully unregistered from event'}, status=status.HTTP_200_OK)
                 
                 else:  # APPLICATION
@@ -1186,11 +933,6 @@ class EventViewSet(CachedListMixin, EventumScopedViewSet, viewsets.ModelViewSet)
                     
                     # Удаляем участника из applicants
                     registration.applicants.remove(participant)
-                    
-                    # Инвалидируем кеш списка событий
-                    cache_key = f"events_list_{eventum_slug}"
-                    cache.delete(cache_key)
-                    self._invalidate_ical_cache(eventum_slug)
                     
                     return Response({'status': 'success', 'message': 'Application withdrawn successfully'}, status=status.HTTP_200_OK)
                 
@@ -2129,19 +1871,6 @@ def participant_calendar_ics(request, eventum_slug=None, participant_id=None):
             'locations'
         ).distinct()
         
-        # Проверяем кэш для этого участника
-        cache_key = f"ical_calendar_{eventum.slug}_{participant_id}"
-        cached_calendar = cache.get(cache_key)
-        if cached_calendar:
-            logger.info(f"iCalendar получен из кэша для участника {participant_id}")
-            response = Response(cached_calendar, content_type='text/calendar; charset=utf-8')
-            response['Content-Disposition'] = f'attachment; filename="eventum-{eventum.slug}-{participant.id}.ics"'
-            response['Cache-Control'] = 'public, max-age=300'  # Кэшируем на 5 минут
-            response['Access-Control-Allow-Origin'] = '*'
-            response['Access-Control-Allow-Methods'] = 'GET'
-            response['Access-Control-Allow-Headers'] = 'Content-Type'
-            return response
-        
         # Создаем iCalendar календарь
         cal = Calendar()
         cal.add('prodid', '-//Eventum//Eventum Calendar//RU')
@@ -2311,9 +2040,7 @@ def participant_calendar_ics(request, eventum_slug=None, participant_id=None):
         # Генерируем содержимое календаря
         calendar_content = cal.to_ical().decode('utf-8')
         
-        # Кэшируем результат на 5 минут
-        cache.set(cache_key, calendar_content, 300)
-        logger.info(f"iCalendar сгенерирован и закэширован для участника {participant_id}")
+        logger.info(f"iCalendar сгенерирован для участника {participant_id}")
         
         # Создаем HTTP ответ с правильными заголовками
         response = Response(calendar_content, content_type='text/calendar; charset=utf-8')

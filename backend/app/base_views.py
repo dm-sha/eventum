@@ -2,11 +2,10 @@
 Базовые классы для ViewSets с улучшенной авторизацией
 """
 from rest_framework import viewsets
-from django.core.cache import cache
-from .auth_utils import EventumMixin, CacheInvalidationMixin
+from .auth_utils import EventumMixin
 
 
-class EventumScopedViewSet(EventumMixin, CacheInvalidationMixin, viewsets.ModelViewSet):
+class EventumScopedViewSet(EventumMixin, viewsets.ModelViewSet):
     """
     Базовый ViewSet для работы с объектами, привязанными к eventum
     """
@@ -20,7 +19,6 @@ class EventumScopedViewSet(EventumMixin, CacheInvalidationMixin, viewsets.ModelV
         """Автоматически привязывает создаваемый объект к eventum"""
         eventum = self.get_eventum()
         serializer.save(eventum=eventum)
-        # Инвалидация кэша происходит в CacheInvalidationMixin
     
     def _get_participant_for_context(self, eventum):
         """
@@ -98,45 +96,3 @@ class EventumScopedViewSet(EventumMixin, CacheInvalidationMixin, viewsets.ModelV
             context['all_participant_ids'] = set(all_participants)
         
         return context
-
-
-class CachedListMixin:
-    """
-    Миксин для кэширования списков объектов
-    """
-    cache_timeout = 300  # 5 минут по умолчанию
-    
-    def get_cache_key(self):
-        """Генерирует ключ кэша для списка"""
-        eventum = self.get_eventum()
-        model_name = self.queryset.model._meta.model_name
-        return f"{model_name}_list_{eventum.slug}"
-    
-    def list(self, request, *args, **kwargs):
-        """Переопределяем list для добавления кэширования"""
-        # Для пагинированных запросов не используем кэширование
-        if request.GET.get('page'):
-            return super().list(request, *args, **kwargs)
-        
-        cache_key = self.get_cache_key()
-        
-        # Пытаемся получить данные из кэша
-        cached_data = cache.get(cache_key)
-        if cached_data is not None:
-            from rest_framework.response import Response
-            return Response(cached_data)
-        
-        # Если данных нет в кэше, выполняем запрос
-        response = super().list(request, *args, **kwargs)
-        
-        # Кэшируем результат
-        if response.status_code == 200:
-            cache.set(cache_key, response.data, self.cache_timeout)
-        
-        return response
-    
-    def get_cache_keys_to_invalidate(self):
-        """Переопределяем для инвалидации собственного кэша"""
-        keys = super().get_cache_keys_to_invalidate() if hasattr(super(), 'get_cache_keys_to_invalidate') else []
-        keys.append(self.get_cache_key())
-        return keys

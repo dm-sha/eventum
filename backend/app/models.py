@@ -1,6 +1,5 @@
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.core.exceptions import ValidationError
-from django.core.cache import cache
 from django.db import models
 from django.db.models.signals import post_save, m2m_changed, post_delete
 from django.dispatch import receiver
@@ -192,17 +191,6 @@ class ParticipantGroupV2(models.Model):
             return Participant.objects.filter(id__in=participant_ids)
         
         # Иначе используем старую логику с запросами к БД
-        # Генерируем ключ кеша
-        cache_key = f'group_participants_{self.id}_{self.eventum_id}'
-        
-        # Пытаемся получить из кеша (только если visited_groups пустой, чтобы избежать рекурсивных проблем)
-        if len(visited_groups) == 1:  # Это первый уровень вызова
-            cached_result = cache.get(cache_key)
-            if cached_result is not None:
-                # Восстанавливаем QuerySet из закешированных ID
-                participant_ids = cached_result
-                return Participant.objects.filter(id__in=participant_ids)
-        
         # Проверяем, есть ли хотя бы одна inclusive связь с участником или группой
         has_inclusive_participants = self.participant_relations.filter(
             relation_type=ParticipantGroupV2ParticipantRelation.RelationType.INCLUSIVE
@@ -268,11 +256,6 @@ class ParticipantGroupV2(models.Model):
                 result = Participant.objects.filter(id__in=included_participant_ids)
             else:
                 result = Participant.objects.none()
-        
-        # Кешируем результат (только если это не рекурсивный вызов)
-        if len(visited_groups) == 1:  # Это первый уровень вызова
-            participant_ids = list(result.values_list('id', flat=True))
-            cache.set(cache_key, participant_ids, timeout=3600)  # Кеш на 1 час
         
         return result
     
@@ -360,15 +343,8 @@ class ParticipantGroupV2(models.Model):
         Быстрое получение количества участников.
         Использует get_participants() и возвращает количество.
         Работает с prefetch'нутыми данными в памяти, если они доступны.
-        Иначе использует кеш или запросы к БД.
+        Иначе использует запросы к БД.
         """
-        # Проверяем кеш для оптимизации (избегаем создания QuerySet)
-        cache_key = f'group_participants_{self.id}_{self.eventum_id}'
-        cached_ids = cache.get(cache_key)
-        if cached_ids is not None:
-            # Используем длину закешированного списка (быстро, без SQL)
-            return len(cached_ids)
-        
         # Проверяем, загружены ли данные через prefetch для оптимизации
         prefetched_cache = getattr(self, '_prefetched_objects_cache', {})
         prefetched_participant_relations = prefetched_cache.get('participant_relations', None)
@@ -457,17 +433,7 @@ class ParticipantGroupV2(models.Model):
             return included_ids - excluded_ids
     
     def has_participant(self, participant_id):
-        """Быстрая проверка наличия участника в группе через кеш"""
-        cache_key = f'group_participants_{self.id}_{self.eventum_id}'
-        cached_ids = cache.get(cache_key)
-        if cached_ids is not None:
-            # Быстрая проверка в Python (O(1) для set или O(n) для list)
-            # Преобразуем в set для быстрой проверки, если список большой
-            if len(cached_ids) > 100:
-                cached_ids_set = set(cached_ids)
-                return participant_id in cached_ids_set
-            return participant_id in cached_ids
-        # Fallback к старому методу, если кеша нет
+        """Быстрая проверка наличия участника в группе"""
         return self.get_participants().filter(id=participant_id).exists()
 
 
@@ -1215,42 +1181,3 @@ def validate_event_tags(sender, instance, action, pk_set, **kwargs):
     pass
 
 
-# Сигналы для инвалидации кеша групп
-def invalidate_group_cache(sender, instance, **kwargs):
-    """Инвалидирует кеш для всех групп в eventum при изменении связанных моделей"""
-    eventum_id = None
-    
-    # Определяем eventum_id в зависимости от модели
-    if hasattr(instance, 'eventum'):
-        eventum_id = instance.eventum_id
-    elif hasattr(instance, 'group'):
-        eventum_id = instance.group.eventum_id
-    elif hasattr(instance, 'target_group'):
-        eventum_id = instance.target_group.eventum_id
-    elif hasattr(instance, 'participant'):
-        eventum_id = instance.participant.eventum_id
-    elif hasattr(instance, 'event'):
-        eventum_id = instance.event.eventum_id
-    
-    if eventum_id:
-        # Инвалидируем кеш для всех групп в этом eventum
-        groups = ParticipantGroupV2.objects.filter(eventum_id=eventum_id)
-        for group in groups:
-            cache_key = f'group_participants_{group.id}_{eventum_id}'
-            cache.delete(cache_key)
-
-
-# Регистрируем сигналы для всех моделей, которые влияют на состав групп
-@receiver(post_save, sender=ParticipantGroupV2)
-@receiver(post_delete, sender=ParticipantGroupV2)
-@receiver(post_save, sender=ParticipantGroupV2ParticipantRelation)
-@receiver(post_delete, sender=ParticipantGroupV2ParticipantRelation)
-@receiver(post_save, sender=ParticipantGroupV2GroupRelation)
-@receiver(post_delete, sender=ParticipantGroupV2GroupRelation)
-@receiver(post_save, sender=ParticipantGroupV2EventRelation)
-@receiver(post_delete, sender=ParticipantGroupV2EventRelation)
-@receiver(post_save, sender=Participant)
-@receiver(post_delete, sender=Participant)
-def clear_group_cache(sender, instance, **kwargs):
-    """Инвалидирует кеш групп при изменении связанных моделей"""
-    invalidate_group_cache(sender, instance, **kwargs)

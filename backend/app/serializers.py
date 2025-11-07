@@ -973,13 +973,6 @@ class EventWaveSerializer(serializers.ModelSerializer):
         
         visited_groups.add(group.id)
         
-        # Пытаемся использовать кеш
-        from django.core.cache import cache
-        cache_key = f'group_participants_{group.id}_{group.eventum_id}'
-        cached_ids = cache.get(cache_key)
-        if cached_ids is not None:
-            return set(cached_ids)
-        
         # Получаем все participant_relations из prefetch_related
         # ВАЖНО: не используем fallback к .all(), чтобы избежать запросов к БД
         participant_relations = []
@@ -1546,13 +1539,6 @@ class EventSerializer(serializers.ModelSerializer):
             return set()
         
         visited_groups.add(group.id)
-        
-        # Пытаемся использовать кеш
-        from django.core.cache import cache
-        cache_key = f'group_participants_{group.id}_{group.eventum_id}'
-        cached_ids = cache.get(cache_key)
-        if cached_ids is not None:
-            return set(cached_ids)
         
         # Получаем все participant_relations из prefetch_related
         # ВАЖНО: не используем fallback к .all(), чтобы избежать запросов к БД
