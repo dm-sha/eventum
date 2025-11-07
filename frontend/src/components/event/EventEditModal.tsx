@@ -797,7 +797,7 @@ const EventEditModal = ({
         group_tag_ids: eventForm.group_tags,
         // Если выбрана/создана группа V2 — передаем её ID для привязки
         // Используем ensuredEventGroupId (получен после сохранения группы) или serverGroupState.id (если группа уже существовала и не изменялась)
-        event_group_v2_id: ensuredEventGroupId || (serverGroupState?.id && serverGroupState.id > 0 ? serverGroupState.id : null)
+        event_group_v2_id_write: ensuredEventGroupId || (serverGroupState?.id && serverGroupState.id > 0 ? serverGroupState.id : null)
       };
       await onSave(eventData);
 
