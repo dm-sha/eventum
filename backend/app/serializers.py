@@ -666,7 +666,8 @@ class BaseEventSerializer(serializers.ModelSerializer):
             return obj.registrations_count
         # Fallback: проверяем наличие регистрации и получаем количество
         if hasattr(obj, 'registration'):
-            return obj.registration.get_registered_count()
+            all_participant_ids = self.context.get('all_participant_ids')
+            return obj.registration.get_registered_count(all_participant_ids)
         return 0
 
     def get_participants_count(self, obj):
@@ -1121,11 +1122,6 @@ class EventWaveSerializer(serializers.ModelSerializer):
                         # Fallback: если prefetch не сработал
                         registered_count = reg.applicants.count()
                 
-                # Проверяем, заполнена ли регистрация
-                is_full = False
-                if reg.max_participants:
-                    is_full = registered_count >= reg.max_participants
-
                 result.append({
                     'id': reg.id,
                     'event': {
@@ -1136,7 +1132,6 @@ class EventWaveSerializer(serializers.ModelSerializer):
                     'max_participants': reg.max_participants,
                     'allowed_group': reg.allowed_group_id,
                     'registered_count': registered_count,
-                    'is_full': is_full,
                     'is_accessible': is_accessible,
                 })
 
@@ -1391,7 +1386,7 @@ class EventSerializer(serializers.ModelSerializer):
     registration_type = serializers.SerializerMethodField(read_only=True)
     # Информация о регистрации для фронтенда
     registration_max_participants = serializers.SerializerMethodField(read_only=True)
-    registration_is_full = serializers.SerializerMethodField(read_only=True)
+    participants_count = serializers.SerializerMethodField(read_only=True)
     
     # Обычные поля времени - работаем без таймзон
     start_time = serializers.DateTimeField()
@@ -1405,7 +1400,7 @@ class EventSerializer(serializers.ModelSerializer):
             'participants', 'groups', 'tags', 'tag_ids', 'group_tags', 'group_tag_ids', 
             'locations', 'location_ids', 'event_group_v2', 'event_group_v2_id', 'event_group_v2_id_write',
             'registrations_count', 'is_registered', 'is_participant', 'registration_type',
-            'registration_max_participants', 'registration_is_full'
+            'registration_max_participants', 'participants_count'
         ]
         extra_kwargs = {
             'event_group_v2_id_write': {'write_only': True},
@@ -1505,7 +1500,8 @@ class EventSerializer(serializers.ModelSerializer):
         """Получить количество записанных участников"""
         # Проверяем, есть ли настройка регистрации
         if hasattr(obj, 'registration'):
-            return obj.registration.get_registered_count()
+            all_participant_ids = self.context.get('all_participant_ids')
+            return obj.registration.get_registered_count(all_participant_ids)
         
         # Если нет настройки регистрации, возвращаем 0
         return 0
@@ -1766,12 +1762,18 @@ class EventSerializer(serializers.ModelSerializer):
             return obj.registration.max_participants
         return None
     
-    def get_registration_is_full(self, obj):
-        """Проверить, заполнена ли регистрация"""
-        if hasattr(obj, 'registration') and obj.registration:
-            return obj.registration.is_full()
-        return False
-
+    def get_participants_count(self, obj):
+        """Получить количество участников по v2 группе (всегда, если группа есть)"""
+        # Если группы нет, возвращаем 0
+        if not obj.event_group_v2:
+            return 0
+        
+        # Получаем количество участников по v2 группе
+        # Используем get_participants_count() который работает с prefetch'нутыми данными в памяти
+        # Данные уже загружены через prefetch_related в views.py
+        all_participant_ids = self.context.get('all_participant_ids')
+        return obj.event_group_v2.get_participants_count(all_participant_ids)
+    
     def validate_participants(self, value):
         if not value:
             return value
@@ -1975,16 +1977,15 @@ class EventRegistrationSerializer(serializers.ModelSerializer):
         required=False
     )
     registered_count = serializers.SerializerMethodField()
-    is_full = serializers.SerializerMethodField()
     event_participants_count = serializers.SerializerMethodField()
     
     class Meta:
         model = EventRegistration
         fields = [
             'id', 'event', 'event_id', 'registration_type', 'max_participants', 
-            'allowed_group', 'applicants', 'registered_count', 'is_full', 'event_participants_count'
+            'allowed_group', 'applicants', 'registered_count', 'event_participants_count'
         ]
-        read_only_fields = ['id', 'event', 'registered_count', 'is_full', 'event_participants_count']
+        read_only_fields = ['id', 'event', 'registered_count', 'event_participants_count']
     
     def create(self, validated_data):
         """Создание регистрации с обработкой event_id"""
@@ -2058,11 +2059,8 @@ class EventRegistrationSerializer(serializers.ModelSerializer):
     
     def get_registered_count(self, obj):
         """Получить количество зарегистрированных участников"""
-        return obj.get_registered_count()
-    
-    def get_is_full(self, obj):
-        """Проверить, заполнена ли регистрация"""
-        return obj.is_full()
+        all_participant_ids = self.context.get('all_participant_ids')
+        return obj.get_registered_count(all_participant_ids)
     
     def get_event_participants_count(self, obj):
         """Получить количество участников мероприятия (связанных через группы v2)"""

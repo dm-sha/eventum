@@ -260,8 +260,7 @@ const RegistrationCard: React.FC<RegistrationCardProps> = ({
                 </div>
                 <div>
                   <span className="text-gray-500">Зарегистрировано:</span>{' '}
-                  <span className="font-medium text-gray-900">{registration.registered_count}</span>{' '}
-                  {registration.is_full && <span className="text-gray-500">(заполнено)</span>}
+                  <span className="font-medium text-gray-900">{registration.registered_count}</span>
                 </div>
                 <div>
                   <span className="text-gray-500">Доступно для:</span>{' '}

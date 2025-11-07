@@ -14,7 +14,6 @@ export interface EventRegistration {
   max_participants: number | null;
   allowed_group: number | null;
   registered_count: number;
-  is_full: boolean;
   event_participants_count?: number; // Количество участников мероприятия (связанных через группы v2)
   applicants?: number[]; // IDs участников для типа application
 }

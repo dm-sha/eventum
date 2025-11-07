@@ -156,26 +156,20 @@ class ParticipantGroupV2(models.Model):
     def __str__(self):
         return f"{self.name} ({self.eventum.name})"
     
-    def get_participants(self, visited_groups=None):
+    def get_participants(self, visited_groups=None, all_participant_ids=None):
         """
         Получает QuerySet участников, которые принадлежат этой группе.
-        Кешируется для оптимизации производительности.
+        Работает с prefetch'нутыми данными в памяти, если они доступны.
+        Иначе использует запросы к БД и кеширование.
         
         Логика:
         - Если нет ни участников, ни inclusive групп, возвращаются все участники eventum
         - Если есть участники или inclusive группы, применяется логика включений/исключений
+        
+        Args:
+            visited_groups: set ID групп, которые уже обработаны (для предотвращения циклов)
+            all_participant_ids: set всех ID участников eventum (для случая, когда нет inclusive связей)
         """
-        # Генерируем ключ кеша
-        cache_key = f'group_participants_{self.id}_{self.eventum_id}'
-        
-        # Пытаемся получить из кеша (только если visited_groups пустой, чтобы избежать рекурсивных проблем)
-        if visited_groups is None:
-            cached_result = cache.get(cache_key)
-            if cached_result is not None:
-                # Восстанавливаем QuerySet из закешированных ID
-                participant_ids = cached_result
-                return Participant.objects.filter(id__in=participant_ids)
-        
         if visited_groups is None:
             visited_groups = set()
         
@@ -184,6 +178,30 @@ class ParticipantGroupV2(models.Model):
             return Participant.objects.none()
         
         visited_groups.add(self.id)
+        
+        # Проверяем, загружены ли данные через prefetch
+        prefetched_cache = getattr(self, '_prefetched_objects_cache', {})
+        prefetched_participant_relations = prefetched_cache.get('participant_relations', None)
+        prefetched_group_relations = prefetched_cache.get('group_relations', None)
+        
+        # Если данные prefetch'нуты, работаем в памяти
+        if prefetched_participant_relations is not None or prefetched_group_relations is not None:
+            participant_ids = self._get_participant_ids_from_prefetched(
+                all_participant_ids, visited_groups.copy()
+            )
+            return Participant.objects.filter(id__in=participant_ids)
+        
+        # Иначе используем старую логику с запросами к БД
+        # Генерируем ключ кеша
+        cache_key = f'group_participants_{self.id}_{self.eventum_id}'
+        
+        # Пытаемся получить из кеша (только если visited_groups пустой, чтобы избежать рекурсивных проблем)
+        if len(visited_groups) == 1:  # Это первый уровень вызова
+            cached_result = cache.get(cache_key)
+            if cached_result is not None:
+                # Восстанавливаем QuerySet из закешированных ID
+                participant_ids = cached_result
+                return Participant.objects.filter(id__in=participant_ids)
         
         # Проверяем, есть ли хотя бы одна inclusive связь с участником или группой
         has_inclusive_participants = self.participant_relations.filter(
@@ -214,7 +232,7 @@ class ParticipantGroupV2(models.Model):
                 relation_type=ParticipantGroupV2GroupRelation.RelationType.EXCLUSIVE
             ):
                 excluded_participant_ids.update(
-                    group_rel.target_group.get_participants(visited_groups.copy()).values_list('id', flat=True)
+                    group_rel.target_group.get_participants(visited_groups.copy(), all_participant_ids).values_list('id', flat=True)
                 )
             
             if excluded_participant_ids:
@@ -235,7 +253,7 @@ class ParticipantGroupV2(models.Model):
             
             # Обрабатываем связи с группами
             for rel in self.group_relations.all():
-                target_participants = rel.target_group.get_participants(visited_groups.copy())
+                target_participants = rel.target_group.get_participants(visited_groups.copy(), all_participant_ids)
                 target_participant_ids = set(target_participants.values_list('id', flat=True))
                 
                 if rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.INCLUSIVE:
@@ -252,28 +270,191 @@ class ParticipantGroupV2(models.Model):
                 result = Participant.objects.none()
         
         # Кешируем результат (только если это не рекурсивный вызов)
-        if visited_groups == {self.id}:  # Это первый уровень вызова
+        if len(visited_groups) == 1:  # Это первый уровень вызова
             participant_ids = list(result.values_list('id', flat=True))
             cache.set(cache_key, participant_ids, timeout=3600)  # Кеш на 1 час
         
         return result
     
-    def get_participants_count(self):
-        """Быстрое получение количества участников через кеш"""
+    def _get_participant_ids_from_prefetched(self, all_participant_ids=None, visited_groups=None):
+        """
+        Вспомогательный метод для получения set ID участников из prefetch'нутых данных.
+        Работает полностью в памяти без запросов к БД.
+        """
+        if visited_groups is None:
+            visited_groups = set()
+        
+        if self.id in visited_groups:
+            return set()
+        
+        visited_groups.add(self.id)
+        
+        prefetched_cache = getattr(self, '_prefetched_objects_cache', {})
+        prefetched_participant_relations = prefetched_cache.get('participant_relations', None)
+        prefetched_group_relations = prefetched_cache.get('group_relations', None)
+        
+        # Используем prefetch'нутые данные (преобразуем в список для итерации)
+        participant_relations = list(prefetched_participant_relations) if prefetched_participant_relations is not None else []
+        group_relations = list(prefetched_group_relations) if prefetched_group_relations is not None else []
+        
+        # Проверяем, есть ли хотя бы одна inclusive связь
+        has_inclusive_participants = any(
+            rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.INCLUSIVE
+            for rel in participant_relations
+        )
+        has_inclusive_groups = any(
+            rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.INCLUSIVE
+            for rel in group_relations
+        )
+        
+        # Если нет ни участников, ни inclusive групп, возвращаем всех участников eventum
+        if not has_inclusive_participants and not has_inclusive_groups:
+            if all_participant_ids is not None:
+                included_ids = set(all_participant_ids)
+            else:
+                # Fallback: загружаем всех участников eventum
+                included_ids = set(Participant.objects.filter(eventum=self.eventum).values_list('id', flat=True))
+            
+            # Применяем исключения из прямых связей
+            excluded_ids = {
+                rel.participant_id
+                for rel in participant_relations
+                if rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.EXCLUSIVE
+            }
+            
+            # Применяем исключения из групп (рекурсивно)
+            for group_rel in group_relations:
+                if group_rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.EXCLUSIVE:
+                    target_ids = self._get_participant_ids_from_group(group_rel.target_group, all_participant_ids, visited_groups.copy())
+                    excluded_ids.update(target_ids)
+            
+            return included_ids - excluded_ids
+        else:
+            # Применяем логику включений/исключений
+            included_ids = set()
+            excluded_ids = set()
+            
+            # Обрабатываем прямые связи с участниками
+            for rel in participant_relations:
+                if rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.INCLUSIVE:
+                    included_ids.add(rel.participant_id)
+                elif rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.EXCLUSIVE:
+                    excluded_ids.add(rel.participant_id)
+            
+            # Обрабатываем связи с группами
+            for group_rel in group_relations:
+                target_ids = self._get_participant_ids_from_group(group_rel.target_group, all_participant_ids, visited_groups.copy())
+                
+                if group_rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.INCLUSIVE:
+                    included_ids.update(target_ids)
+                elif group_rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.EXCLUSIVE:
+                    excluded_ids.update(target_ids)
+            
+            # Исключаем участников из списка включенных
+            included_ids -= excluded_ids
+            
+            return included_ids
+    
+    def get_participants_count(self, all_participant_ids=None):
+        """
+        Быстрое получение количества участников.
+        Использует get_participants() и возвращает количество.
+        Работает с prefetch'нутыми данными в памяти, если они доступны.
+        Иначе использует кеш или запросы к БД.
+        """
+        # Проверяем кеш для оптимизации (избегаем создания QuerySet)
         cache_key = f'group_participants_{self.id}_{self.eventum_id}'
         cached_ids = cache.get(cache_key)
         if cached_ids is not None:
             # Используем длину закешированного списка (быстро, без SQL)
             return len(cached_ids)
-        # Если кеша нет, вызываем get_participants() который сам кеширует результат
-        # После вызова get_participants() кеш должен быть установлен, проверяем его
-        self.get_participants()  # Это установит кеш
-        cached_ids_after = cache.get(cache_key)
-        if cached_ids_after is not None:
-            return len(cached_ids_after)
-        # Если по какой-то причине кеш не установился (например, рекурсивный вызов),
-        # делаем обычный count
-        return self.get_participants().count()
+        
+        # Проверяем, загружены ли данные через prefetch для оптимизации
+        prefetched_cache = getattr(self, '_prefetched_objects_cache', {})
+        prefetched_participant_relations = prefetched_cache.get('participant_relations', None)
+        prefetched_group_relations = prefetched_cache.get('group_relations', None)
+        
+        # Если данные prefetch'нуты, работаем в памяти (избегаем создания QuerySet)
+        if prefetched_participant_relations is not None or prefetched_group_relations is not None:
+            participant_ids = self._get_participant_ids_from_prefetched(all_participant_ids)
+            return len(participant_ids)
+        
+        # Иначе используем get_participants() и берем count
+        return self.get_participants(all_participant_ids=all_participant_ids).count()
+    
+    def _get_participant_ids_from_group(self, group, all_participant_ids=None, visited_groups=None):
+        """
+        Вспомогательный метод для получения set ID участников из группы.
+        Работает с prefetch'нутыми данными в памяти.
+        """
+        if visited_groups is None:
+            visited_groups = set()
+        
+        if group.id in visited_groups:
+            return set()
+        
+        visited_groups.add(group.id)
+        
+        prefetched_cache = getattr(group, '_prefetched_objects_cache', {})
+        prefetched_participant_relations = prefetched_cache.get('participant_relations', None)
+        prefetched_group_relations = prefetched_cache.get('group_relations', None)
+        
+        # Если данные не prefetch'нуты, используем fallback
+        if prefetched_participant_relations is None and prefetched_group_relations is None:
+            return set(group.get_participants().values_list('id', flat=True))
+        
+        participant_relations = list(prefetched_participant_relations) if prefetched_participant_relations is not None else []
+        group_relations = list(prefetched_group_relations) if prefetched_group_relations is not None else []
+        
+        # Проверяем, есть ли inclusive связи
+        has_inclusive_participants = any(
+            rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.INCLUSIVE
+            for rel in participant_relations
+        )
+        has_inclusive_groups = any(
+            rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.INCLUSIVE
+            for rel in group_relations
+        )
+        
+        if not has_inclusive_participants and not has_inclusive_groups:
+            # Все участники eventum минус исключения
+            if all_participant_ids is not None:
+                included_ids = set(all_participant_ids)
+            else:
+                included_ids = set(Participant.objects.filter(eventum=group.eventum).values_list('id', flat=True))
+            
+            excluded_ids = {
+                rel.participant_id
+                for rel in participant_relations
+                if rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.EXCLUSIVE
+            }
+            
+            for group_rel in group_relations:
+                if group_rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.EXCLUSIVE:
+                    excluded_ids.update(self._get_participant_ids_from_group(group_rel.target_group, all_participant_ids, visited_groups.copy()))
+            
+            return included_ids - excluded_ids
+        else:
+            # Логика включений/исключений
+            included_ids = {
+                rel.participant_id
+                for rel in participant_relations
+                if rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.INCLUSIVE
+            }
+            excluded_ids = {
+                rel.participant_id
+                for rel in participant_relations
+                if rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.EXCLUSIVE
+            }
+            
+            for group_rel in group_relations:
+                target_ids = self._get_participant_ids_from_group(group_rel.target_group, all_participant_ids, visited_groups.copy())
+                if group_rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.INCLUSIVE:
+                    included_ids.update(target_ids)
+                elif group_rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.EXCLUSIVE:
+                    excluded_ids.update(target_ids)
+            
+            return included_ids - excluded_ids
     
     def has_participant(self, participant_id):
         """Быстрая проверка наличия участника в группе через кеш"""
@@ -913,23 +1094,38 @@ class EventRegistration(models.Model):
     def __str__(self):
         return f"Регистрация на {self.event.name}"
     
-    def get_registered_count(self):
-        """Получить количество зарегистрированных участников"""
+    def get_registered_count(self, all_participant_ids=None):
+        """
+        Получить количество зарегистрированных участников.
+        
+        Args:
+            all_participant_ids: set всех ID участников eventum (для работы с prefetch'нутыми данными)
+        """
         if self.registration_type == self.RegistrationType.BUTTON:
             # Для типа button считаем участников в event_group_v2
             if self.event.event_group_v2:
-                # Используем оптимизированный метод с кешем
-                return self.event.event_group_v2.get_participants_count()
+                # Используем оптимизированный метод с кешем и prefetch'нутыми данными
+                return self.event.event_group_v2.get_participants_count(all_participant_ids)
             return 0
         else:
             # Для типа application считаем заявки
+            # Проверяем prefetch'нутые данные
+            prefetched_cache = getattr(self, '_prefetched_objects_cache', {})
+            prefetched_applicants = prefetched_cache.get('applicants', None)
+            if prefetched_applicants is not None:
+                return len(prefetched_applicants)
             return self.applicants.count()
     
-    def is_full(self):
-        """Проверить, заполнена ли регистрация"""
+    def is_full(self, all_participant_ids=None):
+        """
+        Проверить, заполнена ли регистрация.
+        
+        Args:
+            all_participant_ids: set всех ID участников eventum (для работы с prefetch'нутыми данными)
+        """
         if not self.max_participants:
             return False
-        return self.get_registered_count() >= self.max_participants
+        return self.get_registered_count(all_participant_ids) >= self.max_participants
 
 
 class EventRegistrationApplication(models.Model):

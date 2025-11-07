@@ -763,6 +763,22 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
     return { accessible: true, reason: '' };
   };
 
+  // Проверяем, нужно ли скрыть волну (если участник уже участвует в мероприятии с типом регистрации 'application')
+  const shouldHideWave = useCallback((wave: EventWave) => {
+    if (!currentParticipant) return false;
+    
+    // Получаем все мероприятия волны
+    const waveEventIds = new Set(wave.events.map(e => e.id));
+    const waveEvents = events.filter(event => waveEventIds.has(event.id));
+    
+    // Проверяем, есть ли среди них мероприятия с registration_type='application', где участник уже участвует
+    const hasParticipatingApplicationEvent = waveEvents.some(event => 
+      event.registration_type === 'application' && event.is_participant === true
+    );
+    
+    return hasParticipatingApplicationEvent;
+  }, [events, currentParticipant]);
+
   // Если регистрация закрыта
   if (!eventum.registration_open) {
     return (
@@ -816,8 +832,10 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
   }
 
   // Фильтруем только доступные волны, в которых есть хотя бы одно доступное мероприятие, и сортируем по названию
+  // Также скрываем волны, где участник уже участвует в мероприятии с типом регистрации 'application'
   const accessibleWaves = eventWaves
     .filter(wave => isWaveAccessible(wave).accessible)
+    .filter(wave => !shouldHideWave(wave))
     .filter(wave => getEventsForWave(wave).length > 0)
     .sort((a, b) => a.name.localeCompare(b.name, 'ru'));
 
