@@ -949,11 +949,17 @@ class EventWaveSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'eventum', 'events']
 
-    def _get_group_participant_ids(self, group, visited_groups=None):
+    def _get_group_participant_ids(self, group, visited_groups=None, is_allowed_group=False):
         """
         Получает ID участников группы используя уже загруженные данные (prefetch_related).
         Работает полностью в памяти Python без дополнительных запросов к БД.
         Для рекурсивных групп может потребоваться дополнительная обработка.
+        
+        Args:
+            group: Группа участников
+            visited_groups: Множество ID уже посещенных групп (для предотвращения циклов)
+            is_allowed_group: Если True, группа используется как allowed_group для проверки доступа.
+                             В этом случае, если группа не имеет явных inclusive связей, возвращается пустой список.
         """
         if not group:
             return set()
@@ -999,8 +1005,15 @@ class EventWaveSerializer(serializers.ModelSerializer):
             for rel in group_relations
         )
         
-        # Если нет ни участников, ни inclusive групп, возвращаем всех участников eventum
+        # Если нет ни участников, ни inclusive групп
         if not has_inclusive_participants and not has_inclusive_groups:
+            # ВАЖНО: для групп доступа (allowed_group) это неправильное поведение
+            # Если группа используется как allowed_group и не имеет явных inclusive связей,
+            # возвращаем пустой список (группа недоступна никому)
+            if is_allowed_group:
+                return set()
+            
+            # Для обычных групп (не allowed_group) возвращаем всех участников eventum
             # Используем all_participant_ids из контекста
             all_participant_ids = self.context.get('all_participant_ids', set())
             
@@ -1015,10 +1028,12 @@ class EventWaveSerializer(serializers.ModelSerializer):
                 if group_rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.EXCLUSIVE:
                     target_group = group_rel.target_group
                     excluded_participant_ids.update(
-                        self._get_group_participant_ids(target_group, visited_groups.copy())
+                        self._get_group_participant_ids(target_group, visited_groups.copy(), is_allowed_group=False)
                     )
             
-            return all_participant_ids - excluded_participant_ids
+            result = all_participant_ids - excluded_participant_ids
+            
+            return result
         else:
             # Стандартная логика включений/исключений
             included_participant_ids = set()
@@ -1034,7 +1049,8 @@ class EventWaveSerializer(serializers.ModelSerializer):
             # Обрабатываем связи с группами
             for group_rel in group_relations:
                 target_group = group_rel.target_group
-                target_participant_ids = self._get_group_participant_ids(target_group, visited_groups.copy())
+                # Передаем is_allowed_group дальше при рекурсивном вызове
+                target_participant_ids = self._get_group_participant_ids(target_group, visited_groups.copy(), is_allowed_group=is_allowed_group)
                 
                 if group_rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.INCLUSIVE:
                     included_participant_ids.update(target_participant_ids)
@@ -1046,16 +1062,24 @@ class EventWaveSerializer(serializers.ModelSerializer):
             
             return included_participant_ids
     
-    def _has_participant_in_group(self, group, participant_id):
+    def _has_participant_in_group(self, group, participant_id, is_allowed_group=True):
         """
         Проверяет участие в группе используя уже загруженные данные (prefetch_related).
         Работает полностью в памяти Python без дополнительных запросов к БД.
+        
+        Args:
+            group: Группа участников
+            participant_id: ID участника для проверки
+            is_allowed_group: Если True, группа используется как allowed_group для проверки доступа.
+                             По умолчанию True, так как этот метод используется для проверки доступа.
         """
         if not group:
             return False
         
-        participant_ids = self._get_group_participant_ids(group)
-        return participant_id in participant_ids
+        participant_ids = self._get_group_participant_ids(group, is_allowed_group=is_allowed_group)
+        result = participant_id in participant_ids
+        
+        return result
     
     def get_registrations(self, obj):
         """Получить регистрации волны"""
@@ -1075,33 +1099,35 @@ class EventWaveSerializer(serializers.ModelSerializer):
             for reg in registrations:
                 # Вычисляем доступность на уровне регистрации
                 # Простая логика: если allowed_group указан, проверяем вхождение участника в группу
-                if not reg.allowed_group_id:
+                # Проверяем явно, что allowed_group_id установлен (не None и не False)
+                if reg.allowed_group_id is None:
                     # Если группа доступа не указана, событие доступно всем
                     is_accessible = True
                 else:
                     # Если группа доступа указана, проверяем вхождение участника
-                    if participant is None or participant is False:
-                        # Участник не найден - событие недоступно
+                    # Сначала проверяем, что participant существует и является объектом Participant
+                    if participant is None:
+                        is_accessible = False
+                    elif participant is False:
                         is_accessible = False
                     elif not hasattr(participant, 'id'):
-                        # participant не является объектом Participant - событие недоступно
                         is_accessible = False
                     else:
                         # Проверяем вхождение участника в allowed_group
                         grp = reg.allowed_group
-                        if grp:
-                            is_accessible = self._has_participant_in_group(grp, participant.id)
-                        else:
+                        if not grp:
                             # Если allowed_group_id есть, но группа не загружена - считаем недоступным
-                            # (это может произойти, если группа была удалена или prefetch не сработал)
                             is_accessible = False
+                        else:
+                            # Проверяем вхождение участника в группу
+                            is_accessible = self._has_participant_in_group(grp, participant.id)
 
                 # Оптимизированный подсчет зарегистрированных участников
                 # Используем prefetch'енные данные вместо запросов к БД
                 if reg.registration_type == EventRegistration.RegistrationType.BUTTON:
                     # Для типа button считаем участников в event_group_v2
                     if reg.event.event_group_v2:
-                        participant_ids = self._get_group_participant_ids(reg.event.event_group_v2)
+                        participant_ids = self._get_group_participant_ids(reg.event.event_group_v2, is_allowed_group=False)
                         registered_count = len(participant_ids)
                     else:
                         registered_count = 0
@@ -1497,11 +1523,17 @@ class EventSerializer(serializers.ModelSerializer):
         # Если нет настройки регистрации, возвращаем 0
         return 0
 
-    def _get_group_participant_ids(self, group, visited_groups=None):
+    def _get_group_participant_ids(self, group, visited_groups=None, is_allowed_group=False):
         """
         Получает ID участников группы используя уже загруженные данные (prefetch_related).
         Работает полностью в памяти Python без дополнительных запросов к БД.
         Для рекурсивных групп может потребоваться дополнительная обработка.
+        
+        Args:
+            group: Группа участников
+            visited_groups: Множество ID уже посещенных групп (для предотвращения циклов)
+            is_allowed_group: Если True, группа используется как allowed_group для проверки доступа.
+                             В этом случае, если группа не имеет явных inclusive связей, возвращается пустой список.
         """
         if not group:
             return set()
@@ -1547,8 +1579,15 @@ class EventSerializer(serializers.ModelSerializer):
             for rel in group_relations
         )
         
-        # Если нет ни участников, ни inclusive групп, возвращаем всех участников eventum
+        # Если нет ни участников, ни inclusive групп
         if not has_inclusive_participants and not has_inclusive_groups:
+            # ВАЖНО: для групп доступа (allowed_group) это неправильное поведение
+            # Если группа используется как allowed_group и не имеет явных inclusive связей,
+            # возвращаем пустой список (группа недоступна никому)
+            if is_allowed_group:
+                return set()
+            
+            # Для обычных групп (не allowed_group) возвращаем всех участников eventum
             # Используем all_participant_ids из контекста
             all_participant_ids = self.context.get('all_participant_ids', set())
             
@@ -1563,10 +1602,12 @@ class EventSerializer(serializers.ModelSerializer):
                 if group_rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.EXCLUSIVE:
                     target_group = group_rel.target_group
                     excluded_participant_ids.update(
-                        self._get_group_participant_ids(target_group, visited_groups.copy())
+                        self._get_group_participant_ids(target_group, visited_groups.copy(), is_allowed_group=False)
                     )
             
-            return all_participant_ids - excluded_participant_ids
+            result = all_participant_ids - excluded_participant_ids
+            
+            return result
         else:
             # Стандартная логика включений/исключений
             included_participant_ids = set()
@@ -1582,7 +1623,8 @@ class EventSerializer(serializers.ModelSerializer):
             # Обрабатываем связи с группами
             for group_rel in group_relations:
                 target_group = group_rel.target_group
-                target_participant_ids = self._get_group_participant_ids(target_group, visited_groups.copy())
+                # Передаем is_allowed_group дальше при рекурсивном вызове
+                target_participant_ids = self._get_group_participant_ids(target_group, visited_groups.copy(), is_allowed_group=is_allowed_group)
                 
                 if group_rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.INCLUSIVE:
                     included_participant_ids.update(target_participant_ids)
@@ -1594,15 +1636,21 @@ class EventSerializer(serializers.ModelSerializer):
             
             return included_participant_ids
     
-    def _has_participant_in_group(self, group, participant_id):
+    def _has_participant_in_group(self, group, participant_id, is_allowed_group=False):
         """
         Проверяет участие в группе используя уже загруженные данные (prefetch_related).
         Работает полностью в памяти Python без дополнительных запросов к БД.
+        
+        Args:
+            group: Группа участников
+            participant_id: ID участника для проверки
+            is_allowed_group: Если True, группа используется как allowed_group для проверки доступа.
+                             По умолчанию False для EventSerializer.
         """
         if not group:
             return False
         
-        participant_ids = self._get_group_participant_ids(group)
+        participant_ids = self._get_group_participant_ids(group, is_allowed_group=is_allowed_group)
         return participant_id in participant_ids
     
     def get_is_registered(self, obj):

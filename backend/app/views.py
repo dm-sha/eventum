@@ -314,8 +314,6 @@ class ParticipantViewSet(CachedListMixin, EventumScopedViewSet):
         filter_type = request.data.get('filter_type')  # 'participating' или 'not_participating'
         event_ids = request.data.get('event_ids', [])  # список ID мероприятий
         
-        print(f"DEBUG: filter_by_events called with filter_type={filter_type}, event_ids={event_ids}")
-        
         if not filter_type or filter_type not in ['participating', 'not_participating']:
             return Response({'error': 'Invalid filter_type. Must be "participating" or "not_participating"'}, 
                           status=status.HTTP_400_BAD_REQUEST)
@@ -325,11 +323,6 @@ class ParticipantViewSet(CachedListMixin, EventumScopedViewSet):
         
         # Проверяем, что все мероприятия принадлежат данному eventum
         events = Event.objects.filter(id__in=event_ids, eventum=eventum)
-        print(f"DEBUG: Found {events.count()} events out of {len(event_ids)} requested")
-        
-        # Выводим информацию о типах мероприятий
-        for event in events:
-            print(f"DEBUG: Event '{event.name}' (ID: {event.id}) - participant_type: {event.participant_type}")
         
         if events.count() != len(event_ids):
             return Response({'error': 'Some events do not belong to this eventum'}, 
@@ -337,7 +330,6 @@ class ParticipantViewSet(CachedListMixin, EventumScopedViewSet):
         
         # Получаем всех участников eventum
         participants = Participant.objects.filter(eventum=eventum)
-        print(f"DEBUG: Total participants in eventum: {participants.count()}")
         
         if filter_type == 'participating':
             # Участники, которые участвуют хотя бы в одном из указанных мероприятий
@@ -363,7 +355,6 @@ class ParticipantViewSet(CachedListMixin, EventumScopedViewSet):
                     participation_conditions |= event_condition
             
             participants = participants.filter(participation_conditions).distinct()
-            print(f"DEBUG: Participants participating in events: {participants.count()}")
         else:  # not_participating
             # Участники, которые НЕ участвуют ни в одном из указанных мероприятий
             from django.db.models import Q
@@ -388,7 +379,6 @@ class ParticipantViewSet(CachedListMixin, EventumScopedViewSet):
                     exclusion_conditions |= event_condition
             
             participants = participants.exclude(exclusion_conditions).distinct()
-            print(f"DEBUG: Participants NOT participating in events: {participants.count()}")
         
         # Оптимизируем запрос
         participants = participants.select_related('user', 'eventum').prefetch_related(
@@ -396,7 +386,6 @@ class ParticipantViewSet(CachedListMixin, EventumScopedViewSet):
         )
         
         serializer = self.get_serializer(participants, many=True)
-        print(f"DEBUG: Returning {len(serializer.data)} participants")
         return Response(serializer.data)
     
     def perform_create(self, serializer):
