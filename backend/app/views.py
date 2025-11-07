@@ -1793,83 +1793,47 @@ def participant_calendar_ics(request, eventum_slug=None, participant_id=None):
         except Participant.DoesNotExist:
             return Response({'error': f'Participant with ID {participant_id} not found in this eventum'}, status=status.HTTP_404_NOT_FOUND)
         
-        # Получаем ID групп участника и их тегов для оптимизации запросов
-        participant_groups = list(participant.groups.all())
-        participant_group_ids = [g.id for g in participant_groups]
-        participant_group_tag_ids = []
-        for group in participant_groups:
-            participant_group_tag_ids.extend([tag.id for tag in group.tags.all()])
+        # Упрощенная логика: используем только event_group_v2
+        # Если event_group_v2 is None - участник участвует (все участники eventum)
+        # Если event_group_v2 существует - проверяем через связи группы
         
-        # Оптимизированный запрос: получаем только нужные события с минимальными prefetch
-        from django.db.models import Q, Exists, OuterRef
+        from django.db.models import Prefetch
+        from .models import ParticipantGroupV2ParticipantRelation, ParticipantGroupV2GroupRelation
         
-        # Создаем подзапросы для проверки участия
-        # Для новой схемы регистрации проверяем:
-        # - Для типа button: участник в event_group_v2
-        # - Для типа application: участник в applicants
-        participant_registration_exists = Exists(
-            Event.objects.filter(
-                pk=OuterRef('pk')
-            ).filter(
-                Q(
-                    registration__registration_type=EventRegistration.RegistrationType.BUTTON,
-                    event_group_v2__participant_relations__participant_id=participant_id,
-                    event_group_v2__participant_relations__relation_type=ParticipantGroupV2ParticipantRelation.RelationType.INCLUSIVE
-                ) | Q(
-                    registration__registration_type=EventRegistration.RegistrationType.APPLICATION,
-                    registration__applicants__id=participant_id
-                )
-            )
-        )
+        # Получаем всех участников eventum для передачи в get_participants
+        all_participant_ids = set(Participant.objects.filter(eventum=eventum).values_list('id', flat=True))
         
-        participant_direct_exists = Exists(
-            Event.objects.filter(
-                pk=OuterRef('pk'),
-                participants__id=participant_id
-            )
-        )
-        
-        participant_group_exists = Exists(
-            Event.objects.filter(
-                pk=OuterRef('pk'),
-                groups__id__in=participant_group_ids
-            )
-        )
-        
-        participant_group_tag_exists = Exists(
-            Event.objects.filter(
-                pk=OuterRef('pk'),
-                group_tags__id__in=participant_group_tag_ids
-            )
-        )
-        
-        # Основной запрос с фильтрацией на уровне SQL
-        filtered_events = Event.objects.filter(
+        # Получаем все события eventum с prefetch для event_group_v2
+        all_events = Event.objects.filter(
             eventum=eventum
-        ).filter(
-            # События для всех участников
-            Q(participant_type=Event.ParticipantType.ALL) |
-            # События по записи, где участник зарегистрирован (новая схема)
-            Q(
-                registration__registration_type=EventRegistration.RegistrationType.BUTTON,
-                event_group_v2__participant_relations__participant_id=participant_id,
-                event_group_v2__participant_relations__relation_type=ParticipantGroupV2ParticipantRelation.RelationType.INCLUSIVE
-            ) |
-            Q(
-                registration__registration_type=EventRegistration.RegistrationType.APPLICATION,
-                registration__applicants__id=participant_id
-            ) |
-            # События вручную с прямым назначением
-            Q(participant_type=Event.ParticipantType.MANUAL, participants__id=participant_id) |
-            # События вручную через группы участника
-            Q(participant_type=Event.ParticipantType.MANUAL, groups__id__in=participant_group_ids) |
-            # События вручную через теги групп участника
-            Q(participant_type=Event.ParticipantType.MANUAL, group_tags__id__in=participant_group_tag_ids)
-        ).select_related('eventum').prefetch_related(
+        ).select_related(
+            'eventum', 'event_group_v2'
+        ).prefetch_related(
             'tags',
             'group_tags', 
-            'locations'
-        ).distinct()
+            'locations',
+            # Prefetch для event_group_v2 со всеми связями для проверки участия
+            Prefetch(
+                'event_group_v2__participant_relations',
+                queryset=ParticipantGroupV2ParticipantRelation.objects.select_related('participant')
+            ),
+            Prefetch(
+                'event_group_v2__group_relations',
+                queryset=ParticipantGroupV2GroupRelation.objects.select_related('target_group')
+            ),
+            'event_group_v2__group_relations__target_group__participant_relations',
+        )
+        
+        # Фильтруем события в Python, используя логику event_group_v2
+        filtered_events = []
+        for event in all_events:
+            # Если у события нет event_group_v2 - участник участвует (все участники eventum)
+            if event.event_group_v2 is None:
+                filtered_events.append(event)
+            else:
+                # Если группа есть - проверяем, входит ли участник в группу
+                if event.event_group_v2.has_participant(participant_id):
+                    filtered_events.append(event)
         
         # Создаем iCalendar календарь
         cal = Calendar()
