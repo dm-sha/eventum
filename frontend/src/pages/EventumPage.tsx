@@ -1098,7 +1098,14 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string; isViewingAsOtherP
       const maxFromRegistration = registrationMaxParticipants ?? undefined;
       const max = typeof maxFromRegistration === 'number' ? maxFromRegistration : event.max_participants;
       if (typeof max === 'number' && max > 0) {
-        return `Заявок/мест: ${localRegistrationsCount}/${max}`;
+        if (event.registration_type === 'button') {
+          // Для регистрации по кнопке показываем количество свободных мест
+          const freeSpots = Math.max(0, max - localRegistrationsCount);
+          return `Свободных мест: ${freeSpots}`;
+        } else {
+          // Для заявок показываем заявок/мест
+          return `Заявок/мест: ${localRegistrationsCount}/${max}`;
+        }
       }
       return `Заявок: ${localRegistrationsCount}`;
     } else if (event.participant_type === 'all') {
