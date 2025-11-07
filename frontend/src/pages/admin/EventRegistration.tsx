@@ -259,7 +259,7 @@ const RegistrationCard: React.FC<RegistrationCardProps> = ({
                   <span className="font-medium text-gray-900">{capacityInfo(registration.max_participants)}</span>
                 </div>
                 <div>
-                  <span className="text-gray-500">Зарегистрировано:</span>{' '}
+                  <span className="text-gray-500">Подано заявок:</span>{' '}
                   <span className="font-medium text-gray-900">{registration.registered_count}</span>
                 </div>
                 <div>
