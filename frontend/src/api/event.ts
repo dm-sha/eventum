@@ -6,8 +6,8 @@ import { eventsApi, authApi } from './eventumApi';
 import type { Event } from '../types';
 
 // Получить список всех мероприятий для конкретного Eventum.
-export const getEventsForEventum = async (eventumSlug: string): Promise<Event[]> => {
-    const response = await eventsApi.getAll(eventumSlug);
+export const getEventsForEventum = async (eventumSlug: string, options?: { participant?: number }): Promise<Event[]> => {
+    const response = await eventsApi.getAll(eventumSlug, options);
     return response.data;
 };
 

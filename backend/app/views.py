@@ -874,55 +874,10 @@ class EventWaveViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
     def get_serializer_context(self):
         """Добавляем eventum и (опционально) участника из query-параметра в контекст сериализатора."""
         context = super().get_serializer_context()
-        eventum = self.get_eventum()
-        context['eventum'] = eventum
-
-        # ЗАГРУЖАЕМ participant заранее, если пользователь аутентифицирован
-        request = self.request
-        if request and request.user.is_authenticated:
-            try:
-                from .models import Participant
-                participant = Participant.objects.select_related('user', 'eventum').prefetch_related(
-                    'groups',
-                    'groups__tags'
-                ).get(user=request.user, eventum=eventum)
-                context['_current_participant'] = participant
-                context['current_participant'] = participant  # Для совместимости
-            except Participant.DoesNotExist:
-                context['_current_participant'] = None
-                context['current_participant'] = None
-
-        # Проверяем query-параметр для просмотра от лица другого участника
-        participant_param = self.request.query_params.get('participant')
-        if participant_param:
-            try:
-                participant_id = int(participant_param)
-            except (TypeError, ValueError):
-                participant_id = None
-
-            if participant_id:
-                # Разрешаем указывать participant только организаторам данного eventum
-                from .models import Participant, UserRole
-                is_organizer = UserRole.objects.filter(user=self.request.user, eventum=eventum, role='organizer').exists()
-                if is_organizer:
-                    try:
-                        participant = Participant.objects.select_related('user', 'eventum').prefetch_related(
-                            'groups',
-                            'groups__tags'
-                        ).get(id=participant_id, eventum=eventum)
-                        context['_current_participant'] = participant
-                        context['current_participant'] = participant
-                    except Participant.DoesNotExist:
-                        # Игнорируем неверный participant_id
-                        pass
-
-        # Также загружаем всех участников eventum для вычисления групп
-        # (если event_group_v2 не имеет inclusive связей, возвращаются все участники)
-        if self.action in ['list', 'retrieve']:
-            from .models import Participant
-            all_participants = Participant.objects.filter(eventum=eventum).values_list('id', flat=True)
-            context['all_participant_ids'] = set(all_participants)
-
+        # Базовая логика получения participant уже реализована в EventumScopedViewSet
+        # Добавляем _current_participant для обратной совместимости
+        if 'current_participant' in context:
+            context['_current_participant'] = context['current_participant']
         return context
 
 
@@ -1009,33 +964,8 @@ class EventViewSet(CachedListMixin, EventumScopedViewSet, viewsets.ModelViewSet)
     
     def get_serializer_context(self):
         """Добавляем participant в контекст, чтобы не делать запросы в сериализаторе"""
-        context = super().get_serializer_context()
-        eventum = self.get_eventum()
-        context['eventum'] = eventum
-        
-        # ЗАГРУЖАЕМ participant заранее, если пользователь аутентифицирован
-        request = self.request
-        if request and request.user.is_authenticated:
-            try:
-                from .models import Participant
-                participant = Participant.objects.select_related('user', 'eventum').prefetch_related(
-                    'groups',
-                    'groups__tags'
-                ).get(user=request.user, eventum=eventum)
-                context['current_participant'] = participant
-            except Participant.DoesNotExist:
-                context['current_participant'] = None
-        else:
-            context['current_participant'] = None
-        
-        # Также загружаем всех участников eventum для вычисления групп
-        # (если event_group_v2 не имеет inclusive связей, возвращаются все участники)
-        if self.action in ['list', 'retrieve']:
-            from .models import Participant
-            all_participants = Participant.objects.filter(eventum=eventum).values_list('id', flat=True)
-            context['all_participant_ids'] = set(all_participants)
-        
-        return context
+        # Базовая логика получения participant уже реализована в EventumScopedViewSet
+        return super().get_serializer_context()
 
     @log_execution_time("Получение списка событий")
     def list(self, request, *args, **kwargs):

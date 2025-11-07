@@ -236,8 +236,16 @@ export const eventRelationsV2Api = {
 
 export const eventsApi = {
   // Получить все события
-  getAll: (eventumSlug?: string) => 
-    createApiRequest<Event[]>('GET', '/events/', getEventumSlugForRequest(eventumSlug)),
+  getAll: (eventumSlug?: string, options?: { participant?: number }) => {
+    const slug = getEventumSlugForRequest(eventumSlug);
+    const params = new URLSearchParams();
+    if (options?.participant) {
+      params.append('participant', options.participant.toString());
+    }
+    const query = params.toString();
+    const url = query ? `/events/?${query}` : '/events/';
+    return createApiRequest<Event[]>('GET', url, slug);
+  },
   
   // Создать событие
   create: (data: Partial<Event>, eventumSlug?: string) => 

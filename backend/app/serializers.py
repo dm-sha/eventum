@@ -1737,63 +1737,15 @@ class EventSerializer(serializers.ModelSerializer):
                 return False
         
         # Если есть event_group_v2, проверяем участие через него
-        # (это работает для всех мероприятий, включая те, где нет регистрации)
+        # (это работает для всех мероприятий с регистрацией)
         if obj.event_group_v2:
             # ИСПОЛЬЗУЕМ метод, который работает с уже загруженными данными
             return self._has_participant_in_group(obj.event_group_v2, participant.id)
         
-        # Для старых мероприятий без v2 групп используем старую логику
-        # participant_type уже вычислен как строка через get_participant_type
-        if obj.participant_type == 'all':
-            return True
-        
-        if obj.participant_type == 'manual':
-            # Прямое назначение участника - используем уже загруженные participants
-            if hasattr(obj, '_prefetched_objects_cache') and 'participants' in obj._prefetched_objects_cache:
-                participant_ids = {p.id for p in obj._prefetched_objects_cache['participants']}
-                if participant.id in participant_ids:
-                    return True
-            else:
-                # Fallback, если prefetch не сработал
-                if obj.participants.filter(id=participant.id).exists():
-                    return True
-            
-            # Назначение через группы участника (старые группы) - используем загруженные данные
-            if hasattr(participant, '_prefetched_objects_cache') and 'groups' in participant._prefetched_objects_cache:
-                participant_group_ids = {g.id for g in participant._prefetched_objects_cache['groups']}
-            else:
-                participant_group_ids = set(participant.groups.values_list('id', flat=True))
-            
-            if hasattr(obj, '_prefetched_objects_cache') and 'groups' in obj._prefetched_objects_cache:
-                event_group_ids = {g.id for g in obj._prefetched_objects_cache['groups']}
-            else:
-                event_group_ids = set(obj.groups.values_list('id', flat=True))
-            
-            if participant_group_ids & event_group_ids:
-                return True
-            
-            # Назначение через теги групп участника - используем загруженные данные
-            if hasattr(participant, '_prefetched_objects_cache') and 'groups' in participant._prefetched_objects_cache:
-                participant_group_tag_ids = set()
-                for group in participant._prefetched_objects_cache['groups']:
-                    if hasattr(group, '_prefetched_objects_cache') and 'tags' in group._prefetched_objects_cache:
-                        participant_group_tag_ids.update(tag.id for tag in group._prefetched_objects_cache['tags'])
-                    else:
-                        participant_group_tag_ids.update(group.tags.values_list('id', flat=True))
-            else:
-                participant_group_tag_ids = set(
-                    participant.groups.values_list('tags__id', flat=True)
-                )
-            
-            if hasattr(obj, '_prefetched_objects_cache') and 'group_tags' in obj._prefetched_objects_cache:
-                event_group_tag_ids = {tag.id for tag in obj._prefetched_objects_cache['group_tags']}
-            else:
-                event_group_tag_ids = set(obj.group_tags.values_list('id', flat=True))
-            
-            if participant_group_tag_ids & event_group_tag_ids:
-                return True
-        
-        return False
+        # Для мероприятий без регистрации (без event_group_v2)
+        # все участники eventum должны видеть такие мероприятия в расписании
+        # participant уже проверен выше (если его нет, вернули False)
+        return True
     
     def get_registration_max_participants(self, obj):
         """Получить максимальное количество участников из регистрации"""

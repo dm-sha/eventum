@@ -125,7 +125,7 @@ const EventumPage = () => {
         // Выполняем оба запроса параллельно
         const [wavesResult, eventsResult] = await Promise.allSettled([
           listEventWaves(eventumSlug, participantId ? { participant: parseInt(participantId) } : undefined),
-          getEventsForEventum(eventumSlug)
+          getEventsForEventum(eventumSlug, participantId ? { participant: parseInt(participantId) } : undefined)
         ]);
         
         // Обрабатываем результат загрузки волн
@@ -190,30 +190,8 @@ const EventumPage = () => {
           }
         }
         
-        // Если просматриваем от лица другого участника, обновляем is_registered и is_participant в events на основе myRegistrations
-        if (participantId) {
-          // Создаём Map для быстрого поиска регистраций по ID события
-          const registrationsMap = new Map<number, any>();
-          registrationsData.forEach((reg: any) => {
-            const eventId = reg.event?.id ?? reg.id;
-            if (eventId && typeof eventId === 'number') {
-              registrationsMap.set(eventId, reg);
-            }
-          });
-          eventsData.forEach(event => {
-            const reg = registrationsMap.get(event.id);
-            if (reg) {
-              // Используем is_registered из регистрации, если есть, иначе считаем что зарегистрирован
-              event.is_registered = reg.is_registered !== undefined ? reg.is_registered : true;
-              // Используем is_participant из регистрации для определения участия
-              event.is_participant = reg.is_participant !== undefined ? reg.is_participant : false;
-            } else {
-              // Если регистрации нет, значит не зарегистрирован и не участвует
-              event.is_registered = false;
-              event.is_participant = false;
-            }
-          });
-        }
+        // Бэкенд уже правильно вычисляет is_registered и is_participant с учетом параметра participant
+        // Не нужно перезаписывать эти значения на фронтенде
         setEvents(eventsData);
         setCurrentParticipant(participantData);
         setMyRegistrations(registrationsData);

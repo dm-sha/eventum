@@ -29,51 +29,8 @@ const EventCalendar: React.FC<EventCalendarProps> = ({ events, participantId, cu
       // Используем is_participant, которое правильно вычисляется на бэкенде
       // с учетом вложенных v2 групп для всех типов мероприятий
       // (работает и для мероприятий с регистрацией, и без)
-      if (event.is_participant !== undefined) {
-        return event.is_participant;
-      }
-      
-      // Fallback для старых данных без is_participant (обратная совместимость)
-      // Если у мероприятия есть event_group_v2, используем is_registered
-      if (event.event_group_v2_id || event.event_group_v2) {
-        return event.is_registered;
-      }
-      
-      // Для старых мероприятий без event_group_v2 используем старую логику
-      if (event.participant_type === 'all') {
-        return true;
-      }
-      
-      if (event.participant_type === 'registration') {
-        return event.is_registered;
-      }
-      
-      if (event.participant_type === 'manual') {
-        // 1. Прямое назначение участника
-        if (event.participants.includes(participantId)) {
-          return true;
-        }
-        
-        // 2. Назначение через группу участника
-        const participantGroupIds = currentParticipant.groups?.map(g => g.id) || [];
-        const hasGroupAssignment = event.groups.some(groupId => 
-          participantGroupIds.includes(groupId)
-        );
-        if (hasGroupAssignment) {
-          return true;
-        }
-        
-        // 3. Назначение через теги групп участника
-        const participantGroupTagIds = currentParticipant.groups?.flatMap(g => g.tags?.map(t => t.id) || []) || [];
-        const hasGroupTagAssignment = event.group_tags.some(groupTag => 
-          participantGroupTagIds.includes(groupTag.id)
-        );
-        if (hasGroupTagAssignment) {
-          return true;
-        }
-      }
-      
-      return false;
+      // Для мероприятий без регистрации (без event_group_v2) все участники eventum видят их
+      return event.is_participant === true;
     });
   }, [events, participantId, currentParticipant]);
 
