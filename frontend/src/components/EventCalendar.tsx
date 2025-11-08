@@ -139,25 +139,31 @@ const EventCalendar: React.FC<EventCalendarProps> = ({ events, participantId, cu
       
       // Для календарных подписок используем webcal:// протокол
       const webcalUrl = response.webcal_url.replace('https://', 'webcal://');
-      const httpsUrl = response.webcal_url; // Оригинальный HTTPS URL для fallback
+      const httpsUrl = response.webcal_url; // Оригинальный HTTPS URL
       
       if (isAndroid) {
-        // Для Android пробуем несколько методов
-        // Chrome на Android может не поддерживать webcal:// напрямую
-        // Пробуем сначала webcal://, затем https:// (который может открыть приложение календаря)
-        try {
-          const opened = window.open(webcalUrl, '_blank');
-          if (!opened) {
-            // Если webcal:// не работает, пробуем https:// URL
-            // Некоторые приложения календаря на Android могут обработать https:// URL с .ics
-            window.location.href = httpsUrl;
+        // Для Android Chrome не поддерживает webcal:// напрямую
+        // Показываем пользователю инструкции и ссылку для копирования
+        const message = `Для подписки на календарь на Android:\n\n1. Скопируйте ссылку ниже\n2. Откройте приложение "Календарь Google"\n3. Нажмите "Настройки" → "Импорт и экспорт" → "Добавить календарь по URL"\n4. Вставьте скопированную ссылку\n\nИли используйте приложение ICSx⁵ из Google Play для прямой подписки.\n\nСсылка: ${httpsUrl}`;
+        
+        // Показываем диалог с инструкциями и кнопкой копирования
+        if (confirm(message + '\n\nНажмите OK, чтобы скопировать ссылку в буфер обмена.')) {
+          // Пробуем скопировать в буфер обмена
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            try {
+              await navigator.clipboard.writeText(httpsUrl);
+              alert('Ссылка скопирована в буфер обмена!');
+            } catch (e) {
+              // Если не удалось скопировать, просто показываем ссылку
+              prompt('Скопируйте эту ссылку:', httpsUrl);
+            }
+          } else {
+            // Fallback для старых браузеров
+            prompt('Скопируйте эту ссылку:', httpsUrl);
           }
-        } catch (e) {
-          // Если webcal:// не поддерживается, используем https:// URL
-          window.location.href = httpsUrl;
         }
       } else if (isIOS) {
-        // Для iOS используем window.location.href для лучшей совместимости с iPad Safari
+        // Для iOS используем window.location.href для лучшей совместимости
         // Программные клики по созданным элементам блокируются на iPad
         window.location.href = webcalUrl;
       } else {
@@ -172,11 +178,10 @@ const EventCalendar: React.FC<EventCalendarProps> = ({ events, participantId, cu
       console.error('Ошибка при подписке на календарь:', error);
       alert('Ошибка при подписке на календарь. Попробуйте еще раз.');
     } finally {
-      // Не сбрасываем isLoadingWebcal сразу, так как происходит переход
-      // Это позволит кнопке оставаться в состоянии загрузки до перехода
+      // Сбрасываем состояние загрузки
       setTimeout(() => {
         setIsLoadingWebcal(false);
-      }, 1000);
+      }, 500);
     }
   };
 
