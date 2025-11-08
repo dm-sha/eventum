@@ -2167,7 +2167,11 @@ def participant_calendar_ics(request, eventum_slug=None, participant_id=None):
         
         # Безопасное имя файла (убираем специальные символы)
         safe_filename = f"eventum-{eventum.slug}-{participant.id}.ics"
-        response['Content-Disposition'] = f'attachment; filename="{safe_filename}"'
+        # Используем оба формата для лучшей совместимости с Safari на iPad
+        # filename* в формате RFC 5987 для UTF-8
+        import urllib.parse
+        encoded_filename = urllib.parse.quote(safe_filename, safe='')
+        response['Content-Disposition'] = f'attachment; filename="{safe_filename}"; filename*=UTF-8\'\'{encoded_filename}'
         response['Cache-Control'] = 'public, max-age=300'  # Кэшируем на 5 минут
         response['Access-Control-Allow-Origin'] = '*'
         response['Access-Control-Allow-Methods'] = 'GET'

@@ -77,22 +77,43 @@ export const unregisterFromEvent = async (eventumSlug: string, eventId: number):
 // Скачать календарь мероприятий участника в формате iCalendar
 export const downloadParticipantCalendar = async (eventumSlug: string, participantId: number): Promise<void> => {
     const { apiClient } = await import('./client');
+    const { resolveApiBaseUrl } = await import('./baseUrl');
     
     try {
-        const response = await apiClient.get(`/eventums/${eventumSlug}/calendar/${participantId}.ics`, {
-            responseType: 'blob',
-        });
+        // Для Safari на iPad используем прямой переход на URL вместо blob
+        // Это более надежно, так как программные клики блокируются
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
         
-        // Создаем ссылку для скачивания
-        const blob = new Blob([response.data], { type: 'text/calendar' });
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `eventum-${eventumSlug}-${participantId}.ics`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
+        if (isIOS) {
+            // Для iOS используем прямой переход на серверный URL
+            // Сервер должен вернуть файл с заголовком Content-Disposition: attachment
+            const baseURL = resolveApiBaseUrl();
+            // Убираем trailing slash если есть
+            const cleanBaseURL = baseURL.endsWith('/') ? baseURL.slice(0, -1) : baseURL;
+            const url = `${cleanBaseURL}/eventums/${eventumSlug}/calendar/${participantId}.ics`;
+            window.location.href = url;
+        } else {
+            // Для других браузеров используем blob URL
+            const response = await apiClient.get(`/eventums/${eventumSlug}/calendar/${participantId}.ics`, {
+                responseType: 'blob',
+            });
+            
+            // Создаем ссылку для скачивания
+            const blob = new Blob([response.data], { type: 'text/calendar' });
+            const url = window.URL.createObjectURL(blob);
+            
+            // Пробуем использовать window.open для лучшей совместимости
+            const opened = window.open(url, '_blank');
+            if (!opened) {
+                // Если window.open заблокирован, используем прямой переход
+                window.location.href = url;
+            }
+            
+            // Очищаем URL через некоторое время
+            setTimeout(() => {
+                window.URL.revokeObjectURL(url);
+            }, 100);
+        }
     } catch (error) {
         console.error('Ошибка при скачивании календаря:', error);
         throw error;

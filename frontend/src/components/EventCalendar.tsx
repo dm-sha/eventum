@@ -136,22 +136,19 @@ const EventCalendar: React.FC<EventCalendarProps> = ({ events, participantId, cu
       // Для календарных подписок используем webcal:// протокол
       const webcalUrl = response.webcal_url.replace('https://', 'webcal://');
       
-      // Создаем ссылку с webcal протоколом
-      const link = document.createElement('a');
-      link.href = webcalUrl;
-      link.target = '_blank';
-      link.rel = 'noopener noreferrer';
-      
-      // Добавляем ссылку в DOM, кликаем и удаляем
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      // Используем window.location.href для лучшей совместимости с iPad Safari
+      // Программные клики по созданным элементам блокируются на iPad
+      window.location.href = webcalUrl;
       
     } catch (error) {
       console.error('Ошибка при подписке на календарь:', error);
       alert('Ошибка при подписке на календарь. Попробуйте еще раз.');
     } finally {
-      setIsLoadingWebcal(false);
+      // Не сбрасываем isLoadingWebcal сразу, так как происходит переход
+      // Это позволит кнопке оставаться в состоянии загрузки до перехода
+      setTimeout(() => {
+        setIsLoadingWebcal(false);
+      }, 1000);
     }
   };
 
