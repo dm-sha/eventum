@@ -115,16 +115,9 @@ def get_group_participant_ids(
         participant_relations = group._prefetched_objects_cache['participant_relations']
     else:
         # Fallback: если prefetch не сработал, загружаем связи напрямую
-        # ВНИМАНИЕ: это приводит к дополнительному запросу к БД!
-        from django.db import connection
-        query_count_before = len(connection.queries)
         participant_relations = list(ParticipantGroupV2ParticipantRelation.objects.filter(
             group=group
         ).select_related('participant'))
-        query_count_after = len(connection.queries)
-        queries_made = query_count_after - query_count_before
-        if queries_made > 0:
-            print(f"[get_group_participant_ids] ВНИМАНИЕ: для группы {group.id} ({group.name}) сделано {queries_made} запросов к БД для participant_relations (prefetch не сработал!)")
     
     # Получаем все group_relations из prefetch_related
     group_relations = []
@@ -136,9 +129,6 @@ def get_group_participant_ids(
                 target_group = group_rel.target_group
                 if target_group and not hasattr(target_group, '_prefetched_objects_cache'):
                     # Если у target_group нет prefetch'нутых данных, загружаем их
-                    # ВНИМАНИЕ: это приводит к дополнительным запросам к БД!
-                    from django.db import connection
-                    query_count_before = len(connection.queries)
                     target_group._prefetched_objects_cache = {}
                     target_group._prefetched_objects_cache['participant_relations'] = list(
                         ParticipantGroupV2ParticipantRelation.objects.filter(
@@ -150,22 +140,11 @@ def get_group_participant_ids(
                             group=target_group
                         ).select_related('target_group')
                     )
-                    query_count_after = len(connection.queries)
-                    queries_made = query_count_after - query_count_before
-                    if queries_made > 0:
-                        print(f"[get_group_participant_ids] ВНИМАНИЕ: для вложенной группы {target_group.id} ({target_group.name}) сделано {queries_made} запросов к БД (prefetch не сработал!)")
     else:
         # Fallback: если prefetch не сработал, загружаем связи напрямую
-        # ВНИМАНИЕ: это приводит к дополнительному запросу к БД!
-        from django.db import connection
-        query_count_before = len(connection.queries)
         group_relations = list(ParticipantGroupV2GroupRelation.objects.filter(
             group=group
         ).select_related('target_group'))
-        query_count_after = len(connection.queries)
-        queries_made = query_count_after - query_count_before
-        if queries_made > 0:
-            print(f"[get_group_participant_ids] ВНИМАНИЕ: для группы {group.id} ({group.name}) сделано {queries_made} запросов к БД для group_relations (prefetch не сработал!)")
     
     # Проверяем, есть ли хотя бы одна inclusive связь
     has_inclusive_participants = any(

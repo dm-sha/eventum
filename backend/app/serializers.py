@@ -2,9 +2,7 @@ from rest_framework import serializers
 from rest_framework.relations import MANY_RELATION_KWARGS
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.utils.text import slugify
-from django.db import connection, reset_queries
 from datetime import datetime
-import time
 from transliterate import translit
 from .models import (
     Eventum, Participant, ParticipantGroup,
@@ -177,24 +175,15 @@ class ParticipantSerializer(serializers.ModelSerializer):
         
         # Fallback: если prefetch не сработал, делаем запрос (но это не должно происходить)
         from .models import ParticipantGroupV2ParticipantRelation
-        from django.db import connection
-        query_count_before = len(connection.queries)
         
         group_relations = ParticipantGroupV2ParticipantRelation.objects.filter(
             participant=obj,
             relation_type=ParticipantGroupV2ParticipantRelation.RelationType.INCLUSIVE
         ).select_related('group')
-        result = [{
+        return [{
             'id': rel.group.id,
             'name': rel.group.name,
         } for rel in group_relations]
-        
-        query_count_after = len(connection.queries)
-        queries_made = query_count_after - query_count_before
-        if queries_made > 0:
-            print(f"[ParticipantSerializer.get_groups] ВНИМАНИЕ: для участника {obj.id} сделано {queries_made} запросов к БД (prefetch не сработал!)")
-        
-        return result
     
     def create(self, validated_data):
         """Переопределяем create для автоматического заполнения имени из пользователя"""
@@ -876,15 +865,9 @@ class EventWithRegistrationInfoSerializer(BaseEventSerializer):
                     registration_participant_ids = {app.id for app in obj.registration._prefetched_objects_cache['applicants']}
                 else:
                     # Fallback: если prefetch не сработал
-                    from django.db import connection
-                    query_count_before = len(connection.queries)
                     registration_participant_ids = set(
                         obj.registration.applicants.values_list('id', flat=True)
                     )
-                    query_count_after = len(connection.queries)
-                    queries_made = query_count_after - query_count_before
-                    if queries_made > 0:
-                        print(f"[EventRegistrationSerializer.get_available_participants] ВНИМАНИЕ: для регистрации {obj.registration.id} сделано {queries_made} запросов к БД для applicants (prefetch не сработал!)")
         
         if not registration_participant_ids:
             return 0
@@ -929,15 +912,9 @@ class EventWithRegistrationInfoSerializer(BaseEventSerializer):
                     registration_participant_ids = {app.id for app in obj.registration._prefetched_objects_cache['applicants']}
                 else:
                     # Fallback: если prefetch не сработал
-                    from django.db import connection
-                    query_count_before = len(connection.queries)
                     registration_participant_ids = set(
                         obj.registration.applicants.values_list('id', flat=True)
                     )
-                    query_count_after = len(connection.queries)
-                    queries_made = query_count_after - query_count_before
-                    if queries_made > 0:
-                        print(f"[EventRegistrationSerializer.get_available_without_unassigned_events] ВНИМАНИЕ: для регистрации {obj.registration.id} сделано {queries_made} запросов к БД для applicants (prefetch не сработал!)")
         
         if not registration_participant_ids:
             return 0
@@ -1034,17 +1011,12 @@ class EventWaveSerializer(serializers.ModelSerializer):
     
     def get_registrations(self, obj):
         """Получить регистрации волны"""
-        start_time = time.time()
-        query_count_before = len(connection.queries)
-        
         if obj.pk:
             # ИСПОЛЬЗУЕМ prefetch'енные registrations вместо нового запроса
             if hasattr(obj, '_prefetched_objects_cache') and 'registrations' in obj._prefetched_objects_cache:
                 registrations = obj._prefetched_objects_cache['registrations']
-                print(f"[EventWaveSerializer.get_registrations] Используются prefetch'нутые registrations: {len(registrations)}")
             else:
                 # Fallback: если prefetch не сработал
-                print(f"[EventWaveSerializer.get_registrations] Prefetch не сработал, делаем запрос к БД!")
                 registrations = obj.registrations.all().select_related('event', 'allowed_group').prefetch_related('applicants')
 
             # Получаем participant из контекста (загружается в ViewSet)
@@ -1076,24 +1048,14 @@ class EventWaveSerializer(serializers.ModelSerializer):
                             is_accessible = False
                         else:
                             # Проверяем вхождение участника в группу
-                            query_count_before_allowed = len(connection.queries)
                             is_accessible = self._has_participant_in_group(grp, participant.id)
-                            query_count_after_allowed = len(connection.queries)
-                            queries_for_allowed = query_count_after_allowed - query_count_before_allowed
-                            if queries_for_allowed > 0:
-                                print(f"[EventWaveSerializer.get_registrations] Для allowed_group {grp.id} ({grp.name}) сделано {queries_for_allowed} запросов")
 
                 # Оптимизированный подсчет зарегистрированных участников
                 # Используем prefetch'енные данные вместо запросов к БД
                 if reg.registration_type == EventRegistration.RegistrationType.BUTTON:
                     # Для типа button считаем участников в event_group_v2
                     if reg.event.event_group_v2:
-                        query_count_before_group = len(connection.queries)
                         participant_ids = self._get_group_participant_ids(reg.event.event_group_v2, is_allowed_group=False)
-                        query_count_after_group = len(connection.queries)
-                        queries_for_group = query_count_after_group - query_count_before_group
-                        if queries_for_group > 0:
-                            print(f"[EventWaveSerializer.get_registrations] Для event_group_v2 группы {reg.event.event_group_v2.id} ({reg.event.event_group_v2.name}) сделано {queries_for_group} запросов")
                         registered_count = len(participant_ids)
                     else:
                         registered_count = 0
@@ -1118,32 +1080,19 @@ class EventWaveSerializer(serializers.ModelSerializer):
                     'is_accessible': is_accessible,
                 })
 
-            elapsed_time = time.time() - start_time
-            query_count_after = len(connection.queries)
-            queries_made = query_count_after - query_count_before
-            print(f"[EventWaveSerializer.get_registrations] Обработано {len(result)} регистраций за {elapsed_time:.4f}s, запросов к БД: {queries_made}")
-            
-            if queries_made > 0:
-                print(f"[EventWaveSerializer.get_registrations] ВНИМАНИЕ: сделано {queries_made} запросов к БД (ожидалось 0)")
-            
             return result
         return []
     
     def get_events(self, obj):
         """Получить события, связанные с регистрациями в волне, используя уже префетченные связи"""
-        start_time = time.time()
-        query_count_before = len(connection.queries)
-        
         if not obj.pk:
             return []
 
         # ИСПОЛЬЗУЕМ prefetch'енные registrations вместо нового запроса
         if hasattr(obj, '_prefetched_objects_cache') and 'registrations' in obj._prefetched_objects_cache:
             registrations = obj._prefetched_objects_cache['registrations']
-            print(f"[EventWaveSerializer.get_events] Используются prefetch'нутые registrations: {len(registrations)}")
         else:
             # Fallback: если prefetch не сработал
-            print(f"[EventWaveSerializer.get_events] Prefetch не сработал, делаем запрос к БД!")
             registrations = list(obj.registrations.all())
         
         events = []
@@ -1155,20 +1104,7 @@ class EventWaveSerializer(serializers.ModelSerializer):
                 events.append(ev)
 
         serializer = EventSerializer(events, many=True, context=self.context)
-        result = serializer.data
-        
-        elapsed_time = time.time() - start_time
-        query_count_after = len(connection.queries)
-        queries_made = query_count_after - query_count_before
-        print(f"[EventWaveSerializer.get_events] Обработано {len(result)} событий за {elapsed_time:.4f}s, запросов к БД: {queries_made}")
-        
-        if queries_made > 0:
-            print(f"[EventWaveSerializer.get_events] ВНИМАНИЕ: сделано {queries_made} запросов к БД (ожидалось 0)")
-            # Логируем первые несколько запросов
-            for i, q in enumerate(connection.queries[query_count_before:query_count_before+3]):
-                print(f"  Запрос {i+1}: {q.get('sql', '')[:200]}")
-        
-        return result
+        return serializer.data
     
     def validate_registration_ids(self, value):
         """Валидация registration_ids - регистрации должны принадлежать тому же eventum"""

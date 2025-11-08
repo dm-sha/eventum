@@ -706,9 +706,6 @@ class EventWaveViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
         from django.db.models import Prefetch
         from .models import ParticipantGroupV2ParticipantRelation, ParticipantGroupV2GroupRelation
         
-        start_time = time.time()
-        reset_queries()
-        
         eventum = self.get_eventum()
         
         # Рекурсивный prefetch для вложенных групп (для всех уровней вложенности)
@@ -822,10 +819,6 @@ class EventWaveViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
             ),
         ).order_by('id')
         
-        # Логируем время создания queryset (еще не выполнен)
-        query_time = time.time() - start_time
-        print(f"[EventWaveViewSet.get_queryset] Queryset создан за {query_time:.4f}s")
-        
         return queryset
 
     def get_serializer_context(self):
@@ -838,44 +831,12 @@ class EventWaveViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
         return context
     
     def list(self, request, *args, **kwargs):
-        """Переопределяем list для логирования производительности"""
-        start_time = time.time()
-        reset_queries()
-        
-        response = super().list(request, *args, **kwargs)
-        
-        total_time = time.time() - start_time
-        query_count = len(connection.queries)
-        print(f"[EventWaveViewSet.list] Выполнено за {total_time:.4f}s, запросов к БД: {query_count}")
-        
-        # Логируем медленные запросы (>100ms)
-        slow_queries = [q for q in connection.queries if float(q.get('time', 0)) > 0.1]
-        if slow_queries:
-            print(f"[EventWaveViewSet.list] Найдено {len(slow_queries)} медленных запросов (>100ms)")
-            for q in slow_queries[:5]:  # Показываем первые 5
-                print(f"  Медленный запрос ({q.get('time', 0)}s): {q.get('sql', '')[:200]}")
-        
-        return response
+        """Переопределяем list"""
+        return super().list(request, *args, **kwargs)
     
     def retrieve(self, request, *args, **kwargs):
-        """Переопределяем retrieve для логирования производительности"""
-        start_time = time.time()
-        reset_queries()
-        
-        response = super().retrieve(request, *args, **kwargs)
-        
-        total_time = time.time() - start_time
-        query_count = len(connection.queries)
-        print(f"[EventWaveViewSet.retrieve] Выполнено за {total_time:.4f}s, запросов к БД: {query_count}")
-        
-        # Логируем медленные запросы (>100ms)
-        slow_queries = [q for q in connection.queries if float(q.get('time', 0)) > 0.1]
-        if slow_queries:
-            print(f"[EventWaveViewSet.retrieve] Найдено {len(slow_queries)} медленных запросов (>100ms)")
-            for q in slow_queries[:5]:  # Показываем первые 5
-                print(f"  Медленный запрос ({q.get('time', 0)}s): {q.get('sql', '')[:200]}")
-        
-        return response
+        """Переопределяем retrieve"""
+        return super().retrieve(request, *args, **kwargs)
 
 
 class EventRegistrationViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
@@ -1388,7 +1349,6 @@ class VKAuthView(TokenObtainPairView):
                     'redirect_uri': settings.VK_REDIRECT_URI,
                     'code': code,
                 }
-                print(f"VK OAuth token request params: {vk_params}")
                 
                 try:
                     vk_token_response = session.get(
@@ -1410,8 +1370,6 @@ class VKAuthView(TokenObtainPairView):
                         status=status.HTTP_503_SERVICE_UNAVAILABLE
                     )
                 
-                print(f"VK token response status: {vk_token_response.status_code}")
-                print(f"VK token response content: {vk_token_response.text}")
                 
                 if vk_token_response.status_code != 200:
                     return Response(
@@ -1420,7 +1378,6 @@ class VKAuthView(TokenObtainPairView):
                     )
                 
                 vk_data = vk_token_response.json()
-                print(f"VK token response data: {vk_data}")
                 
                 if 'error' in vk_data:
                     return Response(
