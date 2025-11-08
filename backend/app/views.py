@@ -1922,8 +1922,8 @@ def participant_calendar_ics(request, eventum_slug=None, participant_id=None):
         if not participant_id:
             return Response({'error': 'participant_id is required'}, status=status.HTTP_400_BAD_REQUEST)
         
-        # Используем фиксированный интервал обновления 10 минут
-        refresh_interval_minutes = 10
+        # Используем фиксированный интервал обновления 5 минут
+        refresh_interval_minutes = 5
         
         # Получаем участника
         try:
@@ -2001,6 +2001,8 @@ def participant_calendar_ics(request, eventum_slug=None, participant_id=None):
         # Добавляем рекомендуемый интервал обновления
         # Формат: PT{minutes}M означает "Period Time {minutes} Minutes"
         cal.add('REFRESH-INTERVAL', f'PT{refresh_interval_minutes}M')
+        # X-PUBLISHED-TTL - нестандартное свойство, но лучше поддерживается macOS Calendar
+        cal.add('X-PUBLISHED-TTL', f'PT{refresh_interval_minutes}M')
         
         # Добавляем каждое мероприятие в календарь
         for event in filtered_events:
