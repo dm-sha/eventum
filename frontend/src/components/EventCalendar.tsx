@@ -133,12 +133,40 @@ const EventCalendar: React.FC<EventCalendarProps> = ({ events, participantId, cu
     try {
       const response = await getParticipantCalendarWebcalUrl(eventumSlug, participantId);
       
+      // Определяем платформу
+      const isAndroid = /Android/.test(navigator.userAgent);
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+      
       // Для календарных подписок используем webcal:// протокол
       const webcalUrl = response.webcal_url.replace('https://', 'webcal://');
+      const httpsUrl = response.webcal_url; // Оригинальный HTTPS URL для fallback
       
-      // Используем window.location.href для лучшей совместимости с iPad Safari
-      // Программные клики по созданным элементам блокируются на iPad
-      window.location.href = webcalUrl;
+      if (isAndroid) {
+        // Для Android пробуем несколько методов
+        // Chrome на Android может не поддерживать webcal:// напрямую
+        // Пробуем сначала webcal://, затем https:// (который может открыть приложение календаря)
+        try {
+          const opened = window.open(webcalUrl, '_blank');
+          if (!opened) {
+            // Если webcal:// не работает, пробуем https:// URL
+            // Некоторые приложения календаря на Android могут обработать https:// URL с .ics
+            window.location.href = httpsUrl;
+          }
+        } catch (e) {
+          // Если webcal:// не поддерживается, используем https:// URL
+          window.location.href = httpsUrl;
+        }
+      } else if (isIOS) {
+        // Для iOS используем window.location.href для лучшей совместимости с iPad Safari
+        // Программные клики по созданным элементам блокируются на iPad
+        window.location.href = webcalUrl;
+      } else {
+        // Для других платформ пробуем window.open, затем fallback на window.location.href
+        const opened = window.open(webcalUrl, '_blank');
+        if (!opened) {
+          window.location.href = webcalUrl;
+        }
+      }
       
     } catch (error) {
       console.error('Ошибка при подписке на календарь:', error);
