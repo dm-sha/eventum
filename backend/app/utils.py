@@ -77,7 +77,6 @@ def get_group_participant_ids(
     group, 
     all_participant_ids=None, 
     visited_groups=None, 
-    is_allowed_group=False,
     prefetch_nested_groups=False
 ):
     """
@@ -88,8 +87,6 @@ def get_group_participant_ids(
         group: Группа участников (ParticipantGroupV2)
         all_participant_ids: Множество всех ID участников eventum (для случая, когда нет inclusive связей)
         visited_groups: Множество ID уже посещенных групп (для предотвращения циклов)
-        is_allowed_group: Если True, группа используется как allowed_group для проверки доступа.
-                         В этом случае, если группа не имеет явных inclusive связей, возвращается пустой список.
         prefetch_nested_groups: Если True, загружает связи для вложенных групп, если они не prefetch'нуты
     
     Returns:
@@ -158,13 +155,6 @@ def get_group_participant_ids(
     
     # Если нет ни участников, ни inclusive групп
     if not has_inclusive_participants and not has_inclusive_groups:
-        # ВАЖНО: для групп доступа (allowed_group) это неправильное поведение
-        # Если группа используется как allowed_group и не имеет явных inclusive связей,
-        # возвращаем пустой список (группа недоступна никому)
-        if is_allowed_group:
-            return set()
-        
-        # Для обычных групп (не allowed_group):
         # - Если нет никаких связей - возвращаем всех участников eventum
         # - Если только exclusive связи - возвращаем всех участников eventum кроме exclusive
         all_participant_ids = all_participant_ids or set()
@@ -189,7 +179,6 @@ def get_group_participant_ids(
                             target_group, 
                             all_participant_ids=all_participant_ids,
                             visited_groups=visited_groups.copy(), 
-                            is_allowed_group=False,
                             prefetch_nested_groups=prefetch_nested_groups
                         )
                     )
@@ -220,7 +209,6 @@ def get_group_participant_ids(
                     target_group, 
                     all_participant_ids=all_participant_ids,
                     visited_groups=visited_groups.copy(), 
-                    is_allowed_group=is_allowed_group,
                     prefetch_nested_groups=prefetch_nested_groups
                 )
                 

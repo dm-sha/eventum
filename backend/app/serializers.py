@@ -4,6 +4,7 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.utils.text import slugify
 from datetime import datetime
 from transliterate import translit
+import logging
 from .models import (
     Eventum, Participant, ParticipantGroup,
     GroupTag, Event, EventTag, UserProfile, UserRole, Location, EventWave, EventRegistration,
@@ -852,11 +853,8 @@ class EventWithRegistrationInfoSerializer(BaseEventSerializer):
                 # Для типа button участники в event_group_v2
                 # ИСПОЛЬЗУЕМ get_group_participant_ids вместо get_participants().values_list() для избежания запросов к БД
                 if obj.event_group_v2:
-                    all_participant_ids = self.context.get('all_participant_ids', set())
                     registration_participant_ids = self._get_group_participant_ids(
-                        obj.event_group_v2,
-                        all_participant_ids=all_participant_ids,
-                        is_allowed_group=False
+                        obj.event_group_v2
                     )
             else:
                 # Для типа application участники в applicants
@@ -899,11 +897,8 @@ class EventWithRegistrationInfoSerializer(BaseEventSerializer):
                 # Для типа button участники в event_group_v2
                 # ИСПОЛЬЗУЕМ get_group_participant_ids вместо get_participants().values_list() для избежания запросов к БД
                 if obj.event_group_v2:
-                    all_participant_ids = self.context.get('all_participant_ids', set())
                     registration_participant_ids = self._get_group_participant_ids(
-                        obj.event_group_v2,
-                        all_participant_ids=all_participant_ids,
-                        is_allowed_group=False
+                        obj.event_group_v2
                     )
             else:
                 # Для типа application участники в applicants
@@ -977,7 +972,7 @@ class EventWaveSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'eventum', 'events']
 
-    def _get_group_participant_ids(self, group, visited_groups=None, is_allowed_group=False):
+    def _get_group_participant_ids(self, group, visited_groups=None):
         """
         Обёртка для использования общей функции get_group_participant_ids из utils.
         Получает ID участников группы используя уже загруженные данные (prefetch_related).
@@ -986,11 +981,10 @@ class EventWaveSerializer(serializers.ModelSerializer):
         return get_group_participant_ids(
             group,
             all_participant_ids=all_participant_ids,
-            visited_groups=visited_groups,
-            is_allowed_group=is_allowed_group
+            visited_groups=visited_groups
         )
     
-    def _has_participant_in_group(self, group, participant_id, is_allowed_group=True):
+    def _has_participant_in_group(self, group, participant_id):
         """
         Проверяет участие в группе используя уже загруженные данные (prefetch_related).
         Работает полностью в памяти Python без дополнительных запросов к БД.
@@ -998,13 +992,11 @@ class EventWaveSerializer(serializers.ModelSerializer):
         Args:
             group: Группа участников
             participant_id: ID участника для проверки
-            is_allowed_group: Если True, группа используется как allowed_group для проверки доступа.
-                             По умолчанию True, так как этот метод используется для проверки доступа.
         """
         if not group:
             return False
         
-        participant_ids = self._get_group_participant_ids(group, is_allowed_group=is_allowed_group)
+        participant_ids = self._get_group_participant_ids(group)
         result = participant_id in participant_ids
         
         return result
@@ -1055,7 +1047,7 @@ class EventWaveSerializer(serializers.ModelSerializer):
                 if reg.registration_type == EventRegistration.RegistrationType.BUTTON:
                     # Для типа button считаем участников в event_group_v2
                     if reg.event.event_group_v2:
-                        participant_ids = self._get_group_participant_ids(reg.event.event_group_v2, is_allowed_group=False)
+                        participant_ids = self._get_group_participant_ids(reg.event.event_group_v2)
                         registered_count = len(participant_ids)
                     else:
                         registered_count = 0
@@ -1451,7 +1443,7 @@ class EventSerializer(serializers.ModelSerializer):
         # Если нет настройки регистрации, возвращаем 0
         return 0
 
-    def _get_group_participant_ids(self, group, visited_groups=None, is_allowed_group=False):
+    def _get_group_participant_ids(self, group, visited_groups=None):
         """
         Обёртка для использования общей функции get_group_participant_ids из utils.
         Получает ID участников группы используя уже загруженные данные (prefetch_related).
@@ -1461,11 +1453,10 @@ class EventSerializer(serializers.ModelSerializer):
             group,
             all_participant_ids=all_participant_ids,
             visited_groups=visited_groups,
-            is_allowed_group=is_allowed_group,
             prefetch_nested_groups=True  # Включаем prefetch для вложенных групп
         )
     
-    def _has_participant_in_group(self, group, participant_id, is_allowed_group=False):
+    def _has_participant_in_group(self, group, participant_id):
         """
         Проверяет участие в группе используя уже загруженные данные (prefetch_related).
         Работает полностью в памяти Python без дополнительных запросов к БД.
@@ -1473,13 +1464,11 @@ class EventSerializer(serializers.ModelSerializer):
         Args:
             group: Группа участников
             participant_id: ID участника для проверки
-            is_allowed_group: Если True, группа используется как allowed_group для проверки доступа.
-                             По умолчанию False для EventSerializer.
         """
         if not group:
             return False
         
-        participant_ids = self._get_group_participant_ids(group, is_allowed_group=is_allowed_group)
+        participant_ids = self._get_group_participant_ids(group)
         return participant_id in participant_ids
     
     def get_is_registered(self, obj):

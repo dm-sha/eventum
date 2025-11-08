@@ -1942,7 +1942,7 @@ def participant_calendar_ics(request, eventum_slug=None, participant_id=None):
         all_participant_ids = set(Participant.objects.filter(eventum=eventum).values_list('id', flat=True))
         
         # Вспомогательная функция для проверки участия в группе
-        def _has_participant_in_group(group, participant_id, is_allowed_group=False):
+        def _has_participant_in_group(group, participant_id):
             """Проверяет участие в группе используя уже загруженные данные"""
             if not group:
                 return False
@@ -1950,7 +1950,6 @@ def participant_calendar_ics(request, eventum_slug=None, participant_id=None):
             participant_ids = get_group_participant_ids(
                 group,
                 all_participant_ids=all_participant_ids,
-                is_allowed_group=is_allowed_group,
                 prefetch_nested_groups=True
             )
             return participant_id in participant_ids
