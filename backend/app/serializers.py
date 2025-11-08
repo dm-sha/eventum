@@ -2,7 +2,9 @@ from rest_framework import serializers
 from rest_framework.relations import MANY_RELATION_KWARGS
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.utils.text import slugify
+from django.db import connection, reset_queries
 from datetime import datetime
+import time
 from transliterate import translit
 from .models import (
     Eventum, Participant, ParticipantGroup,
@@ -10,6 +12,7 @@ from .models import (
     ParticipantGroupV2, ParticipantGroupV2ParticipantRelation, ParticipantGroupV2GroupRelation,
     ParticipantGroupV2EventRelation
 )
+from .utils import get_group_participant_ids
 
 
 class LocalDateTimeField(serializers.DateTimeField):
@@ -162,18 +165,36 @@ class ParticipantSerializer(serializers.ModelSerializer):
         return None
     
     def get_groups(self, obj):
-        """Возвращает группы участника"""
-        # Используем prefetch_related для оптимизации
-        groups = obj.groups.all()
-        return [{
-            'id': group.id,
-            'name': group.name,
-            'slug': group.slug,
-            'tags': [
-                {'id': tag.id, 'name': tag.name, 'slug': tag.slug} 
-                for tag in group.tags.all()
-            ]
-        } for group in groups]
+        """Возвращает группы участника (v2)"""
+        # ИСПОЛЬЗУЕМ prefetch'нутые данные вместо запроса к БД
+        # Данные должны быть загружены через prefetch_related в ViewSet
+        if hasattr(obj, 'v2_groups'):
+            # Используем prefetch'нутые данные
+            return [{
+                'id': rel.group.id,
+                'name': rel.group.name,
+            } for rel in obj.v2_groups]
+        
+        # Fallback: если prefetch не сработал, делаем запрос (но это не должно происходить)
+        from .models import ParticipantGroupV2ParticipantRelation
+        from django.db import connection
+        query_count_before = len(connection.queries)
+        
+        group_relations = ParticipantGroupV2ParticipantRelation.objects.filter(
+            participant=obj,
+            relation_type=ParticipantGroupV2ParticipantRelation.RelationType.INCLUSIVE
+        ).select_related('group')
+        result = [{
+            'id': rel.group.id,
+            'name': rel.group.name,
+        } for rel in group_relations]
+        
+        query_count_after = len(connection.queries)
+        queries_made = query_count_after - query_count_before
+        if queries_made > 0:
+            print(f"[ParticipantSerializer.get_groups] ВНИМАНИЕ: для участника {obj.id} сделано {queries_made} запросов к БД (prefetch не сработал!)")
+        
+        return result
     
     def create(self, validated_data):
         """Переопределяем create для автоматического заполнения имени из пользователя"""
@@ -840,15 +861,30 @@ class EventWithRegistrationInfoSerializer(BaseEventSerializer):
         if hasattr(obj, 'registration') and obj.registration:
             if obj.registration.registration_type == EventRegistration.RegistrationType.BUTTON:
                 # Для типа button участники в event_group_v2
+                # ИСПОЛЬЗУЕМ get_group_participant_ids вместо get_participants().values_list() для избежания запросов к БД
                 if obj.event_group_v2:
-                    registration_participant_ids = set(
-                        obj.event_group_v2.get_participants().values_list('id', flat=True)
+                    all_participant_ids = self.context.get('all_participant_ids', set())
+                    registration_participant_ids = self._get_group_participant_ids(
+                        obj.event_group_v2,
+                        all_participant_ids=all_participant_ids,
+                        is_allowed_group=False
                     )
             else:
                 # Для типа application участники в applicants
-                registration_participant_ids = set(
-                    obj.registration.applicants.values_list('id', flat=True)
-                )
+                # ИСПОЛЬЗУЕМ prefetch'нутые данные
+                if hasattr(obj.registration, '_prefetched_objects_cache') and 'applicants' in obj.registration._prefetched_objects_cache:
+                    registration_participant_ids = {app.id for app in obj.registration._prefetched_objects_cache['applicants']}
+                else:
+                    # Fallback: если prefetch не сработал
+                    from django.db import connection
+                    query_count_before = len(connection.queries)
+                    registration_participant_ids = set(
+                        obj.registration.applicants.values_list('id', flat=True)
+                    )
+                    query_count_after = len(connection.queries)
+                    queries_made = query_count_after - query_count_before
+                    if queries_made > 0:
+                        print(f"[EventRegistrationSerializer.get_available_participants] ВНИМАНИЕ: для регистрации {obj.registration.id} сделано {queries_made} запросов к БД для applicants (prefetch не сработал!)")
         
         if not registration_participant_ids:
             return 0
@@ -878,15 +914,30 @@ class EventWithRegistrationInfoSerializer(BaseEventSerializer):
         if hasattr(obj, 'registration') and obj.registration:
             if obj.registration.registration_type == EventRegistration.RegistrationType.BUTTON:
                 # Для типа button участники в event_group_v2
+                # ИСПОЛЬЗУЕМ get_group_participant_ids вместо get_participants().values_list() для избежания запросов к БД
                 if obj.event_group_v2:
-                    registration_participant_ids = set(
-                        obj.event_group_v2.get_participants().values_list('id', flat=True)
+                    all_participant_ids = self.context.get('all_participant_ids', set())
+                    registration_participant_ids = self._get_group_participant_ids(
+                        obj.event_group_v2,
+                        all_participant_ids=all_participant_ids,
+                        is_allowed_group=False
                     )
             else:
                 # Для типа application участники в applicants
-                registration_participant_ids = set(
-                    obj.registration.applicants.values_list('id', flat=True)
-                )
+                # ИСПОЛЬЗУЕМ prefetch'нутые данные
+                if hasattr(obj.registration, '_prefetched_objects_cache') and 'applicants' in obj.registration._prefetched_objects_cache:
+                    registration_participant_ids = {app.id for app in obj.registration._prefetched_objects_cache['applicants']}
+                else:
+                    # Fallback: если prefetch не сработал
+                    from django.db import connection
+                    query_count_before = len(connection.queries)
+                    registration_participant_ids = set(
+                        obj.registration.applicants.values_list('id', flat=True)
+                    )
+                    query_count_after = len(connection.queries)
+                    queries_made = query_count_after - query_count_before
+                    if queries_made > 0:
+                        print(f"[EventRegistrationSerializer.get_available_without_unassigned_events] ВНИМАНИЕ: для регистрации {obj.registration.id} сделано {queries_made} запросов к БД для applicants (prefetch не сработал!)")
         
         if not registration_participant_ids:
             return 0
@@ -951,122 +1002,16 @@ class EventWaveSerializer(serializers.ModelSerializer):
 
     def _get_group_participant_ids(self, group, visited_groups=None, is_allowed_group=False):
         """
+        Обёртка для использования общей функции get_group_participant_ids из utils.
         Получает ID участников группы используя уже загруженные данные (prefetch_related).
-        Работает полностью в памяти Python без дополнительных запросов к БД.
-        Для рекурсивных групп может потребоваться дополнительная обработка.
-        
-        Args:
-            group: Группа участников
-            visited_groups: Множество ID уже посещенных групп (для предотвращения циклов)
-            is_allowed_group: Если True, группа используется как allowed_group для проверки доступа.
-                             В этом случае, если группа не имеет явных inclusive связей, возвращается пустой список.
         """
-        # Импортируем модели в начале функции для доступа во всей функции
-        from .models import ParticipantGroupV2ParticipantRelation, ParticipantGroupV2GroupRelation
-        
-        if not group:
-            return set()
-        
-        if visited_groups is None:
-            visited_groups = set()
-        
-        # Предотвращаем циклические ссылки
-        if group.id in visited_groups:
-            return set()
-        
-        visited_groups.add(group.id)
-        
-        # Получаем все participant_relations из prefetch_related
-        # Если prefetch не сработал, загружаем связи напрямую (fallback для отладки)
-        participant_relations = []
-        if hasattr(group, '_prefetched_objects_cache') and 'participant_relations' in group._prefetched_objects_cache:
-            participant_relations = group._prefetched_objects_cache['participant_relations']
-        else:
-            # Fallback: если prefetch не сработал, загружаем связи напрямую
-            # Это может произойти если prefetch не был настроен правильно
-            participant_relations = list(ParticipantGroupV2ParticipantRelation.objects.filter(
-                group=group
-            ).select_related('participant'))
-        
-        # Получаем все group_relations из prefetch_related
-        # Если prefetch не сработал, загружаем связи напрямую (fallback для отладки)
-        group_relations = []
-        if hasattr(group, '_prefetched_objects_cache') and 'group_relations' in group._prefetched_objects_cache:
-            group_relations = group._prefetched_objects_cache['group_relations']
-        else:
-            # Fallback: если prefetch не сработал, загружаем связи напрямую
-            group_relations = list(ParticipantGroupV2GroupRelation.objects.filter(
-                group=group
-            ).select_related('target_group'))
-        
-        # Проверяем, есть ли хотя бы одна inclusive связь
-        has_inclusive_participants = any(
-            rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.INCLUSIVE
-            for rel in participant_relations
+        all_participant_ids = self.context.get('all_participant_ids', set())
+        return get_group_participant_ids(
+            group,
+            all_participant_ids=all_participant_ids,
+            visited_groups=visited_groups,
+            is_allowed_group=is_allowed_group
         )
-        has_inclusive_groups = any(
-            rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.INCLUSIVE
-            for rel in group_relations
-        )
-        
-        # Если нет ни участников, ни inclusive групп
-        if not has_inclusive_participants and not has_inclusive_groups:
-            # ВАЖНО: для групп доступа (allowed_group) это неправильное поведение
-            # Если группа используется как allowed_group и не имеет явных inclusive связей,
-            # возвращаем пустой список (группа недоступна никому)
-            if is_allowed_group:
-                return set()
-            
-            # Для обычных групп (не allowed_group):
-            # - Если нет никаких связей - возвращаем всех участников eventum
-            # - Если только exclusive связи - возвращаем всех участников eventum кроме exclusive
-            # Используем all_participant_ids из контекста
-            all_participant_ids = self.context.get('all_participant_ids', set())
-            
-            # Исключаем excluded участников
-            excluded_participant_ids = set()
-            for rel in participant_relations:
-                if rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.EXCLUSIVE:
-                    excluded_participant_ids.add(rel.participant_id)
-            
-            # Исключаем участников из excluded групп (рекурсивно)
-            for group_rel in group_relations:
-                if group_rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.EXCLUSIVE:
-                    target_group = group_rel.target_group
-                    excluded_participant_ids.update(
-                        self._get_group_participant_ids(target_group, visited_groups.copy(), is_allowed_group=False)
-                    )
-            
-            result = all_participant_ids - excluded_participant_ids
-            
-            return result
-        else:
-            # Стандартная логика включений/исключений
-            included_participant_ids = set()
-            excluded_participant_ids = set()
-            
-            # Обрабатываем прямые связи с участниками
-            for rel in participant_relations:
-                if rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.INCLUSIVE:
-                    included_participant_ids.add(rel.participant_id)
-                elif rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.EXCLUSIVE:
-                    excluded_participant_ids.add(rel.participant_id)
-            
-            # Обрабатываем связи с группами
-            for group_rel in group_relations:
-                target_group = group_rel.target_group
-                # Передаем is_allowed_group дальше при рекурсивном вызове
-                target_participant_ids = self._get_group_participant_ids(target_group, visited_groups.copy(), is_allowed_group=is_allowed_group)
-                
-                if group_rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.INCLUSIVE:
-                    included_participant_ids.update(target_participant_ids)
-                elif group_rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.EXCLUSIVE:
-                    excluded_participant_ids.update(target_participant_ids)
-            
-            # Исключаем участников из списка включенных
-            included_participant_ids -= excluded_participant_ids
-            
-            return included_participant_ids
     
     def _has_participant_in_group(self, group, participant_id, is_allowed_group=True):
         """
@@ -1089,12 +1034,17 @@ class EventWaveSerializer(serializers.ModelSerializer):
     
     def get_registrations(self, obj):
         """Получить регистрации волны"""
+        start_time = time.time()
+        query_count_before = len(connection.queries)
+        
         if obj.pk:
             # ИСПОЛЬЗУЕМ prefetch'енные registrations вместо нового запроса
             if hasattr(obj, '_prefetched_objects_cache') and 'registrations' in obj._prefetched_objects_cache:
                 registrations = obj._prefetched_objects_cache['registrations']
+                print(f"[EventWaveSerializer.get_registrations] Используются prefetch'нутые registrations: {len(registrations)}")
             else:
                 # Fallback: если prefetch не сработал
+                print(f"[EventWaveSerializer.get_registrations] Prefetch не сработал, делаем запрос к БД!")
                 registrations = obj.registrations.all().select_related('event', 'allowed_group').prefetch_related('applicants')
 
             # Получаем participant из контекста (загружается в ViewSet)
@@ -1126,14 +1076,24 @@ class EventWaveSerializer(serializers.ModelSerializer):
                             is_accessible = False
                         else:
                             # Проверяем вхождение участника в группу
+                            query_count_before_allowed = len(connection.queries)
                             is_accessible = self._has_participant_in_group(grp, participant.id)
+                            query_count_after_allowed = len(connection.queries)
+                            queries_for_allowed = query_count_after_allowed - query_count_before_allowed
+                            if queries_for_allowed > 0:
+                                print(f"[EventWaveSerializer.get_registrations] Для allowed_group {grp.id} ({grp.name}) сделано {queries_for_allowed} запросов")
 
                 # Оптимизированный подсчет зарегистрированных участников
                 # Используем prefetch'енные данные вместо запросов к БД
                 if reg.registration_type == EventRegistration.RegistrationType.BUTTON:
                     # Для типа button считаем участников в event_group_v2
                     if reg.event.event_group_v2:
+                        query_count_before_group = len(connection.queries)
                         participant_ids = self._get_group_participant_ids(reg.event.event_group_v2, is_allowed_group=False)
+                        query_count_after_group = len(connection.queries)
+                        queries_for_group = query_count_after_group - query_count_before_group
+                        if queries_for_group > 0:
+                            print(f"[EventWaveSerializer.get_registrations] Для event_group_v2 группы {reg.event.event_group_v2.id} ({reg.event.event_group_v2.name}) сделано {queries_for_group} запросов")
                         registered_count = len(participant_ids)
                     else:
                         registered_count = 0
@@ -1158,19 +1118,32 @@ class EventWaveSerializer(serializers.ModelSerializer):
                     'is_accessible': is_accessible,
                 })
 
+            elapsed_time = time.time() - start_time
+            query_count_after = len(connection.queries)
+            queries_made = query_count_after - query_count_before
+            print(f"[EventWaveSerializer.get_registrations] Обработано {len(result)} регистраций за {elapsed_time:.4f}s, запросов к БД: {queries_made}")
+            
+            if queries_made > 0:
+                print(f"[EventWaveSerializer.get_registrations] ВНИМАНИЕ: сделано {queries_made} запросов к БД (ожидалось 0)")
+            
             return result
         return []
     
     def get_events(self, obj):
         """Получить события, связанные с регистрациями в волне, используя уже префетченные связи"""
+        start_time = time.time()
+        query_count_before = len(connection.queries)
+        
         if not obj.pk:
             return []
 
         # ИСПОЛЬЗУЕМ prefetch'енные registrations вместо нового запроса
         if hasattr(obj, '_prefetched_objects_cache') and 'registrations' in obj._prefetched_objects_cache:
             registrations = obj._prefetched_objects_cache['registrations']
+            print(f"[EventWaveSerializer.get_events] Используются prefetch'нутые registrations: {len(registrations)}")
         else:
             # Fallback: если prefetch не сработал
+            print(f"[EventWaveSerializer.get_events] Prefetch не сработал, делаем запрос к БД!")
             registrations = list(obj.registrations.all())
         
         events = []
@@ -1182,7 +1155,20 @@ class EventWaveSerializer(serializers.ModelSerializer):
                 events.append(ev)
 
         serializer = EventSerializer(events, many=True, context=self.context)
-        return serializer.data
+        result = serializer.data
+        
+        elapsed_time = time.time() - start_time
+        query_count_after = len(connection.queries)
+        queries_made = query_count_after - query_count_before
+        print(f"[EventWaveSerializer.get_events] Обработано {len(result)} событий за {elapsed_time:.4f}s, запросов к БД: {queries_made}")
+        
+        if queries_made > 0:
+            print(f"[EventWaveSerializer.get_events] ВНИМАНИЕ: сделано {queries_made} запросов к БД (ожидалось 0)")
+            # Логируем первые несколько запросов
+            for i, q in enumerate(connection.queries[query_count_before:query_count_before+3]):
+                print(f"  Запрос {i+1}: {q.get('sql', '')[:200]}")
+        
+        return result
     
     def validate_registration_ids(self, value):
         """Валидация registration_ids - регистрации должны принадлежать тому же eventum"""
@@ -1531,122 +1517,17 @@ class EventSerializer(serializers.ModelSerializer):
 
     def _get_group_participant_ids(self, group, visited_groups=None, is_allowed_group=False):
         """
+        Обёртка для использования общей функции get_group_participant_ids из utils.
         Получает ID участников группы используя уже загруженные данные (prefetch_related).
-        Работает полностью в памяти Python без дополнительных запросов к БД.
-        Для рекурсивных групп может потребоваться дополнительная обработка.
-        
-        Args:
-            group: Группа участников
-            visited_groups: Множество ID уже посещенных групп (для предотвращения циклов)
-            is_allowed_group: Если True, группа используется как allowed_group для проверки доступа.
-                             В этом случае, если группа не имеет явных inclusive связей, возвращается пустой список.
         """
-        # Импортируем модели в начале функции для доступа во всей функции
-        from .models import ParticipantGroupV2ParticipantRelation, ParticipantGroupV2GroupRelation
-        
-        if not group:
-            return set()
-        
-        if visited_groups is None:
-            visited_groups = set()
-        
-        # Предотвращаем циклические ссылки
-        if group.id in visited_groups:
-            return set()
-        
-        visited_groups.add(group.id)
-        
-        # Получаем все participant_relations из prefetch_related
-        # Если prefetch не сработал, загружаем связи напрямую (fallback для отладки)
-        participant_relations = []
-        if hasattr(group, '_prefetched_objects_cache') and 'participant_relations' in group._prefetched_objects_cache:
-            participant_relations = group._prefetched_objects_cache['participant_relations']
-        else:
-            # Fallback: если prefetch не сработал, загружаем связи напрямую
-            # Это может произойти если prefetch не был настроен правильно
-            participant_relations = list(ParticipantGroupV2ParticipantRelation.objects.filter(
-                group=group
-            ).select_related('participant'))
-        
-        # Получаем все group_relations из prefetch_related
-        # Если prefetch не сработал, загружаем связи напрямую (fallback для отладки)
-        group_relations = []
-        if hasattr(group, '_prefetched_objects_cache') and 'group_relations' in group._prefetched_objects_cache:
-            group_relations = group._prefetched_objects_cache['group_relations']
-        else:
-            # Fallback: если prefetch не сработал, загружаем связи напрямую
-            group_relations = list(ParticipantGroupV2GroupRelation.objects.filter(
-                group=group
-            ).select_related('target_group'))
-        
-        # Проверяем, есть ли хотя бы одна inclusive связь
-        has_inclusive_participants = any(
-            rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.INCLUSIVE
-            for rel in participant_relations
+        all_participant_ids = self.context.get('all_participant_ids', set())
+        return get_group_participant_ids(
+            group,
+            all_participant_ids=all_participant_ids,
+            visited_groups=visited_groups,
+            is_allowed_group=is_allowed_group,
+            prefetch_nested_groups=True  # Включаем prefetch для вложенных групп
         )
-        has_inclusive_groups = any(
-            rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.INCLUSIVE
-            for rel in group_relations
-        )
-        
-        # Если нет ни участников, ни inclusive групп
-        if not has_inclusive_participants and not has_inclusive_groups:
-            # ВАЖНО: для групп доступа (allowed_group) это неправильное поведение
-            # Если группа используется как allowed_group и не имеет явных inclusive связей,
-            # возвращаем пустой список (группа недоступна никому)
-            if is_allowed_group:
-                return set()
-            
-            # Для обычных групп (не allowed_group):
-            # - Если нет никаких связей - возвращаем всех участников eventum
-            # - Если только exclusive связи - возвращаем всех участников eventum кроме exclusive
-            # Используем all_participant_ids из контекста
-            all_participant_ids = self.context.get('all_participant_ids', set())
-            
-            # Исключаем excluded участников
-            excluded_participant_ids = set()
-            for rel in participant_relations:
-                if rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.EXCLUSIVE:
-                    excluded_participant_ids.add(rel.participant_id)
-            
-            # Исключаем участников из excluded групп (рекурсивно)
-            for group_rel in group_relations:
-                if group_rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.EXCLUSIVE:
-                    target_group = group_rel.target_group
-                    excluded_participant_ids.update(
-                        self._get_group_participant_ids(target_group, visited_groups.copy(), is_allowed_group=False)
-                    )
-            
-            result = all_participant_ids - excluded_participant_ids
-            
-            return result
-        else:
-            # Стандартная логика включений/исключений
-            included_participant_ids = set()
-            excluded_participant_ids = set()
-            
-            # Обрабатываем прямые связи с участниками
-            for rel in participant_relations:
-                if rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.INCLUSIVE:
-                    included_participant_ids.add(rel.participant_id)
-                elif rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.EXCLUSIVE:
-                    excluded_participant_ids.add(rel.participant_id)
-            
-            # Обрабатываем связи с группами
-            for group_rel in group_relations:
-                target_group = group_rel.target_group
-                # Передаем is_allowed_group дальше при рекурсивном вызове
-                target_participant_ids = self._get_group_participant_ids(target_group, visited_groups.copy(), is_allowed_group=is_allowed_group)
-                
-                if group_rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.INCLUSIVE:
-                    included_participant_ids.update(target_participant_ids)
-                elif group_rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.EXCLUSIVE:
-                    excluded_participant_ids.update(target_participant_ids)
-            
-            # Исключаем участников из списка включенных
-            included_participant_ids -= excluded_participant_ids
-            
-            return included_participant_ids
     
     def _has_participant_in_group(self, group, participant_id, is_allowed_group=False):
         """

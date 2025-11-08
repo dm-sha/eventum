@@ -10,6 +10,7 @@ from transliterate import translit
 logger = logging.getLogger(__name__)
 
 
+
 def log_execution_time(func_name: str = None):
     """Декоратор для логирования времени выполнения функций."""
 
@@ -70,3 +71,186 @@ def csrf_exempt_class_api(view_class):
     Декоратор класса для отключения CSRF защиты для API ViewSets
     """
     return method_decorator(csrf_exempt, name='dispatch')(view_class)
+
+
+def get_group_participant_ids(
+    group, 
+    all_participant_ids=None, 
+    visited_groups=None, 
+    is_allowed_group=False,
+    prefetch_nested_groups=False
+):
+    """
+    Получает ID участников группы используя уже загруженные данные (prefetch_related).
+    Работает полностью в памяти Python без дополнительных запросов к БД.
+    
+    Args:
+        group: Группа участников (ParticipantGroupV2)
+        all_participant_ids: Множество всех ID участников eventum (для случая, когда нет inclusive связей)
+        visited_groups: Множество ID уже посещенных групп (для предотвращения циклов)
+        is_allowed_group: Если True, группа используется как allowed_group для проверки доступа.
+                         В этом случае, если группа не имеет явных inclusive связей, возвращается пустой список.
+        prefetch_nested_groups: Если True, загружает связи для вложенных групп, если они не prefetch'нуты
+    
+    Returns:
+        set: Множество ID участников, которые принадлежат группе
+    """
+    from .models import ParticipantGroupV2ParticipantRelation, ParticipantGroupV2GroupRelation, ParticipantGroupV2
+    
+    if not group:
+        return set()
+    
+    if visited_groups is None:
+        visited_groups = set()
+    
+    # Предотвращаем циклические ссылки
+    if group.id in visited_groups:
+        return set()
+    
+    visited_groups.add(group.id)
+    
+    # Получаем все participant_relations из prefetch_related
+    participant_relations = []
+    if hasattr(group, '_prefetched_objects_cache') and 'participant_relations' in group._prefetched_objects_cache:
+        participant_relations = group._prefetched_objects_cache['participant_relations']
+    else:
+        # Fallback: если prefetch не сработал, загружаем связи напрямую
+        # ВНИМАНИЕ: это приводит к дополнительному запросу к БД!
+        from django.db import connection
+        query_count_before = len(connection.queries)
+        participant_relations = list(ParticipantGroupV2ParticipantRelation.objects.filter(
+            group=group
+        ).select_related('participant'))
+        query_count_after = len(connection.queries)
+        queries_made = query_count_after - query_count_before
+        if queries_made > 0:
+            print(f"[get_group_participant_ids] ВНИМАНИЕ: для группы {group.id} ({group.name}) сделано {queries_made} запросов к БД для participant_relations (prefetch не сработал!)")
+    
+    # Получаем все group_relations из prefetch_related
+    group_relations = []
+    if hasattr(group, '_prefetched_objects_cache') and 'group_relations' in group._prefetched_objects_cache:
+        group_relations = group._prefetched_objects_cache['group_relations']
+        # Для вложенных групп также prefetch'им их связи, если они еще не загружены
+        if prefetch_nested_groups:
+            for group_rel in group_relations:
+                target_group = group_rel.target_group
+                if target_group and not hasattr(target_group, '_prefetched_objects_cache'):
+                    # Если у target_group нет prefetch'нутых данных, загружаем их
+                    # ВНИМАНИЕ: это приводит к дополнительным запросам к БД!
+                    from django.db import connection
+                    query_count_before = len(connection.queries)
+                    target_group._prefetched_objects_cache = {}
+                    target_group._prefetched_objects_cache['participant_relations'] = list(
+                        ParticipantGroupV2ParticipantRelation.objects.filter(
+                            group=target_group
+                        ).select_related('participant')
+                    )
+                    target_group._prefetched_objects_cache['group_relations'] = list(
+                        ParticipantGroupV2GroupRelation.objects.filter(
+                            group=target_group
+                        ).select_related('target_group')
+                    )
+                    query_count_after = len(connection.queries)
+                    queries_made = query_count_after - query_count_before
+                    if queries_made > 0:
+                        print(f"[get_group_participant_ids] ВНИМАНИЕ: для вложенной группы {target_group.id} ({target_group.name}) сделано {queries_made} запросов к БД (prefetch не сработал!)")
+    else:
+        # Fallback: если prefetch не сработал, загружаем связи напрямую
+        # ВНИМАНИЕ: это приводит к дополнительному запросу к БД!
+        from django.db import connection
+        query_count_before = len(connection.queries)
+        group_relations = list(ParticipantGroupV2GroupRelation.objects.filter(
+            group=group
+        ).select_related('target_group'))
+        query_count_after = len(connection.queries)
+        queries_made = query_count_after - query_count_before
+        if queries_made > 0:
+            print(f"[get_group_participant_ids] ВНИМАНИЕ: для группы {group.id} ({group.name}) сделано {queries_made} запросов к БД для group_relations (prefetch не сработал!)")
+    
+    # Проверяем, есть ли хотя бы одна inclusive связь
+    has_inclusive_participants = any(
+        rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.INCLUSIVE
+        for rel in participant_relations
+    )
+    has_inclusive_groups = any(
+        rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.INCLUSIVE
+        for rel in group_relations
+    )
+    
+    # Если нет ни участников, ни inclusive групп
+    if not has_inclusive_participants and not has_inclusive_groups:
+        # ВАЖНО: для групп доступа (allowed_group) это неправильное поведение
+        # Если группа используется как allowed_group и не имеет явных inclusive связей,
+        # возвращаем пустой список (группа недоступна никому)
+        if is_allowed_group:
+            return set()
+        
+        # Для обычных групп (не allowed_group):
+        # - Если нет никаких связей - возвращаем всех участников eventum
+        # - Если только exclusive связи - возвращаем всех участников eventum кроме exclusive
+        all_participant_ids = all_participant_ids or set()
+        
+        # Исключаем excluded участников
+        excluded_participant_ids = set()
+        for rel in participant_relations:
+            if rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.EXCLUSIVE:
+                excluded_participant_ids.add(rel.participant_id)
+        
+        # Исключаем участников из excluded групп (рекурсивно)
+        for group_rel in group_relations:
+            if group_rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.EXCLUSIVE:
+                target_group = group_rel.target_group
+                if not target_group and group_rel.target_group_id:
+                    # Если объекта нет, но есть ID, создаем минимальный объект для работы
+                    # target_group должен быть из того же eventum
+                    target_group = ParticipantGroupV2(id=group_rel.target_group_id, eventum_id=group.eventum_id)
+                if target_group:
+                    excluded_participant_ids.update(
+                        get_group_participant_ids(
+                            target_group, 
+                            all_participant_ids=all_participant_ids,
+                            visited_groups=visited_groups.copy(), 
+                            is_allowed_group=False,
+                            prefetch_nested_groups=prefetch_nested_groups
+                        )
+                    )
+        
+        result = all_participant_ids - excluded_participant_ids
+        return result
+    else:
+        # Стандартная логика включений/исключений
+        included_participant_ids = set()
+        excluded_participant_ids = set()
+        
+        # Обрабатываем прямые связи с участниками
+        for rel in participant_relations:
+            if rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.INCLUSIVE:
+                included_participant_ids.add(rel.participant_id)
+            elif rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.EXCLUSIVE:
+                excluded_participant_ids.add(rel.participant_id)
+        
+        # Обрабатываем связи с группами
+        for group_rel in group_relations:
+            target_group = group_rel.target_group
+            if not target_group and group_rel.target_group_id:
+                # Если объекта нет, но есть ID, создаем минимальный объект для работы
+                # target_group должен быть из того же eventum
+                target_group = ParticipantGroupV2(id=group_rel.target_group_id, eventum_id=group.eventum_id)
+            if target_group:
+                target_participant_ids = get_group_participant_ids(
+                    target_group, 
+                    all_participant_ids=all_participant_ids,
+                    visited_groups=visited_groups.copy(), 
+                    is_allowed_group=is_allowed_group,
+                    prefetch_nested_groups=prefetch_nested_groups
+                )
+                
+                if group_rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.INCLUSIVE:
+                    included_participant_ids.update(target_participant_ids)
+                elif group_rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.EXCLUSIVE:
+                    excluded_participant_ids.update(target_participant_ids)
+        
+        # Исключаем участников из списка включенных
+        included_participant_ids -= excluded_participant_ids
+        
+        return included_participant_ids
