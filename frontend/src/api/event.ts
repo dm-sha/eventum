@@ -85,13 +85,27 @@ export const downloadParticipantCalendar = async (eventumSlug: string, participa
         const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
         
         if (isIOS) {
-            // Для iOS используем прямой переход на серверный URL
-            // Сервер должен вернуть файл с заголовком Content-Disposition: attachment
+            // Для iOS Safari на iPad используем iframe для скачивания
+            // Это обходит ограничения Safari на программные клики
             const baseURL = resolveApiBaseUrl();
-            // Убираем trailing slash если есть
             const cleanBaseURL = baseURL.endsWith('/') ? baseURL.slice(0, -1) : baseURL;
             const url = `${cleanBaseURL}/eventums/${eventumSlug}/calendar/${participantId}.ics`;
-            window.location.href = url;
+            
+            // Создаем скрытый iframe для скачивания файла
+            // Это работает лучше, чем window.location.href для Safari на iPad
+            const iframe = document.createElement('iframe');
+            iframe.style.display = 'none';
+            iframe.style.width = '0';
+            iframe.style.height = '0';
+            iframe.src = url;
+            document.body.appendChild(iframe);
+            
+            // Удаляем iframe через некоторое время
+            setTimeout(() => {
+                if (iframe.parentNode) {
+                    iframe.parentNode.removeChild(iframe);
+                }
+            }, 5000);
         } else {
             // Для других браузеров используем blob URL
             const response = await apiClient.get(`/eventums/${eventumSlug}/calendar/${participantId}.ics`, {

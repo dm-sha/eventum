@@ -2171,8 +2171,12 @@ def participant_calendar_ics(request, eventum_slug=None, participant_id=None):
         # filename* в формате RFC 5987 для UTF-8
         import urllib.parse
         encoded_filename = urllib.parse.quote(safe_filename, safe='')
-        response['Content-Disposition'] = f'attachment; filename="{safe_filename}"; filename*=UTF-8\'\'{encoded_filename}'
-        response['Cache-Control'] = 'public, max-age=300'  # Кэшируем на 5 минут
+        # Для Safari на iPad важно использовать простой формат filename без кавычек
+        # и добавить filename* для UTF-8
+        response['Content-Disposition'] = f'attachment; filename={safe_filename}; filename*=UTF-8\'\'{encoded_filename}'
+        response['Cache-Control'] = 'no-cache, no-store, must-revalidate'  # Не кэшируем для скачивания
+        response['Pragma'] = 'no-cache'
+        response['Expires'] = '0'
         response['Access-Control-Allow-Origin'] = '*'
         response['Access-Control-Allow-Methods'] = 'GET'
         response['Access-Control-Allow-Headers'] = 'Content-Type'
