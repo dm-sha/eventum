@@ -309,11 +309,11 @@ const EventumPage = () => {
         </div>
 
         {/* Вкладки */}
-        <div className="border-b border-gray-200">
-          <nav className="-mb-px flex space-x-8">
+        <div className="border-b border-gray-200 overflow-x-auto -mx-1 sm:mx-0">
+          <nav className="-mb-px flex space-x-4 sm:space-x-8 min-w-max px-1 sm:px-0">
             <button
               onClick={() => handleTabChange('general')}
-              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              className={`py-2 px-1 border-b-2 font-medium text-sm whitespace-nowrap flex-shrink-0 ${
                 currentTab === 'general'
                   ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -323,30 +323,30 @@ const EventumPage = () => {
             </button>
             <button
               onClick={() => handleTabChange('registration')}
-              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              className={`py-2 px-1 border-b-2 font-medium text-sm whitespace-nowrap flex-shrink-0 ${
                 currentTab === 'registration'
                   ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
-              Подача заявок на мероприятия
+              Регистрация на мероприятия
             </button>
             {currentParticipant && (
               <button
                 onClick={() => handleTabChange('distribution')}
-                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                className={`py-2 px-1 border-b-2 font-medium text-sm whitespace-nowrap flex-shrink-0 ${
                   currentTab === 'distribution'
                     ? 'border-blue-500 text-blue-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
-                Распределение на мероприятия
+                Распределение
               </button>
             )}
             {eventum && (eventum.schedule_visible || (isUserOrganizer(eventum.id) && participantId)) && (
               <button
                 onClick={() => handleTabChange('schedule')}
-                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                className={`py-2 px-1 border-b-2 font-medium text-sm whitespace-nowrap flex-shrink-0 ${
                   currentTab === 'schedule'
                     ? 'border-blue-500 text-blue-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
