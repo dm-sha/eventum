@@ -2162,19 +2162,17 @@ def participant_calendar_ics(request, eventum_slug=None, participant_id=None):
         
         logger.info(f"iCalendar сгенерирован для участника {participant_id}")
         
-        # Создаем HTTP ответ с правильными заголовками
-        response = Response(calendar_content, content_type='text/calendar; charset=utf-8')
-        
         # Безопасное имя файла (убираем специальные символы)
         safe_filename = f"eventum-{eventum.slug}-{participant.id}.ics"
-        # Используем оба формата для лучшей совместимости с Safari на iPad
-        # filename* в формате RFC 5987 для UTF-8
-        import urllib.parse
-        encoded_filename = urllib.parse.quote(safe_filename, safe='')
-        # Для Safari на iPad важно использовать простой формат filename без кавычек
-        # и добавить filename* для UTF-8
-        response['Content-Disposition'] = f'attachment; filename={safe_filename}; filename*=UTF-8\'\'{encoded_filename}'
-        response['Cache-Control'] = 'no-cache, no-store, must-revalidate'  # Не кэшируем для скачивания
+        
+        # Создаем HTTP ответ с правильными заголовками для Safari на iPhone
+        # Используем простой формат Content-Disposition с кавычками вокруг имени файла
+        response = HttpResponse(calendar_content, content_type='text/calendar; charset=utf-8')
+        
+        # Для Safari на iPhone критично использовать простой формат с кавычками
+        response['Content-Disposition'] = f'attachment; filename="{safe_filename}"'
+        response['Content-Length'] = str(len(calendar_content.encode('utf-8')))
+        response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
         response['Pragma'] = 'no-cache'
         response['Expires'] = '0'
         response['Access-Control-Allow-Origin'] = '*'
