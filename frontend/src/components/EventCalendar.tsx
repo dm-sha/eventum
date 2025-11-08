@@ -4,6 +4,7 @@ import EventModal from './EventModal';
 import { downloadParticipantCalendar, getParticipantCalendarWebcalUrl } from '../api/event';
 import { IconCalendarDownload, IconCalendarSubscribe } from './icons';
 import { useEventumSlug } from '../hooks/useEventumSlug';
+import { resolveApiBaseUrl } from '../api/baseUrl';
 import './EventCalendar.css';
 
 interface EventCalendarProps {
@@ -117,7 +118,23 @@ const EventCalendar: React.FC<EventCalendarProps> = ({ events, participantId, cu
     
     setIsDownloading(true);
     try {
-      await downloadParticipantCalendar(eventumSlug, participantId);
+      // Для iOS делаем переход синхронно, без await, чтобы сохранить контекст пользовательского действия
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+      if (isIOS) {
+        // Для iOS получаем URL синхронно и делаем переход сразу
+        const baseURL = resolveApiBaseUrl();
+        const cleanBaseURL = baseURL.endsWith('/') ? baseURL.slice(0, -1) : baseURL;
+        const url = `${cleanBaseURL}/eventums/${eventumSlug}/calendar/${participantId}.ics`;
+        
+        // Делаем переход синхронно, в контексте пользовательского клика
+        // Это критично для Safari на iPhone - переход должен быть синхронным
+        window.location.href = url;
+        // Не сбрасываем состояние, так как происходит переход
+        return;
+      } else {
+        // Для других платформ используем обычный подход
+        await downloadParticipantCalendar(eventumSlug, participantId);
+      }
     } catch (error) {
       console.error('Ошибка при скачивании календаря:', error);
       alert('Ошибка при скачивании календаря. Попробуйте еще раз.');
@@ -133,46 +150,12 @@ const EventCalendar: React.FC<EventCalendarProps> = ({ events, participantId, cu
     try {
       const response = await getParticipantCalendarWebcalUrl(eventumSlug, participantId);
       
-      // Определяем платформу
-      const isAndroid = /Android/.test(navigator.userAgent);
-      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-      
       // Для календарных подписок используем webcal:// протокол
       const webcalUrl = response.webcal_url.replace('https://', 'webcal://');
-      const httpsUrl = response.webcal_url; // Оригинальный HTTPS URL
       
-      if (isAndroid) {
-        // Для Android Chrome не поддерживает webcal:// напрямую
-        // Показываем пользователю инструкции и ссылку для копирования
-        const message = `Для подписки на календарь на Android:\n\n1. Скопируйте ссылку ниже\n2. Откройте приложение "Календарь Google"\n3. Нажмите "Настройки" → "Импорт и экспорт" → "Добавить календарь по URL"\n4. Вставьте скопированную ссылку\n\nИли используйте приложение ICSx⁵ из Google Play для прямой подписки.\n\nСсылка: ${httpsUrl}`;
-        
-        // Показываем диалог с инструкциями и кнопкой копирования
-        if (confirm(message + '\n\nНажмите OK, чтобы скопировать ссылку в буфер обмена.')) {
-          // Пробуем скопировать в буфер обмена
-          if (navigator.clipboard && navigator.clipboard.writeText) {
-            try {
-              await navigator.clipboard.writeText(httpsUrl);
-              alert('Ссылка скопирована в буфер обмена!');
-            } catch (e) {
-              // Если не удалось скопировать, просто показываем ссылку
-              prompt('Скопируйте эту ссылку:', httpsUrl);
-            }
-          } else {
-            // Fallback для старых браузеров
-            prompt('Скопируйте эту ссылку:', httpsUrl);
-          }
-        }
-      } else if (isIOS) {
-        // Для iOS используем window.location.href для лучшей совместимости
-        // Программные клики по созданным элементам блокируются на iPad
-        window.location.href = webcalUrl;
-      } else {
-        // Для других платформ пробуем window.open, затем fallback на window.location.href
-        const opened = window.open(webcalUrl, '_blank');
-        if (!opened) {
-          window.location.href = webcalUrl;
-        }
-      }
+      // Используем window.location.href для всех платформ
+      // Браузер/ОС сам решит, как обработать webcal:// протокол
+      window.location.href = webcalUrl;
       
     } catch (error) {
       console.error('Ошибка при подписке на календарь:', error);

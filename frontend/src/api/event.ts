@@ -91,8 +91,13 @@ export const downloadParticipantCalendar = async (eventumSlug: string, participa
             const cleanBaseURL = baseURL.endsWith('/') ? baseURL.slice(0, -1) : baseURL;
             const url = `${cleanBaseURL}/eventums/${eventumSlug}/calendar/${participantId}.ics`;
             
-            // Используем прямой переход - Safari должен обработать Content-Disposition: attachment
-            window.location.href = url;
+            // Пробуем использовать window.open, который может работать лучше на iPhone
+            const opened = window.open(url, '_blank');
+            if (!opened) {
+                // Если window.open заблокирован, используем прямой переход
+                // Это должно работать, так как происходит в контексте пользовательского клика
+                window.location.href = url;
+            }
         } else {
             // Для других браузеров используем blob URL
             const response = await apiClient.get(`/eventums/${eventumSlug}/calendar/${participantId}.ics`, {
