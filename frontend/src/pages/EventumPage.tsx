@@ -1118,12 +1118,13 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string; isViewingAsOtherP
         }
       }
       return `Заявок: ${localRegistrationsCount}`;
-    } else if (event.participant_type === 'all') {
+    } else if (event.event_group_v2) {
+      // Если есть event_group_v2, это регистрация
+      return 'По записи';
+    } else {
+      // Иначе - для всех участников
       return 'Для всех участников';
-    } else if (event.participant_type === 'manual') {
-      return 'По приглашению';
     }
-    return 'Участники определяются отдельно';
   };
 
   return (

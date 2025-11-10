@@ -650,27 +650,16 @@ class EventTag(models.Model):
         return f"{self.name} ({self.eventum.name})"
 
 class Event(models.Model):
-    class ParticipantType(models.TextChoices):
-        ALL = "all", "Для всех"
-        REGISTRATION = "registration", "По записи"
-        MANUAL = "manual", "Вручную"
-    
     eventum = models.ForeignKey(Eventum, on_delete=models.CASCADE, related_name='events')
     locations = models.ManyToManyField('Location', related_name='events', blank=True)
     name = models.CharField(max_length=200)
     description = models.TextField(blank=True)
     start_time = models.DateTimeField()
     end_time = models.DateTimeField()
-    participant_type = models.CharField(
-        max_length=20, 
-        choices=ParticipantType.choices, 
-        default=ParticipantType.ALL,
-        help_text="Тип определения участников для мероприятия"
-    )
     max_participants = models.PositiveIntegerField(
         null=True, 
         blank=True,
-        help_text="Максимальное количество участников (используется только при типе 'По записи')"
+        help_text="Максимальное количество участников"
     )
     image_url = models.URLField(
         blank=True,
@@ -711,48 +700,7 @@ class Event(models.Model):
         if self.end_time <= self.start_time:
             raise ValidationError("End time must be after start time")
         
-        # Validate participant type and max_participants
-        if self.participant_type == self.ParticipantType.REGISTRATION:
-            if not self.max_participants or self.max_participants <= 0:
-                raise ValidationError("max_participants must be specified and greater than 0 for registration type events")
-        # Удалено: валидация max_participants для типов all и manual
-        
-        # Check if trying to change participant_type from manual when there are existing connections
         if self.pk:
-            # Get the original instance from database
-            try:
-                original = Event.objects.get(pk=self.pk)
-                # If changing from manual to another type, check for existing connections
-                if (original.participant_type == self.ParticipantType.MANUAL and 
-                    self.participant_type != self.ParticipantType.MANUAL):
-                    
-                    # Check for participants
-                    if self.participants.exists():
-                        raise ValidationError(
-                            "Нельзя изменить тип участников с 'manual' на другой тип, "
-                            "пока не удалены все связи с участниками"
-                        )
-                    
-                    # Check for groups
-                    if self.groups.exists():
-                        raise ValidationError(
-                            "Нельзя изменить тип участников с 'manual' на другой тип, "
-                            "пока не удалены все связи с группами"
-                        )
-                    
-                    # Check for group tags
-                    if self.group_tags.exists():
-                        raise ValidationError(
-                            "Нельзя изменить тип участников с 'manual' на другой тип, "
-                            "пока не удалены все связи с тегами групп"
-                        )
-                
-                # Валидация изменения participant_type у мероприятия, связанного с волной
-                # Удалено: проверка participant_type != REGISTRATION для волн
-                
-            except Event.DoesNotExist:
-                # Object doesn't exist yet, no need to check
-                pass
             
             # Ensure all participants belong to the same eventum (only if object is saved)
             # Оптимизированная проверка без .all()

@@ -251,14 +251,14 @@ class GroupTagAdmin(ImportExportModelAdmin):
 class EventAdmin(ImportExportModelAdmin):
     form = EventAdminForm
     resource_class = EventResource
-    list_display = ('name', 'start_time', 'end_time', 'eventum', 'participant_type')
-    list_filter = ('eventum', 'participant_type', 'start_time')
+    list_display = ('name', 'start_time', 'end_time', 'eventum')
+    list_filter = ('eventum', 'start_time')
     # Убираем filter_horizontal для больших M2M полей - они могут вызывать таймауты
     # Вместо этого используем autocomplete_fields для более эффективного поиска
     autocomplete_fields = ['eventum']
     search_fields = ('name', 'description')
     fields = ('eventum', 'name', 'description', 'start_time', 'end_time', 
-              'participant_type', 'max_participants', 'image_url')
+              'max_participants', 'image_url')
 
 # --- EventTagAdmin ---
 # Наследуемся от ImportExportModelAdmin и добавляем resource_class

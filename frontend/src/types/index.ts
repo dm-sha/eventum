@@ -48,7 +48,6 @@ export interface ParticipantGroup {
   tags: GroupTag[];
 }
 
-export type ParticipantType = 'all' | 'registration' | 'manual';
 export type RegistrationType = 'button' | 'application';
 
 export interface Event {
@@ -60,8 +59,7 @@ export interface Event {
   eventum: number;    // ID of the eventum
   locations?: Location[]; // Локации проведения мероприятия (many-to-many)
   location_ids?: number[]; // ID локаций для записи (many-to-many)
-  participant_type: ParticipantType; // Тип определения участников
-  max_participants?: number; // Максимальное количество участников (для типа registration)
+  max_participants?: number; // Максимальное количество участников
   image_url?: string; // URL изображения события
   registrations_count: number; // Количество записанных участников
   is_registered: boolean; // Записан ли текущий пользователь (только для мероприятий с регистрацией)

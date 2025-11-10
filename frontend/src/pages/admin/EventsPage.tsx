@@ -224,14 +224,6 @@ const AdminEventsPage = () => {
         ? event.locations.map(loc => loc.name).join(', ')
         : 'Не указано';
       
-      // Определяем тип участников
-      const participantTypeMap = {
-        'all': 'Все',
-        'registration': 'По записи',
-        'manual': 'Вручную'
-      };
-      const participantType = participantTypeMap[event.participant_type] || 'Не указано';
-      
       // Получаем названия групп участников
       const groupNames = event.group_tags_data && event.group_tags_data.length > 0
         ? event.group_tags_data.map(group => group.name).join(', ')
@@ -242,13 +234,12 @@ const AdminEventsPage = () => {
         'Время окончания': endTime,
         'Название': event.name,
         'Локация': locationNames,
-        'Тип участников': participantType,
         'Группы участников': groupNames
       };
     });
 
     // Создаем CSV строку
-    const headers = ['Время начала', 'Время окончания', 'Название', 'Локация', 'Тип участников', 'Группы участников'];
+    const headers = ['Время начала', 'Время окончания', 'Название', 'Локация', 'Группы участников'];
     const csvContent = [
       headers.join('\t'),
       ...csvData.map(row => headers.map(header => (row as any)[header] || '').join('\t'))

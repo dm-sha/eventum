@@ -739,7 +739,7 @@ class EventBasicInfoSerializer(BaseEventSerializer):
     
     class Meta:
         model = Event
-        fields = ['id', 'name', 'participant_type', 'max_participants', 'registrations_count', 'participants_count']
+        fields = ['id', 'name', 'max_participants', 'registrations_count', 'participants_count']
 
 class EventFullInfoSerializer(EventBasicInfoSerializer):
     """Полный сериализатор для событий с вычислением доступных участников"""
@@ -749,7 +749,7 @@ class EventFullInfoSerializer(EventBasicInfoSerializer):
     
     class Meta:
         model = Event
-        fields = ['id', 'name', 'participant_type', 'max_participants', 'registrations_count', 'participants_count', 'available_participants', 'available_without_unassigned_events', 'can_convert']
+        fields = ['id', 'name', 'max_participants', 'registrations_count', 'participants_count', 'available_participants', 'available_without_unassigned_events', 'can_convert']
 
     def get_available_participants(self, obj):
         """Количество участников, которые подали заявку и еще не распределены на другие мероприятия волны"""
@@ -842,7 +842,7 @@ class EventWithRegistrationInfoSerializer(BaseEventSerializer):
 
     class Meta:
         model = Event
-        fields = ['id', 'name', 'participant_type', 'max_participants', 'registrations_count', 'participants_count', 'available_participants', 'already_assigned_count', 'available_without_unassigned_events', 'can_convert', 'can_convert_normal']
+        fields = ['id', 'name', 'max_participants', 'registrations_count', 'participants_count', 'available_participants', 'already_assigned_count', 'available_without_unassigned_events', 'can_convert', 'can_convert_normal']
 
     def get_available_participants(self, obj):
         """Количество участников, которые подали заявку и еще не распределены на другие мероприятия волны"""
@@ -1317,8 +1317,6 @@ class EventSerializer(serializers.ModelSerializer):
     registrations_count = serializers.SerializerMethodField()
     is_registered = serializers.SerializerMethodField()
     is_participant = serializers.SerializerMethodField()
-    # participant_type теперь вычисляемое поле на основе event_group_v2
-    participant_type = serializers.SerializerMethodField(read_only=True)
     # registration_type - тип регистрации из EventRegistration
     registration_type = serializers.SerializerMethodField(read_only=True)
     # Информация о регистрации для фронтенда
@@ -1333,7 +1331,7 @@ class EventSerializer(serializers.ModelSerializer):
         model = Event
         fields = [
             'id', 'name', 'description', 'start_time', 'end_time',
-            'participant_type', 'max_participants', 'image_url',
+            'max_participants', 'image_url',
             'participants', 'groups', 'tags', 'tag_ids', 'group_tags', 'group_tag_ids', 
             'locations', 'location_ids', 'event_group_v2', 'event_group_v2_id', 'event_group_v2_id_write',
             'registrations_count', 'is_registered', 'is_participant', 'registration_type',
@@ -1342,12 +1340,6 @@ class EventSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             'event_group_v2_id_write': {'write_only': True},
         }
-    
-    def get_participant_type(self, obj):
-        """Вычисляем participant_type на основе наличия event_group_v2"""
-        if obj.event_group_v2_id:
-            return Event.ParticipantType.REGISTRATION
-        return Event.ParticipantType.ALL
     
     def get_registration_type(self, obj):
         """Получить тип регистрации из EventRegistration"""
@@ -1359,8 +1351,6 @@ class EventSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         """Создание события с обработкой связей"""
-        # participant_type теперь не используется - он вычисляется из event_group_v2
-        validated_data.pop('participant_type', None)
         
         # Извлекаем many-to-many поля
         participants = validated_data.pop('participants', None)
@@ -1404,9 +1394,6 @@ class EventSerializer(serializers.ModelSerializer):
         event_group_v2 = validated_data.pop('event_group_v2', 'NOT_PROVIDED')
         if event_group_v2 == 'NOT_PROVIDED':
             event_group_v2 = validated_data.pop('event_group_v2_id_write', 'NOT_PROVIDED')
-        
-        # participant_type теперь не используется - он вычисляется из event_group_v2
-        validated_data.pop('participant_type', None)
         
         # Обновляем обычные поля
         for attr, value in validated_data.items():

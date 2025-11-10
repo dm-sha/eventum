@@ -6,7 +6,6 @@ import type { Event } from '../types';
 export interface EventWaveEventInfo {
   id: number;
   name: string;
-  participant_type: 'all' | 'registration' | 'manual';
   max_participants: number | null;
   registrations_count: number;
   available_participants: number;
