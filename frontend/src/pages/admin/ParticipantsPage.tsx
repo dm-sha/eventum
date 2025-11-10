@@ -2,12 +2,11 @@ import { useEffect, useState, useMemo } from "react";
 import { useDelayedLoading } from "../../hooks/useDelayedLoading";
 import { getParticipantsForEventum, createParticipant, updateParticipant, deleteParticipant } from "../../api/participant";
 import { groupsV2Api } from "../../api/eventumApi";
-import { groupTagApi } from "../../api/groupTag";
 import { IconUser, IconExternalLink, IconPencil, IconTrash, IconPlus, IconEye } from "../../components/icons";
 import ParticipantModal from "../../components/participant/ParticipantModal";
 import ParticipantsLoadingSkeleton from "../../components/participant/ParticipantsLoadingSkeleton";
 import LazyImage from "../../components/LazyImage";
-import type { Participant, ParticipantGroupV2, GroupTag } from "../../types";
+import type { Participant, ParticipantGroupV2 } from "../../types";
 import { useEventumSlug } from "../../hooks/useEventumSlug";
 import { getEventumScopedPath } from "../../utils/eventumSlug";
 
@@ -15,10 +14,8 @@ const AdminParticipantsPage = () => {
   const eventumSlug = useEventumSlug();
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [groupsV2, setGroupsV2] = useState<ParticipantGroupV2[]>([]);
-  const [groupTags, setGroupTags] = useState<GroupTag[]>([]);
   const [nameFilter, setNameFilter] = useState("");
   const [groupFilter, setGroupFilter] = useState<number | "">("");
-  const [tagFilter, setTagFilter] = useState<number | "">("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingParticipant, setEditingParticipant] = useState<Participant | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -133,14 +130,12 @@ const AdminParticipantsPage = () => {
     
     setIsLoading(true);
     try {
-      const [participantsData, groupsV2Response, tagsData] = await Promise.all([
+      const [participantsData, groupsV2Response] = await Promise.all([
         getParticipantsForEventum(eventumSlug),
         groupsV2Api.getAll(eventumSlug, { includeEventGroups: true }),
-        groupTagApi.getGroupTags(eventumSlug)
       ]);
       setParticipants(participantsData);
       setGroupsV2(groupsV2Response.data);
-      setGroupTags(tagsData);
     } catch (error) {
       console.error("Ошибка при загрузке данных:", error);
     } finally {
@@ -281,19 +276,6 @@ const AdminParticipantsPage = () => {
             {groupsV2.filter(group => !group.is_event_group).map((group) => (
               <option key={group.id} value={group.id}>
                 {group.name}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={tagFilter}
-            onChange={(e) => setTagFilter(e.target.value ? Number(e.target.value) : "")}
-            className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-          >
-            <option value="">Все теги</option>
-            {groupTags.map((tag) => (
-              <option key={tag.id} value={tag.id}>
-                {tag.name}
               </option>
             ))}
           </select>

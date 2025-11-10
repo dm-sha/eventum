@@ -319,38 +319,6 @@ export const eventTagsApi = {
     createApiRequest<void>('DELETE', `/event-tags/${id}/`, getEventumSlugForRequest(eventumSlug))
 };
 
-// ============= GROUP TAGS API =============
-
-export const groupTagsApi = {
-  // Получить все теги групп
-  getAll: (eventumSlug?: string) => 
-    createApiRequest<any[]>('GET', '/group-tags/', getEventumSlugForRequest(eventumSlug)),
-  
-  // Создать тег группы
-  create: (data: { name: string }, eventumSlug?: string) => 
-    createApiRequest<any>('POST', '/group-tags/', getEventumSlugForRequest(eventumSlug), data),
-  
-  // Обновить тег группы
-  update: (id: number, data: { name: string }, eventumSlug?: string) => 
-    createApiRequest<any>('PUT', `/group-tags/${id}/`, getEventumSlugForRequest(eventumSlug), data),
-  
-  // Удалить тег группы
-  delete: (id: number, eventumSlug?: string) => 
-    createApiRequest<void>('DELETE', `/group-tags/${id}/`, getEventumSlugForRequest(eventumSlug)),
-  
-  // Получить группы для тега
-  getGroups: (id: number, eventumSlug?: string) => 
-    createApiRequest<any[]>('GET', `/group-tags/${id}/groups/`, getEventumSlugForRequest(eventumSlug)),
-  
-  // Отвязать группу от тега
-  removeGroup: (tagId: number, groupId: number, eventumSlug?: string) => 
-    createApiRequest<void>('DELETE', `/group-tags/${tagId}/groups/${groupId}/`, getEventumSlugForRequest(eventumSlug)),
-  
-  // Привязать группу к тегу
-  addGroup: (tagId: number, groupId: number, eventumSlug?: string) => 
-    createApiRequest<void>('POST', `/group-tags/${tagId}/groups/${groupId}/`, getEventumSlugForRequest(eventumSlug))
-};
-
 // ============= LOCATIONS API =============
 
 export const locationsApi = {

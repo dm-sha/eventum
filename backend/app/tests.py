@@ -12,7 +12,6 @@ from .models import (
     Event,
     EventTag,
     Eventum,
-    GroupTag,
     Location,
     Participant,
     ParticipantGroup,
@@ -33,14 +32,6 @@ class SlugGenerationTests(TestCase):
         self.assertEqual(first.slug, "duplicate-name-eventum")
         self.assertEqual(second.slug, "duplicate-name-eventum-1")
 
-    def test_group_tag_slug_scoped_by_eventum(self):
-        first = GroupTag.objects.create(eventum=self.eventum, name="Tag Name")
-        second = GroupTag.objects.create(eventum=self.eventum, name="Tag Name")
-        other = GroupTag.objects.create(eventum=self.other_eventum, name="Tag Name")
-
-        self.assertEqual(first.slug, "tag-name")
-        self.assertEqual(second.slug, "tag-name-1")
-        self.assertEqual(other.slug, "tag-name")
 
     def test_participant_group_slug_scoped_by_eventum(self):
         first = ParticipantGroup.objects.create(eventum=self.eventum, name="Group Name")
@@ -240,17 +231,6 @@ class APISlugAndValidationTests(APITestCase):
         self.assertTrue(slug2.startswith(slug1))
         self.assertNotEqual(slug1, slug2)
 
-    def test_group_tag_slug_generation_via_api(self):
-        url = reverse('grouptag-list', kwargs={'eventum_slug': self.eventum.slug})
-
-        response1 = self.client.post(url, {'name': 'Tag Sample'}, format='json')
-        self.assertEqual(response1.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(response1.data['slug'], 'tag-sample')
-
-        response2 = self.client.post(url, {'name': 'Tag Sample'}, format='json')
-        self.assertEqual(response2.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(response2.data['slug'], 'tag-sample-1')
-
     def test_participant_group_rejects_foreign_participant(self):
         local_participant = Participant.objects.create(eventum=self.eventum, name="Local")
         other_eventum = Eventum.objects.create(name="Foreign Eventum")
@@ -391,16 +371,10 @@ class PerformanceQueryTests(APITestCase):
             Participant.objects.create(eventum=self.eventum, name=f"Member {idx}")
             for idx in range(5)
         ]
-        tags = [
-            GroupTag.objects.create(eventum=self.eventum, name=f"Tag {idx}")
-            for idx in range(3)
-        ]
-
         url = reverse('participantgroup-list', kwargs={'eventum_slug': self.eventum.slug})
         payload = {
             'name': 'Bulk Group',
             'participants': [p.id for p in participants],
-            'tag_ids': [tag.id for tag in tags],
         }
 
         with self.assertNumQueries(8):
@@ -413,20 +387,13 @@ class PerformanceQueryTests(APITestCase):
             Participant.objects.create(eventum=self.eventum, name=f"Member {idx}")
             for idx in range(6)
         ]
-        tags = [
-            GroupTag.objects.create(eventum=self.eventum, name=f"Tag {idx}")
-            for idx in range(4)
-        ]
-
         group = ParticipantGroup.objects.create(eventum=self.eventum, name="Original Group")
         group.participants.set(participants[:3])
-        group.tags.set(tags[:2])
 
         url = reverse('participantgroup-detail', kwargs={'eventum_slug': self.eventum.slug, 'pk': group.id})
         payload = {
             'name': 'Updated Group',
             'participants': [p.id for p in participants[2:]],
-            'tag_ids': [tag.id for tag in tags[1:]],
         }
 
         with self.assertNumQueries(15):

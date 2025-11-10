@@ -369,8 +369,6 @@ interface EventEditModalProps {
     groups?: number[];
     tags?: number[];
     tag_ids?: number[];
-    group_tags?: number[];
-    group_tag_ids?: number[];
     location_ids?: number[];
     event_group_v2_id?: number | null;
   }) => Promise<void>;
@@ -402,7 +400,6 @@ const EventEditModal = ({
     participants: [] as number[],
     groups: [] as number[],
     tags: [] as number[],
-    group_tags: [] as number[],
     location_ids: [] as number[]
   });
   const [tagSearchQuery, setTagSearchQuery] = useState("");
@@ -450,7 +447,6 @@ const EventEditModal = ({
     if (event) {
       // Извлекаем ID из объектов
       const tagIds = event.tags.map(tag => tag.id);
-      const groupTagIds = event.group_tags?.map(tag => tag.id) || [];
       const participantIds = (event.participants ?? []).map((p: any) => typeof p === 'number' ? p : p.id);
       const groupIds = (event.groups ?? []).map((g: any) => typeof g === 'number' ? g : g.id);
       const locationIds = event.locations?.map(loc => loc.id) || event.location_ids || [];
@@ -464,7 +460,6 @@ const EventEditModal = ({
         participants: participantIds,
         groups: groupIds,
         tags: tagIds,
-        group_tags: groupTagIds,
         location_ids: locationIds
       });
       
@@ -522,7 +517,6 @@ const EventEditModal = ({
           participants: [],
           groups: [],
           tags: [],
-          group_tags: [],
           location_ids: []
         });
         setServerGroupState(null);
@@ -789,7 +783,6 @@ const EventEditModal = ({
         groups: eventForm.groups,
         location_ids: eventForm.location_ids,
         tag_ids: eventForm.tags,
-        group_tag_ids: eventForm.group_tags,
         // Если выбрана/создана группа V2 — передаем её ID для привязки
         // Используем ensuredEventGroupId (получен после сохранения группы) или serverGroupState.id (если группа уже существовала и не изменялась)
         event_group_v2_id_write: ensuredEventGroupId || (serverGroupState?.id && serverGroupState.id > 0 ? serverGroupState.id : null)

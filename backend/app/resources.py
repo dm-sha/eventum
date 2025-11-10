@@ -2,7 +2,7 @@
 
 from import_export import resources, fields
 from import_export.widgets import ForeignKeyWidget, ManyToManyWidget, DateTimeWidget
-from .models import Eventum, Participant, GroupTag, ParticipantGroup, EventTag, Event
+from .models import Eventum, Participant, ParticipantGroup, EventTag, Event
 
 # --- Ресурс для участников ---
 class ParticipantResource(resources.ModelResource):
@@ -17,19 +17,6 @@ class ParticipantResource(resources.ModelResource):
         model = Participant
         # Используем комбинацию name + eventum для уникальной идентификации
         fields = ('id', 'name', 'eventum')
-        import_id_fields = ('name', 'eventum') # Более надежно чем только id
-
-
-# --- Ресурс для тегов групп ---
-class GroupTagResource(resources.ModelResource):
-    eventum = fields.Field(
-        column_name='eventum',
-        attribute='eventum',
-        widget=ForeignKeyWidget(Eventum, 'slug'))
-        
-    class Meta:
-        model = GroupTag
-        fields = ('id', 'name', 'slug', 'eventum')
         import_id_fields = ('name', 'eventum') # Более надежно чем только id
 
 
@@ -59,14 +46,10 @@ class ParticipantGroupResource(resources.ModelResource):
         attribute='participants',
         widget=ManyToManyWidget(Participant, field='id'))
 
-    tags = fields.Field(
-        column_name='tags',
-        attribute='tags',
-        widget=ManyToManyWidget(GroupTag, field='id'))
 
     class Meta:
         model = ParticipantGroup
-        fields = ('id', 'name', 'slug', 'eventum', 'participants', 'tags')
+        fields = ('id', 'name', 'slug', 'eventum', 'participants')
         import_id_fields = ('name', 'eventum') # Более надежно чем только id
 
 
@@ -92,11 +75,6 @@ class EventResource(resources.ModelResource):
         attribute='tags',
         widget=ManyToManyWidget(EventTag, field='id'))
 
-    group_tags = fields.Field(
-        column_name='group_tags',
-        attribute='group_tags',
-        widget=ManyToManyWidget(GroupTag, field='id'))
-
     start_time = fields.Field(
         column_name='start_time',
         attribute='start_time',
@@ -109,5 +87,5 @@ class EventResource(resources.ModelResource):
 
     class Meta:
         model = Event
-        fields = ('id', 'name', 'description', 'start_time', 'end_time', 'eventum', 'participants', 'groups', 'tags', 'group_tags', 'image_url')
+        fields = ('id', 'name', 'description', 'start_time', 'end_time', 'eventum', 'participants', 'groups', 'tags', 'image_url')
         import_id_fields = ('name', 'eventum') # Более надежно чем только id

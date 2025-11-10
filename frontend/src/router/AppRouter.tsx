@@ -8,7 +8,6 @@ import AdminEventsPage from "../pages/admin/EventsPage";
 import EventRegistrationPage from "../pages/admin/EventRegistration";
 import AdminParticipantsPage from "../pages/admin/ParticipantsPage";
 import AdminEventTagsPage from "../pages/admin/EventTagsPage";
-import AdminGroupTagsPage from "../pages/admin/GroupTagsPage";
 import AdminGroupsPage from "../pages/admin/GroupsPage";
 import AdminGroupsV2Page from "../pages/admin/GroupsV2Page";
 import LocationsPage from "../pages/admin/LocationsPage";
@@ -47,7 +46,6 @@ export const AppRouter = () => {
       <Route path="registration" element={<EventRegistrationPage />} />
       <Route path="participants" element={<AdminParticipantsPage />} />
       <Route path="event-tags" element={<AdminEventTagsPage />} />
-      <Route path="group-tags" element={<AdminGroupTagsPage />} />
       <Route path="groups" element={<AdminGroupsPage />} />
       <Route path="groups-v2" element={<AdminGroupsV2Page />} />
       <Route path="locations" element={<LocationsPage />} />
@@ -110,7 +108,6 @@ export const AppRouter = () => {
         <Route path="registration" element={<EventRegistrationPage />} />
         <Route path="participants" element={<AdminParticipantsPage />} />
         <Route path="event-tags" element={<AdminEventTagsPage />} />
-        <Route path="group-tags" element={<AdminGroupTagsPage />} />
         <Route path="groups" element={<AdminGroupsPage />} />
         <Route path="groups-v2" element={<AdminGroupsV2Page />} />
         <Route path="locations" element={<LocationsPage />} />

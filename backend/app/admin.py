@@ -7,14 +7,13 @@ from import_export.admin import ImportExportModelAdmin
 # Импортируем все модели
 from .models import (
     Eventum, Participant, ParticipantGroup,
-    GroupTag, Event, EventTag, UserProfile, UserRole, Location,
+    Event, EventTag, UserProfile, UserRole, Location,
     EventRegistration, ParticipantGroupV2
 )
 
 # Импортируем все ресурсы, которые мы определили в resources.py
 from .resources import (
     ParticipantResource,
-    GroupTagResource,
     EventTagResource,
     ParticipantGroupResource,
     EventResource
@@ -93,18 +92,6 @@ class ParticipantGroupAdminForm(forms.ModelForm):
                 )
         
         return cleaned_data
-
-class GroupTagAdminForm(forms.ModelForm):
-    class Meta:
-        model = GroupTag
-        fields = '__all__'
-    
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        # Делаем slug только для чтения, если объект уже существует
-        if self.instance and self.instance.pk:
-            self.fields['slug'].widget.attrs['readonly'] = True
-            self.fields['slug'].help_text = 'Slug автоматически генерируется из названия'
 
 class EventAdminForm(forms.ModelForm):
     class Meta:
@@ -232,17 +219,6 @@ class ParticipantGroupAdmin(ImportExportModelAdmin):
         return 0
     participants_count.short_description = 'Участников в группе'
 
-# --- GroupTagAdmin ---
-# Наследуемся от ImportExportModelAdmin и добавляем resource_class
-@admin.register(GroupTag)
-class GroupTagAdmin(ImportExportModelAdmin):
-    form = GroupTagAdminForm
-    resource_class = GroupTagResource
-    # Ваша логика отображения сохранена
-    list_display = ('name', 'slug', 'eventum')
-    list_filter = ('eventum',)
-    prepopulated_fields = {'slug': ('name',)}
-    # Добавлено для удобства
     search_fields = ('name',)
 
 # --- EventAdmin ---

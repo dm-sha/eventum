@@ -5,7 +5,6 @@ from .views import (
     EventumViewSet,
     ParticipantViewSet,
     ParticipantGroupViewSet,
-    GroupTagViewSet,
     EventViewSet,
     EventTagViewSet,
     EventWaveViewSet,
@@ -44,7 +43,6 @@ eventum_scoped_router.register(r'groups-v2', ParticipantGroupV2ViewSet, basename
 eventum_scoped_router.register(r'participant-relations-v2', ParticipantGroupV2ParticipantRelationViewSet, basename='participantgroupv2participantrelation')
 eventum_scoped_router.register(r'group-relations-v2', ParticipantGroupV2GroupRelationViewSet, basename='participantgroupv2grouprelation')
 eventum_scoped_router.register(r'event-relations-v2', ParticipantGroupV2EventRelationViewSet, basename='participantgroupv2eventrelation')
-eventum_scoped_router.register(r'group-tags', GroupTagViewSet, basename='grouptag')
 eventum_scoped_router.register(r'events', EventViewSet, basename='event')
 eventum_scoped_router.register(r'event-tags', EventTagViewSet, basename='eventtag')
 eventum_scoped_router.register(r'event-waves', EventWaveViewSet, basename='eventwave')

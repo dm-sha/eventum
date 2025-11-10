@@ -3,7 +3,7 @@ import { getEventsForEventum, createEvent, updateEvent, deleteEvent } from "../.
 import { eventTagApi } from "../../api/eventTag";
 import { getLocationsForEventum } from "../../api/location";
 import { getParticipantsForEventum } from "../../api/participant";
-import type { Event, EventTag, Location, Participant, GroupTag } from "../../types";
+import type { Event, EventTag, Location, Participant } from "../../types";
 import {
   IconPencil,
   IconTrash,
@@ -18,7 +18,6 @@ import EventsLoadingSkeleton from "../../components/admin/skeletons/EventsLoadin
 
 interface EventWithTags extends Event {
   tags_data: EventTag[];
-  group_tags_data?: GroupTag[];
 }
 
 const AdminEventsPage = () => {
@@ -80,11 +79,10 @@ const AdminEventsPage = () => {
       
       // Добавляем данные тегов к мероприятиям
       const eventsWithTags = eventsData.map(event => {
-        // Теги приходят как объекты EventTag и GroupTag
+        // Теги приходят как объекты EventTag
         return {
           ...event,
-          tags_data: event.tags,
-          group_tags_data: event.group_tags
+          tags_data: event.tags
         };
       });
       
@@ -178,8 +176,6 @@ const AdminEventsPage = () => {
     groups?: number[];
     tags?: number[];
     tag_ids?: number[];
-    group_tags?: number[];
-    group_tag_ids?: number[];
     location_ids?: number[];
     // Привязка к группе V2: если указано — мероприятие для конкретных участников, если null — для всех
     event_group_v2_id?: number | null;
@@ -189,10 +185,10 @@ const AdminEventsPage = () => {
     try {
       if (editingEvent) {
         const updated = await updateEvent(eventumSlug, editingEvent.id, eventData);
-        setEvents(prev => prev.map(e => e.id === editingEvent.id ? { ...updated, tags_data: updated.tags, group_tags_data: updated.group_tags } : e));
+        setEvents(prev => prev.map(e => e.id === editingEvent.id ? { ...updated, tags_data: updated.tags } : e));
       } else {
         const created = await createEvent(eventumSlug, eventData);
-        setEvents(prev => [...prev, { ...created, tags_data: created.tags, group_tags_data: created.group_tags }]);
+        setEvents(prev => [...prev, { ...created, tags_data: created.tags }]);
       }
     } catch (error) {
       console.error('Ошибка сохранения мероприятия:', error);
@@ -223,22 +219,17 @@ const AdminEventsPage = () => {
         ? event.locations.map(loc => loc.name).join(', ')
         : 'Не указано';
       
-      // Получаем названия групп участников
-      const groupNames = event.group_tags_data && event.group_tags_data.length > 0
-        ? event.group_tags_data.map(group => group.name).join(', ')
-        : 'Не указано';
       
       return {
         'Время начала': startTime,
         'Время окончания': endTime,
         'Название': event.name,
-        'Локация': locationNames,
-        'Группы участников': groupNames
+        'Локация': locationNames
       };
     });
 
     // Создаем CSV строку
-    const headers = ['Время начала', 'Время окончания', 'Название', 'Локация', 'Группы участников'];
+    const headers = ['Время начала', 'Время окончания', 'Название', 'Локация'];
     const csvContent = [
       headers.join('\t'),
       ...csvData.map(row => headers.map(header => (row as any)[header] || '').join('\t'))

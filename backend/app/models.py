@@ -69,34 +69,11 @@ class Participant(models.Model):
             return f"{self.user.name} ({self.eventum.name})"
         return f"{self.name} ({self.eventum.name})"
 
-class GroupTag(models.Model):
-    eventum = models.ForeignKey(Eventum, on_delete=models.CASCADE, related_name='group_tags')
-    name = models.CharField(max_length=100)
-    slug = models.SlugField(max_length=100, blank=True)
-    
-    class Meta:
-        unique_together = ('eventum', 'slug')
-        indexes = [
-            models.Index(fields=['eventum']),  # Для фильтрации по eventum
-            models.Index(fields=['name']),     # Для поиска по имени
-        ]
-    
-    def save(self, *args, **kwargs):
-        if not self.slug or GroupTag.objects.filter(eventum=self.eventum, slug=self.slug).exclude(pk=self.pk).exists():
-            base_value = self.name if not self.slug else self.slug
-            self.slug = generate_unique_slug(self, base_value, scope_fields=['eventum'])
-        self.full_clean()
-        super().save(*args, **kwargs)
-    
-    def __str__(self):
-        return f"{self.name} ({self.eventum.name})"
-
 class ParticipantGroup(models.Model):
     eventum = models.ForeignKey(Eventum, on_delete=models.CASCADE, related_name='participant_groups')
     name = models.CharField(max_length=200)
     slug = models.SlugField(max_length=200, blank=True)
     participants = models.ManyToManyField(Participant, related_name='groups')
-    tags = models.ManyToManyField(GroupTag, related_name='groups', blank=True)
     
     class Meta:
         unique_together = ('eventum', 'slug')
@@ -671,11 +648,6 @@ class Event(models.Model):
         blank=True
     )
     tags = models.ManyToManyField(EventTag, related_name='events', blank=True)
-    group_tags = models.ManyToManyField(
-        GroupTag, 
-        related_name='events',
-        blank=True
-    )
     # Опциональная связь 1:1 с группой V2 (участники события = участники группы)
     event_group_v2 = models.OneToOneField(
         ParticipantGroupV2,
@@ -716,15 +688,6 @@ class Event(models.Model):
                 )
             
             # Удалено: проверка что мероприятие с типом "не по записи" не добавляется к тегам с волнами
-            
-            # Ensure all group tags belong to the same eventum (only if object is saved)
-            # Оптимизированная проверка без .all()
-            invalid_group_tags = self.group_tags.filter(eventum__ne=self.eventum)
-            if invalid_group_tags.exists():
-                group_tag_names = list(invalid_group_tags.values_list('name', flat=True))
-                raise ValidationError(
-                    f"Group tags {', '.join(group_tag_names)} belong to a different eventum"
-                )
             
             # Ensure all locations belong to the same eventum (only if object is saved)
             # Оптимизированная проверка без .all()

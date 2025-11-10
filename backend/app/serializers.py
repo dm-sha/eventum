@@ -7,7 +7,7 @@ from transliterate import translit
 import logging
 from .models import (
     Eventum, Participant, ParticipantGroup,
-    GroupTag, Event, EventTag, UserProfile, UserRole, Location, EventWave, EventRegistration,
+    Event, EventTag, UserProfile, UserRole, Location, EventWave, EventRegistration,
     ParticipantGroupV2, ParticipantGroupV2ParticipantRelation, ParticipantGroupV2GroupRelation,
     ParticipantGroupV2EventRelation
 )
@@ -221,11 +221,6 @@ class ParticipantSerializer(serializers.ModelSerializer):
         
         return super().update(instance, validated_data)
 
-class GroupTagSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = GroupTag
-        fields = ['id', 'name', 'slug']
-
 class ParticipantGroupSerializer(serializers.ModelSerializer):
     participants = BulkPrimaryKeyRelatedField(
         many=True,
@@ -233,32 +228,13 @@ class ParticipantGroupSerializer(serializers.ModelSerializer):
         required=False,
         select_related=("eventum", "user"),
     )
-    tags = GroupTagSerializer(many=True, read_only=True)
-    tag_ids = BulkPrimaryKeyRelatedField(
-        many=True,
-        write_only=True,
-        source='tags',
-        queryset=GroupTag.objects.all(),
-        required=False,
-        select_related="eventum",
-    )
-    
-    def to_representation(self, instance):
-        """Переопределяем для оптимизации запросов к тегам"""
-        data = super().to_representation(instance)
-        
-        # Если теги уже загружены через prefetch_related, используем их
-        if hasattr(instance, '_prefetched_objects_cache') and 'tags' in instance._prefetched_objects_cache:
-            data['tags'] = GroupTagSerializer(instance.tags.all(), many=True).data
-        
-        return data
 
     class Meta:
         model = ParticipantGroup
-        fields = ['id', 'name', 'slug', 'participants', 'tags', 'tag_ids']
+        fields = ['id', 'name', 'slug', 'participants']
 
-    def validate_tag_ids(self, value):
-        """Валидация тегов группы с использованием ID."""
+    def validate(self, value):
+        """Валидация участников группы."""
         if not value:
             return value
 
@@ -267,11 +243,11 @@ class ParticipantGroupSerializer(serializers.ModelSerializer):
             return value
 
         eventum_id = getattr(eventum, 'id', eventum)
-        invalid_tags = [tag for tag in value if tag.eventum_id != eventum_id]
-        if invalid_tags:
-            invalid_names = [tag.name for tag in invalid_tags]
+        invalid_participants = [p for p in value.get('participants', []) if p.eventum_id != eventum_id]
+        if invalid_participants:
+            invalid_names = [p.name for p in invalid_participants]
             raise serializers.ValidationError(
-                f"Теги {', '.join(invalid_names)} принадлежат другому мероприятию"
+                f"Участники {', '.join(invalid_names)} принадлежат другому мероприятию"
             )
 
         return value
@@ -654,12 +630,6 @@ class ParticipantGroupV2Serializer(serializers.ModelSerializer):
         
         return data
 
-
-class GroupTagBasicSerializer(serializers.ModelSerializer):
-    """Упрощенный сериализатор для базовой информации о тегах групп"""
-    class Meta:
-        model = GroupTag
-        fields = ['id', 'name', 'slug']
 
 class BaseEventSerializer(serializers.ModelSerializer):
     """Базовый сериализатор для событий с общей логикой"""
@@ -1297,16 +1267,6 @@ class EventSerializer(serializers.ModelSerializer):
         allow_empty=True,
         select_related="eventum",
     )
-    group_tags = GroupTagSerializer(many=True, read_only=True)
-    group_tag_ids = BulkPrimaryKeyRelatedField(
-        many=True,
-        write_only=True,
-        source='group_tags',
-        queryset=GroupTag.objects.all(),
-        required=False,
-        allow_empty=True,
-        select_related="eventum",
-    )
     locations = LocationSerializer(many=True, read_only=True)
     location_ids = BulkPrimaryKeyRelatedField(
         many=True,
@@ -1347,7 +1307,7 @@ class EventSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'name', 'description', 'start_time', 'end_time',
             'image_url',
-            'participants', 'groups', 'tags', 'tag_ids', 'group_tags', 'group_tag_ids', 
+            'participants', 'groups', 'tags', 'tag_ids', 
             'locations', 'location_ids', 'event_group_v2', 'event_group_v2_id', 'event_group_v2_id_write',
             'registrations_count', 'is_registered', 'is_participant', 'registration_type',
             'registration_max_participants', 'participants_count'
@@ -1371,7 +1331,6 @@ class EventSerializer(serializers.ModelSerializer):
         participants = validated_data.pop('participants', None)
         groups = validated_data.pop('groups', None)
         tags = validated_data.pop('tags', None)
-        group_tags = validated_data.pop('group_tags', None)
         locations = validated_data.pop('locations', None)
         # One-to-one поле (может приходить как event_group_v2_id_write или event_group_v2)
         event_group_v2 = validated_data.pop('event_group_v2', None) or validated_data.pop('event_group_v2_id_write', None)
@@ -1386,8 +1345,6 @@ class EventSerializer(serializers.ModelSerializer):
             instance.groups.set(groups)
         if tags is not None:
             instance.tags.set(tags)
-        if group_tags is not None:
-            instance.group_tags.set(group_tags)
         if locations is not None:
             instance.locations.set(locations)
         # Устанавливаем связь 1:1
@@ -1403,7 +1360,6 @@ class EventSerializer(serializers.ModelSerializer):
         participants = validated_data.pop('participants', None)
         groups = validated_data.pop('groups', None)
         tags = validated_data.pop('tags', None)
-        group_tags = validated_data.pop('group_tags', None)
         locations = validated_data.pop('locations', None)
         # One-to-one поле
         event_group_v2 = validated_data.pop('event_group_v2', 'NOT_PROVIDED')
@@ -1424,8 +1380,6 @@ class EventSerializer(serializers.ModelSerializer):
             instance.groups.set(groups)
         if tags is not None:
             instance.tags.set(tags)
-        if group_tags is not None:
-            instance.group_tags.set(group_tags)
         if locations is not None:
             instance.locations.set(locations)
         # Обновляем связь 1:1
@@ -1621,26 +1575,6 @@ class EventSerializer(serializers.ModelSerializer):
                 names = ', '.join(group.name for group in invalid)
                 raise serializers.ValidationError(
                     f"Группы {names} принадлежат другому мероприятию"
-                )
-
-        return value
-
-    def validate_group_tag_ids(self, value):
-        if not value:
-            return value
-
-        eventum = self.context.get('eventum')
-        if eventum:
-            eventum_id = getattr(eventum, 'id', eventum)
-            invalid = [
-                group_tag
-                for group_tag in value
-                if group_tag.eventum_id != eventum_id
-            ]
-            if invalid:
-                names = ', '.join(group_tag.name for group_tag in invalid)
-                raise serializers.ValidationError(
-                    f"Теги групп {names} принадлежат другому мероприятию"
                 )
 
         return value

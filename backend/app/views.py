@@ -19,10 +19,10 @@ from datetime import datetime
 import uuid
 import time
 from urllib.parse import urlsplit, urlunsplit
-from .models import Eventum, Participant, ParticipantGroup, GroupTag, Event, EventTag, UserProfile, UserRole, Location, EventWave, EventRegistration, ParticipantGroupV2, ParticipantGroupV2ParticipantRelation, ParticipantGroupV2GroupRelation, ParticipantGroupV2EventRelation
+from .models import Eventum, Participant, ParticipantGroup, Event, EventTag, UserProfile, UserRole, Location, EventWave, EventRegistration, ParticipantGroupV2, ParticipantGroupV2ParticipantRelation, ParticipantGroupV2GroupRelation, ParticipantGroupV2EventRelation
 from .serializers import (
     EventumSerializer, ParticipantSerializer, ParticipantGroupSerializer,
-    GroupTagSerializer, EventSerializer, EventTagSerializer,
+    EventSerializer, EventTagSerializer,
     UserProfileSerializer, UserRoleSerializer, VKAuthSerializer, CustomTokenObtainPairSerializer,
     LocationSerializer, EventWaveSerializer, EventRegistrationSerializer,
     ParticipantGroupV2Serializer, ParticipantGroupV2ParticipantRelationSerializer, ParticipantGroupV2GroupRelationSerializer,
@@ -432,58 +432,6 @@ class ParticipantGroupViewSet(EventumScopedViewSet):
             'tags',
             'participants__eventum'
         ).select_related('eventum')  # Добавляем select_related для eventum
-
-
-class GroupTagViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
-    queryset = GroupTag.objects.all().prefetch_related(
-        'groups__participants',
-        'groups__tags',
-    )
-    serializer_class = GroupTagSerializer
-    permission_classes = [IsEventumOrganizerOrReadOnly]  # Организаторы CRUD, участники только чтение
-    pagination_class = PageNumberPagination
-    
-    def get_queryset(self):
-        """Оптимизированный queryset для списка тегов групп"""
-        eventum = self.get_eventum()
-        return GroupTag.objects.filter(eventum=eventum).prefetch_related(
-            'groups__participants__user',
-            'groups__tags'
-        ).select_related('eventum')
-    
-    @log_execution_time("Получение списка тегов групп")
-
-    @action(detail=True, methods=['get'])
-    def groups(self, request, eventum_slug=None, pk=None):
-        """Получить все группы с данным тегом"""
-        group_tag = self.get_object()
-        groups = group_tag.groups.all().prefetch_related('participants', 'tags')
-        serializer = ParticipantGroupSerializer(groups, many=True)
-        return Response(serializer.data)
-
-    @action(detail=True, methods=['post'], url_path='groups/(?P<group_id>[^/.]+)')
-    def add_group(self, request, eventum_slug=None, pk=None, group_id=None):
-        """Привязать группу к тегу"""
-        group_tag = self.get_object()
-        try:
-            group = ParticipantGroup.objects.get(id=group_id, eventum__slug=eventum_slug)
-            group_tag.groups.add(group)
-            return Response({'status': 'success'}, status=status.HTTP_200_OK)
-        except ParticipantGroup.DoesNotExist:
-            return Response({'error': 'Group not found'}, status=status.HTTP_404_NOT_FOUND)
-
-    @action(detail=True, methods=['delete'], url_path='groups/(?P<group_id>[^/.]+)')
-    def remove_group(self, request, eventum_slug=None, pk=None, group_id=None):
-        """Отвязать группу от тега"""
-        group_tag = self.get_object()
-        try:
-            group = ParticipantGroup.objects.get(id=group_id, eventum__slug=eventum_slug)
-            group_tag.groups.remove(group)
-            return Response({'status': 'success'}, status=status.HTTP_200_OK)
-        except ParticipantGroup.DoesNotExist:
-            return Response({'error': 'Group not found'}, status=status.HTTP_404_NOT_FOUND)
-
-
 class ParticipantGroupV2ViewSet(EventumScopedViewSet):
     """ViewSet для новых групп участников V2"""
     queryset = ParticipantGroupV2.objects.all().prefetch_related(
@@ -742,7 +690,6 @@ class EventWaveViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
                 ).prefetch_related(
                     'locations',
                     'tags',
-                    'group_tags',
                     'participants',
                     'participants__user',
                     'groups',
@@ -875,7 +822,6 @@ class EventViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
         # Добавляем prefetch только для необходимых данных
         queryset = queryset.prefetch_related(
             'tags',  # Всегда нужны для сериализации
-            'group_tags',  # Всегда нужны для сериализации
             'locations',  # Всегда нужны для сериализации
         )
         
@@ -1931,7 +1877,6 @@ def participant_calendar_ics(request, eventum_slug=None, participant_id=None):
             'eventum', 'event_group_v2'
         ).prefetch_related(
             'tags',
-            'group_tags', 
             'locations',
         )
         

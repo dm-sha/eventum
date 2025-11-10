@@ -28,12 +28,6 @@ export interface Participant {
   groups?: ParticipantGroup[];
 }
 
-export interface GroupTag {
-  id: number;
-  name: string;
-  slug: string;
-}
-
 export interface EventTag {
   id: number;
   name: string;
@@ -45,7 +39,6 @@ export interface ParticipantGroup {
   name: string;
   slug: string;
   participants: number[];
-  tags: GroupTag[];
 }
 
 export type RegistrationType = 'button' | 'application';
@@ -70,7 +63,6 @@ export interface Event {
   participants: number[];
   groups: number[];
   tags: EventTag[]; // Объекты тегов для чтения
-  group_tags: GroupTag[]; // Объекты тегов групп для чтения
   event_group_v2?: { id: number; name: string } | null; // Связанная группа V2 (для регистрации)
   event_group_v2_id?: number | null; // ID связанной группы V2
 }
