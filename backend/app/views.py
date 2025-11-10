@@ -29,7 +29,7 @@ from .serializers import (
     ParticipantGroupV2EventRelationSerializer
 )
 from .permissions import IsEventumOrganizer, IsEventumParticipant, IsEventumOrganizerOrReadOnly, IsEventumOrganizerOrReadOnlyForList, IsEventumOrganizerOrPublicReadOnly
-from .utils import log_execution_time, csrf_exempt_class_api, get_group_participant_ids
+from .utils import log_execution_time, csrf_exempt_class_api, get_group_participant_ids, EventumGroupGraph
 from .auth_utils import EventumMixin, require_authentication, require_eventum_role, get_eventum_from_request
 from .base_views import EventumScopedViewSet
 import logging
@@ -375,34 +375,20 @@ class ParticipantViewSet(EventumScopedViewSet):
             return Response({'error': 'Some events do not belong to this eventum'}, 
                           status=status.HTTP_400_BAD_REQUEST)
         
-        # Получаем всех участников eventum с prefetch для event_group_v2
-        from django.db.models import Prefetch
-        from .models import ParticipantGroupV2ParticipantRelation, ParticipantGroupV2GroupRelation
+        # Создаем граф групп для eventum один раз на запрос
+        group_graph = EventumGroupGraph(eventum)
+        all_participant_ids = group_graph.all_participant_ids
         
-        all_participant_ids = set(Participant.objects.filter(eventum=eventum).values_list('id', flat=True))
-        
-        # Загружаем события с их event_group_v2 и связями
-        events = events.select_related('event_group_v2').prefetch_related(
-            Prefetch(
-                'event_group_v2__participant_relations',
-                queryset=ParticipantGroupV2ParticipantRelation.objects.select_related('participant')
-            ),
-            Prefetch(
-                'event_group_v2__group_relations',
-                queryset=ParticipantGroupV2GroupRelation.objects.select_related('target_group')
-            ),
-        )
+        # Загружаем события с их event_group_v2
+        events = events.select_related('event_group_v2')
         
         # Собираем ID участников, которые участвуют в указанных мероприятиях
         participating_participant_ids = set()
         
         for event in events:
             if event.event_group_v2:
-                # Используем v2 группы
-                participant_ids = get_group_participant_ids(
-                    event.event_group_v2,
-                    all_participant_ids=all_participant_ids
-                )
+                # Используем граф групп для получения участников
+                participant_ids = group_graph.get_participant_ids(event.event_group_v2.id)
                 participating_participant_ids.update(participant_ids)
             else:
                 # Если нет event_group_v2, все участники eventum участвуют
@@ -1935,26 +1921,10 @@ def participant_calendar_ics(request, eventum_slug=None, participant_id=None):
         # Если event_group_v2 is None - участник участвует (все участники eventum)
         # Если event_group_v2 существует - проверяем через связи группы
         
-        from django.db.models import Prefetch
-        from .models import ParticipantGroupV2ParticipantRelation, ParticipantGroupV2GroupRelation
+        # Создаем граф групп для eventum один раз на запрос
+        group_graph = EventumGroupGraph(eventum)
         
-        # Получаем всех участников eventum для передачи в get_group_participant_ids
-        all_participant_ids = set(Participant.objects.filter(eventum=eventum).values_list('id', flat=True))
-        
-        # Вспомогательная функция для проверки участия в группе
-        def _has_participant_in_group(group, participant_id):
-            """Проверяет участие в группе используя уже загруженные данные"""
-            if not group:
-                return False
-            
-            participant_ids = get_group_participant_ids(
-                group,
-                all_participant_ids=all_participant_ids,
-                prefetch_nested_groups=True
-            )
-            return participant_id in participant_ids
-        
-        # Получаем все события eventum с prefetch для event_group_v2
+        # Получаем все события eventum
         all_events = Event.objects.filter(
             eventum=eventum
         ).select_related(
@@ -1963,18 +1933,6 @@ def participant_calendar_ics(request, eventum_slug=None, participant_id=None):
             'tags',
             'group_tags', 
             'locations',
-            # Prefetch для event_group_v2 со всеми связями для проверки участия
-            Prefetch(
-                'event_group_v2__participant_relations',
-                queryset=ParticipantGroupV2ParticipantRelation.objects.select_related('participant')
-            ),
-            Prefetch(
-                'event_group_v2__group_relations',
-                queryset=ParticipantGroupV2GroupRelation.objects.select_related('target_group')
-            ),
-            'event_group_v2__group_relations__target_group__participant_relations',
-            'event_group_v2__group_relations__target_group__group_relations',
-            'event_group_v2__group_relations__target_group__group_relations__target_group__participant_relations',
         )
         
         # Фильтруем события в Python, используя ту же логику, что и в EventSerializer.get_is_participant
@@ -1982,7 +1940,7 @@ def participant_calendar_ics(request, eventum_slug=None, participant_id=None):
         for event in all_events:
             # Если есть event_group_v2, проверяем участие через него
             if event.event_group_v2:
-                if _has_participant_in_group(event.event_group_v2, participant_id):
+                if group_graph.has_participant(event.event_group_v2.id, participant_id):
                     filtered_events.append(event)
             else:
                 # Для мероприятий без регистрации (без event_group_v2)
