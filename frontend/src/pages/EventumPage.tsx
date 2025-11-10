@@ -1105,8 +1105,7 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string; isViewingAsOtherP
   const getParticipantsInfo = () => {
     if (event.registration_type === 'button' || event.registration_type === 'application') {
       // Для мероприятий с регистрацией показываем количество заявок/мест (используем локальное состояние)
-      const maxFromRegistration = registrationMaxParticipants ?? undefined;
-      const max = typeof maxFromRegistration === 'number' ? maxFromRegistration : event.max_participants;
+      const max = registrationMaxParticipants ?? undefined;
       if (typeof max === 'number' && max > 0) {
         if (event.registration_type === 'button') {
           // Для регистрации по кнопке показываем количество свободных мест

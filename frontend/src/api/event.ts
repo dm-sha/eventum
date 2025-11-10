@@ -33,7 +33,6 @@ export const updateEvent = async (eventumSlug: string, eventId: number, data: {
   description: string;
   start_time: string;
   end_time: string;
-  max_participants?: number;
   participants?: number[];
   groups?: number[];
   tags?: number[];

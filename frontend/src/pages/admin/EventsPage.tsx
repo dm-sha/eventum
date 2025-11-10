@@ -173,7 +173,6 @@ const AdminEventsPage = () => {
     description: string;
     start_time: string;
     end_time: string;
-    max_participants?: number;
     image_url?: string;
     participants?: number[];
     groups?: number[];

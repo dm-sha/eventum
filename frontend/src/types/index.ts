@@ -59,7 +59,6 @@ export interface Event {
   eventum: number;    // ID of the eventum
   locations?: Location[]; // Локации проведения мероприятия (many-to-many)
   location_ids?: number[]; // ID локаций для записи (many-to-many)
-  max_participants?: number; // Максимальное количество участников
   image_url?: string; // URL изображения события
   registrations_count: number; // Количество записанных участников
   is_registered: boolean; // Записан ли текущий пользователь (только для мероприятий с регистрацией)

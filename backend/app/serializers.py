@@ -739,7 +739,7 @@ class EventBasicInfoSerializer(BaseEventSerializer):
     
     class Meta:
         model = Event
-        fields = ['id', 'name', 'max_participants', 'registrations_count', 'participants_count']
+        fields = ['id', 'name', 'registrations_count', 'participants_count']
 
 class EventFullInfoSerializer(EventBasicInfoSerializer):
     """Полный сериализатор для событий с вычислением доступных участников"""
@@ -749,7 +749,7 @@ class EventFullInfoSerializer(EventBasicInfoSerializer):
     
     class Meta:
         model = Event
-        fields = ['id', 'name', 'max_participants', 'registrations_count', 'participants_count', 'available_participants', 'available_without_unassigned_events', 'can_convert']
+        fields = ['id', 'name', 'registrations_count', 'participants_count', 'available_participants', 'available_without_unassigned_events', 'can_convert']
 
     def get_available_participants(self, obj):
         """Количество участников, которые подали заявку и еще не распределены на другие мероприятия волны"""
@@ -827,10 +827,15 @@ class EventFullInfoSerializer(EventBasicInfoSerializer):
         available_count = self.get_available_participants(obj)
         registrations_count = self.get_registrations_count(obj)
         
+        # max_participants теперь только в EventRegistration
+        max_participants = None
+        if hasattr(obj, 'registration') and obj.registration:
+            max_participants = obj.registration.max_participants
+        
         return (
             registrations_count > 0 and
             available_count > 0 and
-            (obj.max_participants is None or available_count <= obj.max_participants)
+            (max_participants is None or available_count <= max_participants)
         )
 
 class EventWithRegistrationInfoSerializer(BaseEventSerializer):
@@ -842,7 +847,7 @@ class EventWithRegistrationInfoSerializer(BaseEventSerializer):
 
     class Meta:
         model = Event
-        fields = ['id', 'name', 'max_participants', 'registrations_count', 'participants_count', 'available_participants', 'already_assigned_count', 'available_without_unassigned_events', 'can_convert', 'can_convert_normal']
+        fields = ['id', 'name', 'registrations_count', 'participants_count', 'available_participants', 'already_assigned_count', 'available_without_unassigned_events', 'can_convert', 'can_convert_normal']
 
     def get_available_participants(self, obj):
         """Количество участников, которые подали заявку и еще не распределены на другие мероприятия волны"""
@@ -932,23 +937,33 @@ class EventWithRegistrationInfoSerializer(BaseEventSerializer):
         """Можно ли конвертировать регистрации для этого мероприятия"""
         available_count = self.get_available_participants(obj)
         
+        # max_participants теперь только в EventRegistration
+        max_participants = None
+        if hasattr(obj, 'registration') and obj.registration:
+            max_participants = obj.registration.max_participants
+        
         # Показываем кнопки если есть заявки, независимо от типа мероприятия
         return (
             self.get_registrations_count(obj) > 0 and
             available_count > 0 and
-            (obj.max_participants is None or available_count <= obj.max_participants)
+            (max_participants is None or available_count <= max_participants)
         )
     
     def get_can_convert_normal(self, obj):
         """Можно ли делать обычную конвертацию (только для мероприятий типа registration)"""
         available_count = self.get_available_participants(obj)
         
+        # max_participants теперь только в EventRegistration
+        max_participants = None
+        if hasattr(obj, 'registration') and obj.registration:
+            max_participants = obj.registration.max_participants
+        
         # Проверяем наличие event_group_v2 вместо participant_type
         return (
             obj.event_group_v2_id is not None and
             self.get_registrations_count(obj) > 0 and
             available_count > 0 and
-            (obj.max_participants is None or available_count <= obj.max_participants)
+            (max_participants is None or available_count <= max_participants)
         )
 
 class EventWaveSerializer(serializers.ModelSerializer):
@@ -1331,7 +1346,7 @@ class EventSerializer(serializers.ModelSerializer):
         model = Event
         fields = [
             'id', 'name', 'description', 'start_time', 'end_time',
-            'max_participants', 'image_url',
+            'image_url',
             'participants', 'groups', 'tags', 'tag_ids', 'group_tags', 'group_tag_ids', 
             'locations', 'location_ids', 'event_group_v2', 'event_group_v2_id', 'event_group_v2_id_write',
             'registrations_count', 'is_registered', 'is_participant', 'registration_type',
@@ -1633,18 +1648,7 @@ class EventSerializer(serializers.ModelSerializer):
     def validate(self, data):
         """Валидация на уровне объекта"""
         # participant_type теперь вычисляется автоматически из event_group_v2
-        # Проверяем max_participants только если есть event_group_v2 (регистрация)
-        max_participants = data.get('max_participants')
-        event_group_v2 = data.get('event_group_v2')
-        
-        # Если устанавливается event_group_v2 (не None), значит это регистрация
-        # Проверяем max_participants для регистрации
-        if event_group_v2 is not None and event_group_v2 != 'NOT_PROVIDED':
-            # event_group_v2 установлен - это регистрация
-            if max_participants is not None and max_participants <= 0:
-                raise serializers.ValidationError({
-                    'max_participants': 'max_participants must be greater than 0 if specified'
-                })
+        # max_participants теперь только в EventRegistration, не валидируем здесь
         
         return data
 

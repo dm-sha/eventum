@@ -364,7 +364,6 @@ interface EventEditModalProps {
     description: string;
     start_time: string;
     end_time: string;
-    max_participants?: number;
     image_url?: string;
     participants?: number[];
     groups?: number[];
@@ -399,7 +398,6 @@ const EventEditModal = ({
     description: "",
     start_time: "",
     end_time: "",
-    max_participants: undefined as number | undefined,
     image_url: "",
     participants: [] as number[],
     groups: [] as number[],
@@ -462,7 +460,6 @@ const EventEditModal = ({
         description: event.description,
         start_time: formatDateTimeForInput(event.start_time),
         end_time: formatDateTimeForInput(event.end_time),
-        max_participants: event.max_participants,
         image_url: event.image_url || "",
         participants: participantIds,
         groups: groupIds,
@@ -521,7 +518,6 @@ const EventEditModal = ({
           description: "",
           start_time: start,
           end_time: end,
-          max_participants: undefined,
           image_url: "",
           participants: [],
           groups: [],
@@ -788,7 +784,6 @@ const EventEditModal = ({
         description: eventForm.description,
         start_time: eventForm.start_time,
         end_time: eventForm.end_time,
-        max_participants: eventForm.max_participants,
         image_url: eventForm.image_url || undefined,
         participants: eventForm.participants,
         groups: eventForm.groups,

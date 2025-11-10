@@ -258,7 +258,7 @@ class EventAdmin(ImportExportModelAdmin):
     autocomplete_fields = ['eventum']
     search_fields = ('name', 'description')
     fields = ('eventum', 'name', 'description', 'start_time', 'end_time', 
-              'max_participants', 'image_url')
+              'image_url')
 
 # --- EventTagAdmin ---
 # Наследуемся от ImportExportModelAdmin и добавляем resource_class

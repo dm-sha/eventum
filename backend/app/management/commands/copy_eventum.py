@@ -422,7 +422,6 @@ class Command(BaseCommand):
                             description=event.description,
                             start_time=event.start_time,
                             end_time=event.end_time,
-                            max_participants=event.max_participants,
                             image_url=event.image_url,
                             event_group_v2=event_group_v2,
                         ))

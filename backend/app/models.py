@@ -656,11 +656,6 @@ class Event(models.Model):
     description = models.TextField(blank=True)
     start_time = models.DateTimeField()
     end_time = models.DateTimeField()
-    max_participants = models.PositiveIntegerField(
-        null=True, 
-        blank=True,
-        help_text="Максимальное количество участников"
-    )
     image_url = models.URLField(
         blank=True,
         help_text="URL изображения для события"
@@ -1091,8 +1086,6 @@ class EventRegistrationApplication(models.Model):
                         f"которой разрешена регистрация на это мероприятие"
                     )
         
-        # Для типа APPLICATION заявок может быть больше чем max_participants,
-        # администратор потом выберет, кого одобрить, поэтому валидация на max_participants не нужна
     
     def save(self, *args, **kwargs):
         self.full_clean()
