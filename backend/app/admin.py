@@ -6,7 +6,7 @@ from import_export.admin import ImportExportModelAdmin
 
 # Импортируем все модели
 from .models import (
-    Eventum, Participant, ParticipantGroup,
+    Eventum, Participant,
     Event, EventTag, UserProfile, UserRole, Location,
     EventRegistration, ParticipantGroupV2
 )
@@ -15,7 +15,6 @@ from .models import (
 from .resources import (
     ParticipantResource,
     EventTagResource,
-    ParticipantGroupResource,
     EventResource
 )
 
@@ -65,33 +64,6 @@ class ParticipantAdminForm(forms.ModelForm):
         model = Participant
         fields = '__all__'
 
-class ParticipantGroupAdminForm(forms.ModelForm):
-    class Meta:
-        model = ParticipantGroup
-        fields = '__all__'
-    
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        # Делаем slug только для чтения, если объект уже существует
-        if self.instance and self.instance.pk:
-            self.fields['slug'].widget.attrs['readonly'] = True
-            self.fields['slug'].help_text = 'Slug автоматически генерируется из названия'
-    
-    def clean(self):
-        cleaned_data = super().clean()
-        participants = cleaned_data.get('participants')
-        eventum = cleaned_data.get('eventum')
-        
-        # Проверяем, что все участники принадлежат тому же eventum
-        if participants and eventum:
-            invalid_participants = [p for p in participants if p.eventum != eventum]
-            if invalid_participants:
-                invalid_names = [p.name for p in invalid_participants]
-                raise ValidationError(
-                    f"Участники {', '.join(invalid_names)} принадлежат другому мероприятию"
-                )
-        
-        return cleaned_data
 
 class EventAdminForm(forms.ModelForm):
     class Meta:
@@ -101,7 +73,6 @@ class EventAdminForm(forms.ModelForm):
     def clean(self):
         cleaned_data = super().clean()
         participants = cleaned_data.get('participants')
-        groups = cleaned_data.get('groups')
         eventum = cleaned_data.get('eventum')
         
         # Проверяем участников
@@ -110,14 +81,6 @@ class EventAdminForm(forms.ModelForm):
                 if participant.eventum != eventum:
                     raise ValidationError(
                         f"Участник '{participant.name}' принадлежит другому мероприятию"
-                    )
-        
-        # Проверяем группы
-        if groups and eventum:
-            for group in groups:
-                if group.eventum != eventum:
-                    raise ValidationError(
-                        f"Группа '{group.name}' принадлежит другому мероприятию"
                     )
         
         return cleaned_data
@@ -198,28 +161,6 @@ class ParticipantAdmin(ImportExportModelAdmin):
     search_fields = ('name', 'user__name', 'user__vk_id')
     autocomplete_fields = ('user',)
 
-# --- ParticipantGroupAdmin ---
-# Упрощенная версия для лучшей производительности
-@admin.register(ParticipantGroup)
-class ParticipantGroupAdmin(ImportExportModelAdmin):
-    form = ParticipantGroupAdminForm
-    resource_class = ParticipantGroupResource
-    list_display = ('name', 'slug', 'eventum', 'participants_count')
-    list_filter = ('eventum',)
-    # Убираем filter_horizontal для больших M2M полей
-    autocomplete_fields = ['eventum']
-    prepopulated_fields = {'slug': ('name',)}
-    search_fields = ('name',)
-    readonly_fields = ('participants_count',)
-    
-    def participants_count(self, obj):
-        """Показывает количество участников в группе"""
-        if obj.pk:
-            return obj.participants.count()
-        return 0
-    participants_count.short_description = 'Участников в группе'
-
-    search_fields = ('name',)
 
 # --- EventAdmin ---
 # Упрощенная версия для лучшей производительности

@@ -7,7 +7,6 @@ import type {
   Eventum, 
   EventumDetails, 
   Participant, 
-  ParticipantGroup, 
   ParticipantGroupV2,
   CreateParticipantGroupV2Data,
   UpdateParticipantGroupV2Data,
@@ -151,26 +150,6 @@ export const participantsApi = {
   // Получить участников по фильтру мероприятий
   filterByEvents: (data: { filter_type: 'participating' | 'not_participating'; event_ids: number[] }, eventumSlug?: string) => 
     createApiRequest<Participant[]>('POST', '/participants/filter_by_events/', getEventumSlugForRequest(eventumSlug), data)
-};
-
-// ============= GROUPS API =============
-
-export const groupsApi = {
-  // Получить все группы
-  getAll: (eventumSlug?: string) => 
-    createApiRequest<ParticipantGroup[]>('GET', '/groups/', getEventumSlugForRequest(eventumSlug)),
-  
-  // Создать группу
-  create: (data: { name: string; participants: number[]; tag_ids?: number[] }, eventumSlug?: string) => 
-    createApiRequest<ParticipantGroup>('POST', '/groups/', getEventumSlugForRequest(eventumSlug), data),
-  
-  // Обновить группу
-  update: (id: number, data: Partial<ParticipantGroup>, eventumSlug?: string) => 
-    createApiRequest<ParticipantGroup>('PATCH', `/groups/${id}/`, getEventumSlugForRequest(eventumSlug), data),
-  
-  // Удалить группу
-  delete: (id: number, eventumSlug?: string) => 
-    createApiRequest<void>('DELETE', `/groups/${id}/`, getEventumSlugForRequest(eventumSlug))
 };
 
 // ============= GROUPS V2 API =============

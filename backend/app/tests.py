@@ -14,7 +14,6 @@ from .models import (
     Eventum,
     Location,
     Participant,
-    ParticipantGroup,
     UserProfile,
     UserRole,
 )
@@ -33,14 +32,6 @@ class SlugGenerationTests(TestCase):
         self.assertEqual(second.slug, "duplicate-name-eventum-1")
 
 
-    def test_participant_group_slug_scoped_by_eventum(self):
-        first = ParticipantGroup.objects.create(eventum=self.eventum, name="Group Name")
-        second = ParticipantGroup.objects.create(eventum=self.eventum, name="Group Name")
-        other = ParticipantGroup.objects.create(eventum=self.other_eventum, name="Group Name")
-
-        self.assertEqual(first.slug, "group-name")
-        self.assertEqual(second.slug, "group-name-1")
-        self.assertEqual(other.slug, "group-name")
 
     def test_event_tag_slug_scoped_by_eventum(self):
         first = EventTag.objects.create(eventum=self.eventum, name="Agenda")
@@ -98,11 +89,6 @@ class EventModelValidationTests(TestCase):
             name="Foreign Participant",
         )
 
-        self.group = ParticipantGroup.objects.create(eventum=self.eventum, name="Local Group")
-        self.group.participants.add(self.participant)
-
-        self.foreign_group = ParticipantGroup.objects.create(eventum=self.other_eventum, name="Foreign Group")
-        self.foreign_group.participants.add(self.foreign_participant)
 
     def test_end_time_must_be_after_start_time(self):
         now = timezone.now()
@@ -129,18 +115,6 @@ class EventModelValidationTests(TestCase):
         with self.assertRaises(ValidationError):
             event.full_clean()
 
-    def test_cannot_attach_foreign_groups(self):
-        now = timezone.now()
-        event = Event.objects.create(
-            eventum=self.eventum,
-            name="Groups Check",
-            start_time=now,
-            end_time=now + timedelta(hours=1),
-        )
-        event.groups.add(self.group, self.foreign_group)
-
-        with self.assertRaises(ValidationError):
-            event.full_clean()
 
 
 class LocationModelValidationTests(TestCase):
@@ -231,20 +205,6 @@ class APISlugAndValidationTests(APITestCase):
         self.assertTrue(slug2.startswith(slug1))
         self.assertNotEqual(slug1, slug2)
 
-    def test_participant_group_rejects_foreign_participant(self):
-        local_participant = Participant.objects.create(eventum=self.eventum, name="Local")
-        other_eventum = Eventum.objects.create(name="Foreign Eventum")
-        foreign_participant = Participant.objects.create(eventum=other_eventum, name="Foreign")
-
-        url = reverse('participantgroup-list', kwargs={'eventum_slug': self.eventum.slug})
-        payload = {
-            'name': 'Invalid Group',
-            'participants': [local_participant.id, foreign_participant.id],
-        }
-
-        response = self.client.post(url, payload, format='json')
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('другому мероприятию', str(response.data))
 
     def test_event_creation_rejects_foreign_participant(self):
         local_participant = Participant.objects.create(eventum=self.eventum, name="Local")
@@ -264,23 +224,6 @@ class APISlugAndValidationTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('другому мероприятию', str(response.data))
 
-    def test_event_creation_rejects_foreign_group(self):
-        local_group = ParticipantGroup.objects.create(eventum=self.eventum, name="Local Group")
-        other_eventum = Eventum.objects.create(name="Other Eventum")
-        foreign_group = ParticipantGroup.objects.create(eventum=other_eventum, name="Foreign Group")
-
-        url = reverse('event-list', kwargs={'eventum_slug': self.eventum.slug})
-        now = timezone.now()
-        payload = {
-            'name': 'Group Validation',
-            'start_time': (now + timedelta(hours=1)).isoformat(),
-            'end_time': (now + timedelta(hours=2)).isoformat(),
-            'groups': [local_group.id, foreign_group.id],
-        }
-
-        response = self.client.post(url, payload, format='json')
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('другому мероприятию', str(response.data))
 
     def test_location_creation_generates_unique_slug(self):
         url = reverse('location-list', kwargs={'eventum_slug': self.eventum.slug})
@@ -309,8 +252,6 @@ class PerformanceQueryTests(APITestCase):
             Participant.objects.create(eventum=self.eventum, name=f"Participant {idx}")
             for idx in range(5)
         ]
-        group = ParticipantGroup.objects.create(eventum=self.eventum, name="Group")
-        group.participants.add(*participants)
         tag = EventTag.objects.create(eventum=self.eventum, name="General")
 
         now = timezone.now()
@@ -322,7 +263,6 @@ class PerformanceQueryTests(APITestCase):
                 end_time=now + timedelta(days=idx + 1, hours=1),
             )
             event.participants.add(*participants)
-            event.groups.add(group)
             event.tags.add(tag)
 
         url = reverse('event-upcoming', kwargs={'eventum_slug': self.eventum.slug})
@@ -366,52 +306,12 @@ class PerformanceQueryTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 6)  # 5 new + 1 from setUp
 
-    def test_group_creation_bulk_related_fields(self):
-        participants = [
-            Participant.objects.create(eventum=self.eventum, name=f"Member {idx}")
-            for idx in range(5)
-        ]
-        url = reverse('participantgroup-list', kwargs={'eventum_slug': self.eventum.slug})
-        payload = {
-            'name': 'Bulk Group',
-            'participants': [p.id for p in participants],
-        }
-
-        with self.assertNumQueries(8):
-            response = self.client.post(url, payload, format='json')
-
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-
-    def test_group_update_bulk_related_fields(self):
-        participants = [
-            Participant.objects.create(eventum=self.eventum, name=f"Member {idx}")
-            for idx in range(6)
-        ]
-        group = ParticipantGroup.objects.create(eventum=self.eventum, name="Original Group")
-        group.participants.set(participants[:3])
-
-        url = reverse('participantgroup-detail', kwargs={'eventum_slug': self.eventum.slug, 'pk': group.id})
-        payload = {
-            'name': 'Updated Group',
-            'participants': [p.id for p in participants[2:]],
-        }
-
-        with self.assertNumQueries(15):
-            response = self.client.put(url, payload, format='json')
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_event_creation_bulk_related_fields(self):
         participants = [
             Participant.objects.create(eventum=self.eventum, name=f"Participant {idx}")
             for idx in range(5)
         ]
-        groups = [
-            ParticipantGroup.objects.create(eventum=self.eventum, name=f"Group {idx}")
-            for idx in range(2)
-        ]
-        for group in groups:
-            group.participants.set(participants)
 
         tags = [
             EventTag.objects.create(eventum=self.eventum, name=f"Tag {idx}")
@@ -425,7 +325,6 @@ class PerformanceQueryTests(APITestCase):
             'start_time': (now + timedelta(hours=1)).isoformat(),
             'end_time': (now + timedelta(hours=2)).isoformat(),
             'participants': [p.id for p in participants],
-            'groups': [group.id for group in groups],
             'tag_ids': [tag.id for tag in tags],
         }
 
@@ -439,12 +338,6 @@ class PerformanceQueryTests(APITestCase):
             Participant.objects.create(eventum=self.eventum, name=f"Participant {idx}")
             for idx in range(4)
         ]
-        groups = [
-            ParticipantGroup.objects.create(eventum=self.eventum, name=f"Group {idx}")
-            for idx in range(2)
-        ]
-        for group in groups:
-            group.participants.set(participants)
 
         tags = [
             EventTag.objects.create(eventum=self.eventum, name=f"Tag {idx}")
@@ -458,7 +351,6 @@ class PerformanceQueryTests(APITestCase):
             end_time=timezone.now() + timedelta(hours=2),
         )
         event.participants.set(participants[:2])
-        event.groups.set(groups[:1])
         event.tags.set(tags[:1])
 
         url = reverse('event-detail', kwargs={'eventum_slug': self.eventum.slug, 'pk': event.id})
@@ -467,7 +359,6 @@ class PerformanceQueryTests(APITestCase):
             'start_time': (timezone.now() + timedelta(hours=3)).isoformat(),
             'end_time': (timezone.now() + timedelta(hours=4)).isoformat(),
             'participants': [p.id for p in participants],
-            'groups': [group.id for group in groups],
             'tag_ids': [tag.id for tag in tags],
         }
 

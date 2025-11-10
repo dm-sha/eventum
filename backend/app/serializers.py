@@ -6,7 +6,7 @@ from datetime import datetime
 from transliterate import translit
 import logging
 from .models import (
-    Eventum, Participant, ParticipantGroup,
+    Eventum, Participant,
     Event, EventTag, UserProfile, UserRole, Location, EventWave, EventRegistration,
     ParticipantGroupV2, ParticipantGroupV2ParticipantRelation, ParticipantGroupV2GroupRelation,
     ParticipantGroupV2EventRelation
@@ -221,87 +221,9 @@ class ParticipantSerializer(serializers.ModelSerializer):
         
         return super().update(instance, validated_data)
 
-class ParticipantGroupSerializer(serializers.ModelSerializer):
-    participants = BulkPrimaryKeyRelatedField(
-        many=True,
-        queryset=Participant.objects.all(),
-        required=False,
-        select_related=("eventum", "user"),
-    )
-
-    class Meta:
-        model = ParticipantGroup
-        fields = ['id', 'name', 'slug', 'participants']
-
-    def validate(self, value):
-        """Валидация участников группы."""
-        if not value:
-            return value
-
-        eventum = self.context.get('eventum')
-        if not eventum:
-            return value
-
-        eventum_id = getattr(eventum, 'id', eventum)
-        invalid_participants = [p for p in value.get('participants', []) if p.eventum_id != eventum_id]
-        if invalid_participants:
-            invalid_names = [p.name for p in invalid_participants]
-            raise serializers.ValidationError(
-                f"Участники {', '.join(invalid_names)} принадлежат другому мероприятию"
-            )
-
-        return value
-
-    def validate_participants(self, value):
-        """Проверяем, что все участники принадлежат тому же eventum"""
-        if not value:
-            return value
-
-        # Получаем eventum из контекста
-        eventum = self.context.get('eventum')
-        if not eventum:
-            return value
-
-        # Проверяем, что все участники принадлежат тому же eventum
-        eventum_id = getattr(eventum, 'id', eventum)
-        invalid_participants = [p for p in value if p.eventum_id != eventum_id]
-        if invalid_participants:
-            invalid_names = [p.name for p in invalid_participants]
-            raise serializers.ValidationError(
-                f"Участники {', '.join(invalid_names)} принадлежат другому мероприятию"
-            )
-
-        return value
-    
-    def create(self, validated_data):
-        """Переопределяем create для правильной обработки ManyToMany полей"""
-        # Извлекаем ManyToMany поля из validated_data
-        participants_data = validated_data.pop('participants', [])
-        tags_data = validated_data.pop('tags', [])
-        
-        # Создаем объект через конструктор
-        instance = ParticipantGroup(**validated_data)
-        
-        # Сохраняем объект, чтобы вызвать метод save() модели
-        instance.save()
-        
-        # Устанавливаем ManyToMany связи после сохранения объекта
-        if participants_data:
-            instance.participants.set(participants_data)
-        if tags_data:
-            instance.tags.set(tags_data)
-        
-        return instance
-
 class EventTagSerializer(serializers.ModelSerializer):
     class Meta:
         model = EventTag
-        fields = ['id', 'name', 'slug']
-
-class ParticipantGroupBasicSerializer(serializers.ModelSerializer):
-    """Упрощенный сериализатор для базовой информации о группах участников"""
-    class Meta:
-        model = ParticipantGroup
         fields = ['id', 'name', 'slug']
 
 
@@ -1250,13 +1172,6 @@ class EventSerializer(serializers.ModelSerializer):
         allow_empty=True,
         select_related=("eventum", "user"),
     )
-    groups = BulkPrimaryKeyRelatedField(
-        many=True,
-        queryset=ParticipantGroup.objects.all(),
-        required=False,
-        allow_empty=True,
-        select_related="eventum",
-    )
     tags = EventTagSerializer(many=True, read_only=True)
     tag_ids = BulkPrimaryKeyRelatedField(
         many=True,
@@ -1307,7 +1222,7 @@ class EventSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'name', 'description', 'start_time', 'end_time',
             'image_url',
-            'participants', 'groups', 'tags', 'tag_ids', 
+            'participants', 'tags', 'tag_ids', 
             'locations', 'location_ids', 'event_group_v2', 'event_group_v2_id', 'event_group_v2_id_write',
             'registrations_count', 'is_registered', 'is_participant', 'registration_type',
             'registration_max_participants', 'participants_count'
@@ -1341,8 +1256,6 @@ class EventSerializer(serializers.ModelSerializer):
         # Устанавливаем many-to-many поля
         if participants is not None:
             instance.participants.set(participants)
-        if groups is not None:
-            instance.groups.set(groups)
         if tags is not None:
             instance.tags.set(tags)
         if locations is not None:
@@ -1358,7 +1271,6 @@ class EventSerializer(serializers.ModelSerializer):
         """Переопределяем update для правильной обработки связей"""
         # Извлекаем many-to-many поля
         participants = validated_data.pop('participants', None)
-        groups = validated_data.pop('groups', None)
         tags = validated_data.pop('tags', None)
         locations = validated_data.pop('locations', None)
         # One-to-one поле
@@ -1376,8 +1288,6 @@ class EventSerializer(serializers.ModelSerializer):
         # Обновляем many-to-many поля
         if participants is not None:
             instance.participants.set(participants)
-        if groups is not None:
-            instance.groups.set(groups)
         if tags is not None:
             instance.tags.set(tags)
         if locations is not None:
@@ -1559,25 +1469,6 @@ class EventSerializer(serializers.ModelSerializer):
 
         return value
 
-    def validate_groups(self, value):
-        if not value:
-            return value
-
-        eventum = self.context.get('eventum')
-        if eventum:
-            eventum_id = getattr(eventum, 'id', eventum)
-            invalid = [
-                group
-                for group in value
-                if group.eventum_id != eventum_id
-            ]
-            if invalid:
-                names = ', '.join(group.name for group in invalid)
-                raise serializers.ValidationError(
-                    f"Группы {names} принадлежат другому мероприятию"
-                )
-
-        return value
 
     def validate(self, data):
         """Валидация на уровне объекта"""

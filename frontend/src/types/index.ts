@@ -25,7 +25,7 @@ export interface Participant {
   user?: User;
   user_id?: number | null;
   eventum: number; // ID of the eventum
-  groups?: ParticipantGroup[];
+  groups?: ParticipantGroupV2[];
 }
 
 export interface EventTag {
@@ -34,12 +34,6 @@ export interface EventTag {
   slug: string;
 }
 
-export interface ParticipantGroup {
-  id: number;
-  name: string;
-  slug: string;
-  participants: number[];
-}
 
 export type RegistrationType = 'button' | 'application';
 
@@ -61,7 +55,6 @@ export interface Event {
   participants_count?: number; // Количество участников по v2 группе (для проверки is_full: participants_count >= registration_max_participants)
   // (arrays of IDs)
   participants: number[];
-  groups: number[];
   tags: EventTag[]; // Объекты тегов для чтения
   event_group_v2?: { id: number; name: string } | null; // Связанная группа V2 (для регистрации)
   event_group_v2_id?: number | null; // ID связанной группы V2

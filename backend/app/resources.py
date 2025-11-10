@@ -2,7 +2,7 @@
 
 from import_export import resources, fields
 from import_export.widgets import ForeignKeyWidget, ManyToManyWidget, DateTimeWidget
-from .models import Eventum, Participant, ParticipantGroup, EventTag, Event
+from .models import Eventum, Participant, EventTag, Event
 
 # --- Ресурс для участников ---
 class ParticipantResource(resources.ModelResource):
@@ -33,26 +33,6 @@ class EventTagResource(resources.ModelResource):
         import_id_fields = ('name', 'eventum') # Более надежно чем только id
 
 
-# --- Ресурс для групп участников ---
-class ParticipantGroupResource(resources.ModelResource):
-    eventum = fields.Field(
-        column_name='eventum',
-        attribute='eventum',
-        widget=ForeignKeyWidget(Eventum, 'slug'))
-    
-    # Для ManyToMany полей, мы говорим, что в CSV будет список ID через запятую (например, "1,2,3")
-    participants = fields.Field(
-        column_name='participants',
-        attribute='participants',
-        widget=ManyToManyWidget(Participant, field='id'))
-
-
-    class Meta:
-        model = ParticipantGroup
-        fields = ('id', 'name', 'slug', 'eventum', 'participants')
-        import_id_fields = ('name', 'eventum') # Более надежно чем только id
-
-
 # --- Ресурс для Событий (Events) ---
 class EventResource(resources.ModelResource):
     eventum = fields.Field(
@@ -65,10 +45,6 @@ class EventResource(resources.ModelResource):
         attribute='participants',
         widget=ManyToManyWidget(Participant, field='id'))
 
-    groups = fields.Field(
-        column_name='groups',
-        attribute='groups',
-        widget=ManyToManyWidget(ParticipantGroup, field='id'))
 
     tags = fields.Field(
         column_name='tags',
@@ -87,5 +63,5 @@ class EventResource(resources.ModelResource):
 
     class Meta:
         model = Event
-        fields = ('id', 'name', 'description', 'start_time', 'end_time', 'eventum', 'participants', 'groups', 'tags', 'image_url')
+        fields = ('id', 'name', 'description', 'start_time', 'end_time', 'eventum', 'participants', 'tags', 'image_url')
         import_id_fields = ('name', 'eventum') # Более надежно чем только id

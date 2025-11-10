@@ -366,7 +366,6 @@ interface EventEditModalProps {
     end_time: string;
     image_url?: string;
     participants?: number[];
-    groups?: number[];
     tags?: number[];
     tag_ids?: number[];
     location_ids?: number[];
@@ -398,7 +397,6 @@ const EventEditModal = ({
     end_time: "",
     image_url: "",
     participants: [] as number[],
-    groups: [] as number[],
     tags: [] as number[],
     location_ids: [] as number[]
   });
@@ -448,7 +446,6 @@ const EventEditModal = ({
       // Извлекаем ID из объектов
       const tagIds = event.tags.map(tag => tag.id);
       const participantIds = (event.participants ?? []).map((p: any) => typeof p === 'number' ? p : p.id);
-      const groupIds = (event.groups ?? []).map((g: any) => typeof g === 'number' ? g : g.id);
       const locationIds = event.locations?.map(loc => loc.id) || event.location_ids || [];
       
       setEventForm({
@@ -458,7 +455,6 @@ const EventEditModal = ({
         end_time: formatDateTimeForInput(event.end_time),
         image_url: event.image_url || "",
         participants: participantIds,
-        groups: groupIds,
         tags: tagIds,
         location_ids: locationIds
       });
@@ -514,9 +510,8 @@ const EventEditModal = ({
           start_time: start,
           end_time: end,
           image_url: "",
-          participants: [],
-          groups: [],
-          tags: [],
+        participants: [],
+        tags: [],
           location_ids: []
         });
         setServerGroupState(null);
@@ -780,7 +775,6 @@ const EventEditModal = ({
         end_time: eventForm.end_time,
         image_url: eventForm.image_url || undefined,
         participants: eventForm.participants,
-        groups: eventForm.groups,
         location_ids: eventForm.location_ids,
         tag_ids: eventForm.tags,
         // Если выбрана/создана группа V2 — передаем её ID для привязки

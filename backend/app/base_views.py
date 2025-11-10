@@ -40,10 +40,7 @@ class EventumScopedViewSet(EventumMixin, viewsets.ModelViewSet):
         if request and request.user.is_authenticated:
             try:
                 from .models import Participant
-                participant = Participant.objects.select_related('user', 'eventum').prefetch_related(
-                    'groups',
-                    'groups__tags'
-                ).get(user=request.user, eventum=eventum)
+                participant = Participant.objects.select_related('user', 'eventum').get(user=request.user, eventum=eventum)
             except Participant.DoesNotExist:
                 participant = None
         
@@ -65,10 +62,7 @@ class EventumScopedViewSet(EventumMixin, viewsets.ModelViewSet):
                 ).exists()
                 if is_organizer:
                     try:
-                        participant = Participant.objects.select_related('user', 'eventum').prefetch_related(
-                            'groups',
-                            'groups__tags'
-                        ).get(id=participant_id, eventum=eventum)
+                        participant = Participant.objects.select_related('user', 'eventum').get(id=participant_id, eventum=eventum)
                     except Participant.DoesNotExist:
                         # Игнорируем неверный participant_id
                         pass

@@ -4,7 +4,6 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from .views import (
     EventumViewSet,
     ParticipantViewSet,
-    ParticipantGroupViewSet,
     EventViewSet,
     EventTagViewSet,
     EventWaveViewSet,
@@ -38,7 +37,6 @@ router.register(r'users', UserViewSet)
 
 eventum_scoped_router = DefaultRouter()
 eventum_scoped_router.register(r'participants', ParticipantViewSet, basename='participant')
-eventum_scoped_router.register(r'groups', ParticipantGroupViewSet, basename='participantgroup')
 eventum_scoped_router.register(r'groups-v2', ParticipantGroupV2ViewSet, basename='participantgroupv2')
 eventum_scoped_router.register(r'participant-relations-v2', ParticipantGroupV2ParticipantRelationViewSet, basename='participantgroupv2participantrelation')
 eventum_scoped_router.register(r'group-relations-v2', ParticipantGroupV2GroupRelationViewSet, basename='participantgroupv2grouprelation')

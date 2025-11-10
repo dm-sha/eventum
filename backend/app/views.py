@@ -19,9 +19,9 @@ from datetime import datetime
 import uuid
 import time
 from urllib.parse import urlsplit, urlunsplit
-from .models import Eventum, Participant, ParticipantGroup, Event, EventTag, UserProfile, UserRole, Location, EventWave, EventRegistration, ParticipantGroupV2, ParticipantGroupV2ParticipantRelation, ParticipantGroupV2GroupRelation, ParticipantGroupV2EventRelation
+from .models import Eventum, Participant, Event, EventTag, UserProfile, UserRole, Location, EventWave, EventRegistration, ParticipantGroupV2, ParticipantGroupV2ParticipantRelation, ParticipantGroupV2GroupRelation, ParticipantGroupV2EventRelation
 from .serializers import (
-    EventumSerializer, ParticipantSerializer, ParticipantGroupSerializer,
+    EventumSerializer, ParticipantSerializer,
     EventSerializer, EventTagSerializer,
     UserProfileSerializer, UserRoleSerializer, VKAuthSerializer, CustomTokenObtainPairSerializer,
     LocationSerializer, EventWaveSerializer, EventRegistrationSerializer,
@@ -413,25 +413,6 @@ class ParticipantViewSet(EventumScopedViewSet):
         return Response(serializer.data)
     
 
-class ParticipantGroupViewSet(EventumScopedViewSet):
-    queryset = ParticipantGroup.objects.all().prefetch_related(
-        'participants',
-        'participants__user',  # Добавляем prefetch для пользователей участников
-        'tags',
-        'participants__eventum'  # Добавляем prefetch для eventum участников
-    )
-    serializer_class = ParticipantGroupSerializer
-    permission_classes = [IsEventumOrganizerOrReadOnly]  # Организаторы CRUD, участники только чтение
-    
-    def get_queryset(self):
-        """Оптимизированный queryset для списка групп"""
-        eventum = self.get_eventum()
-        return ParticipantGroup.objects.filter(eventum=eventum).prefetch_related(
-            'participants',
-            'participants__user',  # Добавляем prefetch для пользователей участников
-            'tags',
-            'participants__eventum'
-        ).select_related('eventum')  # Добавляем select_related для eventum
 class ParticipantGroupV2ViewSet(EventumScopedViewSet):
     """ViewSet для новых групп участников V2"""
     queryset = ParticipantGroupV2.objects.all().prefetch_related(
@@ -692,7 +673,6 @@ class EventWaveViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
                     'tags',
                     'participants',
                     'participants__user',
-                    'groups',
                     # Добавляем prefetch для event_group_v2 со всеми связями (как в EventViewSet)
                     Prefetch(
                         'event_group_v2__participant_relations',

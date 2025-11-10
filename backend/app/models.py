@@ -69,49 +69,6 @@ class Participant(models.Model):
             return f"{self.user.name} ({self.eventum.name})"
         return f"{self.name} ({self.eventum.name})"
 
-class ParticipantGroup(models.Model):
-    eventum = models.ForeignKey(Eventum, on_delete=models.CASCADE, related_name='participant_groups')
-    name = models.CharField(max_length=200)
-    slug = models.SlugField(max_length=200, blank=True)
-    participants = models.ManyToManyField(Participant, related_name='groups')
-    
-    class Meta:
-        unique_together = ('eventum', 'slug')
-        indexes = [
-            models.Index(fields=['eventum']),  # Для фильтрации по eventum
-            models.Index(fields=['name']),     # Для поиска по имени
-        ]
-    
-    def save(self, *args, **kwargs):
-        if not self.slug or ParticipantGroup.objects.filter(eventum=self.eventum, slug=self.slug).exclude(pk=self.pk).exists():
-            base_value = self.name if not self.slug else self.slug
-            self.slug = generate_unique_slug(self, base_value, scope_fields=['eventum'])
-        self.full_clean()
-        super().save(*args, **kwargs)
-    
-    def clean(self):
-        # Many-to-many relations are unavailable until the instance is saved,
-        # so we skip the validation for unsaved objects (they will be validated
-        # once the relations are assigned after creation).
-        if not self.pk:
-            return
-
-        # Ensure all participants belong to the same eventum
-        # Only check if we have an eventum and participants
-        if self.eventum_id and self.participants.exists():
-            # Оптимизируем запрос - проверяем только участников с другим eventum
-            invalid_participants = self.participants.filter(eventum__isnull=False).exclude(eventum=self.eventum)
-            if invalid_participants.exists():
-                # Используем values_list для более эффективного запроса
-                invalid_names = list(invalid_participants.values_list('name', flat=True))
-                raise ValidationError(
-                    f"Participants {', '.join(invalid_names)} belong to different eventums"
-                )
-    
-    def __str__(self):
-        return f"{self.name} ({self.eventum.name})"
-
-
 class ParticipantGroupV2(models.Model):
     """Новая модель групп участников с поддержкой рекурсивных связей"""
     eventum = models.ForeignKey(Eventum, on_delete=models.CASCADE, related_name='participant_groups_v2')
@@ -642,11 +599,6 @@ class Event(models.Model):
         related_name='individual_events',
         blank=True
     )
-    groups = models.ManyToManyField(
-        ParticipantGroup, 
-        related_name='events',
-        blank=True
-    )
     tags = models.ManyToManyField(EventTag, related_name='events', blank=True)
     # Опциональная связь 1:1 с группой V2 (участники события = участники группы)
     event_group_v2 = models.OneToOneField(
@@ -676,15 +628,6 @@ class Event(models.Model):
                 participant_names = list(invalid_participants.values_list('name', flat=True))
                 raise ValidationError(
                     f"Participants {', '.join(participant_names)} belong to a different eventum"
-                )
-            
-            # Ensure all groups belong to the same eventum (only if object is saved)
-            # Оптимизированная проверка без .all()
-            invalid_groups = self.groups.filter(eventum__ne=self.eventum)
-            if invalid_groups.exists():
-                group_names = list(invalid_groups.values_list('name', flat=True))
-                raise ValidationError(
-                    f"Groups {', '.join(group_names)} belong to a different eventum"
                 )
             
             # Удалено: проверка что мероприятие с типом "не по записи" не добавляется к тегам с волнами
