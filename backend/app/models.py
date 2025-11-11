@@ -69,9 +69,9 @@ class Participant(models.Model):
             return f"{self.user.name} ({self.eventum.name})"
         return f"{self.name} ({self.eventum.name})"
 
-class ParticipantGroupV2(models.Model):
+class ParticipantGroup(models.Model):
     """Новая модель групп участников с поддержкой рекурсивных связей"""
-    eventum = models.ForeignKey(Eventum, on_delete=models.CASCADE, related_name='participant_groups_v2')
+    eventum = models.ForeignKey(Eventum, on_delete=models.CASCADE, related_name='participant_groups')
     name = models.CharField(max_length=200)
     is_event_group = models.BooleanField(
         default=False,
@@ -83,8 +83,8 @@ class ParticipantGroupV2(models.Model):
             models.Index(fields=['eventum']),
             models.Index(fields=['is_event_group']),
         ]
-        verbose_name = 'Participant Group V2'
-        verbose_name_plural = 'Participant Groups V2'
+        verbose_name = 'Participant Group'
+        verbose_name_plural = 'Participant Groups'
     
     def __str__(self):
         return f"{self.name} ({self.eventum.name})"
@@ -127,11 +127,11 @@ class ParticipantGroupV2(models.Model):
         # Иначе используем старую логику с запросами к БД
         # Проверяем, есть ли хотя бы одна inclusive связь с участником или группой
         has_inclusive_participants = self.participant_relations.filter(
-            relation_type=ParticipantGroupV2ParticipantRelation.RelationType.INCLUSIVE
+            relation_type=ParticipantGroupParticipantRelation.RelationType.INCLUSIVE
         ).exists()
         
         has_inclusive_groups = self.group_relations.filter(
-            relation_type=ParticipantGroupV2GroupRelation.RelationType.INCLUSIVE
+            relation_type=ParticipantGroupGroupRelation.RelationType.INCLUSIVE
         ).exists()
         
         # Если нет ни участников, ни inclusive групп, возвращаем всех участников eventum
@@ -143,7 +143,7 @@ class ParticipantGroupV2(models.Model):
             
             # Исключенные участники из прямых связей
             excluded_relations = self.participant_relations.filter(
-                relation_type=ParticipantGroupV2ParticipantRelation.RelationType.EXCLUSIVE
+                relation_type=ParticipantGroupParticipantRelation.RelationType.EXCLUSIVE
             )
             excluded_participant_ids.update(
                 rel.participant_id for rel in excluded_relations
@@ -151,7 +151,7 @@ class ParticipantGroupV2(models.Model):
             
             # Исключенные участники из групп
             for group_rel in self.group_relations.filter(
-                relation_type=ParticipantGroupV2GroupRelation.RelationType.EXCLUSIVE
+                relation_type=ParticipantGroupGroupRelation.RelationType.EXCLUSIVE
             ):
                 excluded_participant_ids.update(
                     group_rel.target_group.get_participants(visited_groups.copy(), all_participant_ids).values_list('id', flat=True)
@@ -168,9 +168,9 @@ class ParticipantGroupV2(models.Model):
             
             # Обрабатываем прямые связи с участниками
             for rel in self.participant_relations.all():
-                if rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.INCLUSIVE:
+                if rel.relation_type == ParticipantGroupParticipantRelation.RelationType.INCLUSIVE:
                     included_participant_ids.add(rel.participant_id)
-                elif rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.EXCLUSIVE:
+                elif rel.relation_type == ParticipantGroupParticipantRelation.RelationType.EXCLUSIVE:
                     excluded_participant_ids.add(rel.participant_id)
             
             # Обрабатываем связи с группами
@@ -178,9 +178,9 @@ class ParticipantGroupV2(models.Model):
                 target_participants = rel.target_group.get_participants(visited_groups.copy(), all_participant_ids)
                 target_participant_ids = set(target_participants.values_list('id', flat=True))
                 
-                if rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.INCLUSIVE:
+                if rel.relation_type == ParticipantGroupGroupRelation.RelationType.INCLUSIVE:
                     included_participant_ids.update(target_participant_ids)
-                elif rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.EXCLUSIVE:
+                elif rel.relation_type == ParticipantGroupGroupRelation.RelationType.EXCLUSIVE:
                     excluded_participant_ids.update(target_participant_ids)
             
             # Исключаем участников из списка включенных
@@ -216,11 +216,11 @@ class ParticipantGroupV2(models.Model):
         
         # Проверяем, есть ли хотя бы одна inclusive связь
         has_inclusive_participants = any(
-            rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.INCLUSIVE
+            rel.relation_type == ParticipantGroupParticipantRelation.RelationType.INCLUSIVE
             for rel in participant_relations
         )
         has_inclusive_groups = any(
-            rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.INCLUSIVE
+            rel.relation_type == ParticipantGroupGroupRelation.RelationType.INCLUSIVE
             for rel in group_relations
         )
         
@@ -236,12 +236,12 @@ class ParticipantGroupV2(models.Model):
             excluded_ids = {
                 rel.participant_id
                 for rel in participant_relations
-                if rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.EXCLUSIVE
+                if rel.relation_type == ParticipantGroupParticipantRelation.RelationType.EXCLUSIVE
             }
             
             # Применяем исключения из групп (рекурсивно)
             for group_rel in group_relations:
-                if group_rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.EXCLUSIVE:
+                if group_rel.relation_type == ParticipantGroupGroupRelation.RelationType.EXCLUSIVE:
                     target_ids = self._get_participant_ids_from_group(group_rel.target_group, all_participant_ids, visited_groups.copy())
                     excluded_ids.update(target_ids)
             
@@ -253,18 +253,18 @@ class ParticipantGroupV2(models.Model):
             
             # Обрабатываем прямые связи с участниками
             for rel in participant_relations:
-                if rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.INCLUSIVE:
+                if rel.relation_type == ParticipantGroupParticipantRelation.RelationType.INCLUSIVE:
                     included_ids.add(rel.participant_id)
-                elif rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.EXCLUSIVE:
+                elif rel.relation_type == ParticipantGroupParticipantRelation.RelationType.EXCLUSIVE:
                     excluded_ids.add(rel.participant_id)
             
             # Обрабатываем связи с группами
             for group_rel in group_relations:
                 target_ids = self._get_participant_ids_from_group(group_rel.target_group, all_participant_ids, visited_groups.copy())
                 
-                if group_rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.INCLUSIVE:
+                if group_rel.relation_type == ParticipantGroupGroupRelation.RelationType.INCLUSIVE:
                     included_ids.update(target_ids)
-                elif group_rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.EXCLUSIVE:
+                elif group_rel.relation_type == ParticipantGroupGroupRelation.RelationType.EXCLUSIVE:
                     excluded_ids.update(target_ids)
             
             # Исключаем участников из списка включенных
@@ -318,11 +318,11 @@ class ParticipantGroupV2(models.Model):
         
         # Проверяем, есть ли inclusive связи
         has_inclusive_participants = any(
-            rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.INCLUSIVE
+            rel.relation_type == ParticipantGroupParticipantRelation.RelationType.INCLUSIVE
             for rel in participant_relations
         )
         has_inclusive_groups = any(
-            rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.INCLUSIVE
+            rel.relation_type == ParticipantGroupGroupRelation.RelationType.INCLUSIVE
             for rel in group_relations
         )
         
@@ -336,11 +336,11 @@ class ParticipantGroupV2(models.Model):
             excluded_ids = {
                 rel.participant_id
                 for rel in participant_relations
-                if rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.EXCLUSIVE
+                if rel.relation_type == ParticipantGroupParticipantRelation.RelationType.EXCLUSIVE
             }
             
             for group_rel in group_relations:
-                if group_rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.EXCLUSIVE:
+                if group_rel.relation_type == ParticipantGroupGroupRelation.RelationType.EXCLUSIVE:
                     excluded_ids.update(self._get_participant_ids_from_group(group_rel.target_group, all_participant_ids, visited_groups.copy()))
             
             return included_ids - excluded_ids
@@ -349,19 +349,19 @@ class ParticipantGroupV2(models.Model):
             included_ids = {
                 rel.participant_id
                 for rel in participant_relations
-                if rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.INCLUSIVE
+                if rel.relation_type == ParticipantGroupParticipantRelation.RelationType.INCLUSIVE
             }
             excluded_ids = {
                 rel.participant_id
                 for rel in participant_relations
-                if rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.EXCLUSIVE
+                if rel.relation_type == ParticipantGroupParticipantRelation.RelationType.EXCLUSIVE
             }
             
             for group_rel in group_relations:
                 target_ids = self._get_participant_ids_from_group(group_rel.target_group, all_participant_ids, visited_groups.copy())
-                if group_rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.INCLUSIVE:
+                if group_rel.relation_type == ParticipantGroupGroupRelation.RelationType.INCLUSIVE:
                     included_ids.update(target_ids)
-                elif group_rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.EXCLUSIVE:
+                elif group_rel.relation_type == ParticipantGroupGroupRelation.RelationType.EXCLUSIVE:
                     excluded_ids.update(target_ids)
             
             return included_ids - excluded_ids
@@ -371,21 +371,21 @@ class ParticipantGroupV2(models.Model):
         return self.get_participants().filter(id=participant_id).exists()
 
 
-class ParticipantGroupV2ParticipantRelation(models.Model):
-    """Связь группы V2 с участником"""
+class ParticipantGroupParticipantRelation(models.Model):
+    """Связь группы с участником"""
     class RelationType(models.TextChoices):
         INCLUSIVE = 'inclusive', 'Включает (участник входит в группу)'
         EXCLUSIVE = 'exclusive', 'Исключает (участник НЕ входит в группу)'
     
     group = models.ForeignKey(
-        ParticipantGroupV2, 
+        ParticipantGroup, 
         on_delete=models.CASCADE, 
         related_name='participant_relations'
     )
     participant = models.ForeignKey(
         Participant, 
         on_delete=models.CASCADE, 
-        related_name='group_v2_relations'
+        related_name='group_relations'
     )
     relation_type = models.CharField(
         max_length=20, 
@@ -399,8 +399,8 @@ class ParticipantGroupV2ParticipantRelation(models.Model):
             models.Index(fields=['group']),
             models.Index(fields=['participant']),
         ]
-        verbose_name = 'Participant Group V2 Participant Relation'
-        verbose_name_plural = 'Participant Group V2 Participant Relations'
+        verbose_name = 'Participant Group Participant Relation'
+        verbose_name_plural = 'Participant Group Participant Relations'
     
     def clean(self):
         """Валидация связи группа-участник"""
@@ -417,19 +417,19 @@ class ParticipantGroupV2ParticipantRelation(models.Model):
         return f"{self.group.name} {relation_desc} {self.participant.name}"
 
 
-class ParticipantGroupV2GroupRelation(models.Model):
-    """Связь группы V2 с другой группой"""
+class ParticipantGroupGroupRelation(models.Model):
+    """Связь группы с другой группой"""
     class RelationType(models.TextChoices):
         INCLUSIVE = 'inclusive', 'Включает (целевая группа входит в исходную)'
         EXCLUSIVE = 'exclusive', 'Исключает (целевая группа НЕ входит в исходную)'
     
     group = models.ForeignKey(
-        ParticipantGroupV2, 
+        ParticipantGroup, 
         on_delete=models.CASCADE, 
         related_name='group_relations'
     )
     target_group = models.ForeignKey(
-        ParticipantGroupV2, 
+        ParticipantGroup, 
         on_delete=models.CASCADE, 
         related_name='source_relations'
     )
@@ -445,8 +445,8 @@ class ParticipantGroupV2GroupRelation(models.Model):
             models.Index(fields=['group']),
             models.Index(fields=['target_group']),
         ]
-        verbose_name = 'Participant Group V2 Group Relation'
-        verbose_name_plural = 'Participant Group V2 Group Relations'
+        verbose_name = 'Participant Group Group Relation'
+        verbose_name_plural = 'Participant Group Group Relations'
     
     def clean(self):
         """Валидация связи группа-группа"""
@@ -475,11 +475,11 @@ class ParticipantGroupV2GroupRelation(models.Model):
         # Если это обновление существующей связи, пропускаем проверку для той же связи
         if self.pk:
             try:
-                old_relation = ParticipantGroupV2GroupRelation.objects.get(pk=self.pk)
+                old_relation = ParticipantGroupGroupRelation.objects.get(pk=self.pk)
                 # Если целевая группа не изменилась, пропускаем проверку
                 if old_relation.target_group_id == self.target_group_id:
                     return
-            except ParticipantGroupV2GroupRelation.DoesNotExist:
+            except ParticipantGroupGroupRelation.DoesNotExist:
                 pass
         
         # Проверяем цикл: если целевая группа уже ссылается (прямо или косвенно) на текущую группу
@@ -501,7 +501,7 @@ class ParticipantGroupV2GroupRelation(models.Model):
                 )
             
             # Получаем все группы, на которые ссылается текущая группа
-            referenced_groups = ParticipantGroupV2GroupRelation.objects.filter(
+            referenced_groups = ParticipantGroupGroupRelation.objects.filter(
                 group_id=current_group_id
             ).values_list('target_group_id', flat=True)
             
@@ -512,17 +512,17 @@ class ParticipantGroupV2GroupRelation(models.Model):
         return f"{self.group.name} {relation_desc} {self.target_group.name}"
 
 
-class ParticipantGroupV2EventRelation(models.Model):
-    """Связь группы V2 с событием (участники события = участники группы)"""
+class ParticipantGroupEventRelation(models.Model):
+    """Связь группы с событием (участники события = участники группы)"""
     group = models.ForeignKey(
-        ParticipantGroupV2, 
+        ParticipantGroup, 
         on_delete=models.CASCADE, 
         related_name='event_relations'
     )
     event = models.ForeignKey(
         'Event', 
         on_delete=models.CASCADE, 
-        related_name='group_v2_relations'
+        related_name='group_relations'
     )
     
     class Meta:
@@ -531,8 +531,8 @@ class ParticipantGroupV2EventRelation(models.Model):
             models.Index(fields=['group']),
             models.Index(fields=['event']),
         ]
-        verbose_name = 'Participant Group V2 Event Relation'
-        verbose_name_plural = 'Participant Group V2 Event Relations'
+        verbose_name = 'Participant Group Event Relation'
+        verbose_name_plural = 'Participant Group Event Relations'
     
     def clean(self):
         """Валидация связи группа-событие"""
@@ -600,14 +600,14 @@ class Event(models.Model):
         blank=True
     )
     tags = models.ManyToManyField(EventTag, related_name='events', blank=True)
-    # Опциональная связь 1:1 с группой V2 (участники события = участники группы)
-    event_group_v2 = models.OneToOneField(
-        ParticipantGroupV2,
+    # Опциональная связь 1:1 с группой (участники события = участники группы)
+    event_group = models.OneToOneField(
+        ParticipantGroup,
         null=True,
         blank=True,
         on_delete=models.SET_NULL,
         related_name='linked_event',
-        help_text="Опциональная связь 1:1 с группой V2"
+        help_text="Опциональная связь 1:1 с группой"
     )
     
     def save(self, *args, **kwargs):
@@ -641,9 +641,9 @@ class Event(models.Model):
                     f"Locations {', '.join(location_names)} belong to a different eventum"
                 )
 
-        # Валидация: если указана группа V2, она должна принадлежать тому же eventum
-        if self.event_group_v2 and self.event_group_v2.eventum_id != self.eventum_id:
-            raise ValidationError("Event group V2 must belong to the same eventum as the event")
+        # Валидация: если указана группа, она должна принадлежать тому же eventum
+        if self.event_group and self.event_group.eventum_id != self.eventum_id:
+            raise ValidationError("Event group must belong to the same eventum as the event")
     
     def __str__(self):
         return f"{self.name} ({self.eventum.name})"
@@ -857,7 +857,7 @@ class EventRegistration(models.Model):
         help_text="Максимальное количество участников, которое может попасть на мероприятие через регистрацию"
     )
     allowed_group = models.ForeignKey(
-        ParticipantGroupV2,
+        ParticipantGroup,
         on_delete=models.CASCADE,
         related_name='event_registrations',
         null=True,
@@ -895,11 +895,11 @@ class EventRegistration(models.Model):
                     f"должны принадлежать одному мероприятию (eventum)"
                 )
         
-        # Валидация: для типа BUTTON должно быть создано event_group_v2 у мероприятия
+        # Валидация: для типа BUTTON должно быть создано event_group у мероприятия
         if self.registration_type == self.RegistrationType.BUTTON:
-            if self.event_id and not self.event.event_group_v2_id:
+            if self.event_id and not self.event.event_group_id:
                 raise ValidationError(
-                    "Для типа регистрации 'Запись по кнопке' у мероприятия должна быть создана группа event_group_v2"
+                    "Для типа регистрации 'Запись по кнопке' у мероприятия должна быть создана группа event_group"
                 )
     
     def save(self, *args, **kwargs):
@@ -917,10 +917,10 @@ class EventRegistration(models.Model):
             all_participant_ids: set всех ID участников eventum (для работы с prefetch'нутыми данными)
         """
         if self.registration_type == self.RegistrationType.BUTTON:
-            # Для типа button считаем участников в event_group_v2
-            if self.event.event_group_v2:
+            # Для типа button считаем участников в event_group
+            if self.event.event_group:
                 # Используем оптимизированный метод с кешем и prefetch'нутыми данными
-                return self.event.event_group_v2.get_participants_count(all_participant_ids)
+                return self.event.event_group.get_participants_count(all_participant_ids)
             return 0
         else:
             # Для типа application считаем заявки

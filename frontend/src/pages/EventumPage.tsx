@@ -455,8 +455,8 @@ const DistributionTab: React.FC<{ myRegistrations: EventRegistration[]; currentP
           {/* Мероприятия, в которых участник участвует */}
           {(() => {
             // myRegistrations - это массив Event объектов (не EventRegistration), у которых есть поле is_participant
-            // которое правильно вычисляется на бэкенде с учетом v2 групп и других способов участия
-            // Участвует только если is_participant строго равно true (участник в event_group_v2 или назначен вручную)
+            // которое правильно вычисляется на бэкенде с учетом групп и других способов участия
+            // Участвует только если is_participant строго равно true (участник в event_group или назначен вручную)
             const participatingEvents = myRegistrations
               .filter((event: any) => 
                 event && 
@@ -1117,8 +1117,8 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string; isViewingAsOtherP
         }
       }
       return `Заявок: ${localRegistrationsCount}`;
-    } else if (event.event_group_v2) {
-      // Если есть event_group_v2, это регистрация
+    } else if (event.event_group) {
+      // Если есть event_group, это регистрация
       return 'По записи';
     } else {
       // Иначе - для всех участников

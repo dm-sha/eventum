@@ -7,9 +7,9 @@ import type {
   Eventum, 
   EventumDetails, 
   Participant, 
-  ParticipantGroupV2,
-  CreateParticipantGroupV2Data,
-  UpdateParticipantGroupV2Data,
+  ParticipantGroup,
+  CreateParticipantGroupData,
+  UpdateParticipantGroupData,
   Event, 
   UserRole, 
   User,
@@ -152,63 +152,63 @@ export const participantsApi = {
     createApiRequest<Participant[]>('POST', '/participants/filter_by_events/', getEventumSlugForRequest(eventumSlug), data)
 };
 
-// ============= GROUPS V2 API =============
+// ============= GROUPS API =============
 
-export const groupsV2Api = {
-  // Получить все группы V2
+export const groupsApi = {
+  // Получить все группы
   getAll: (eventumSlug?: string, options?: { includeEventGroups?: boolean }) => {
     const include = options?.includeEventGroups ? '?include_event_groups=true' : '';
-    return createApiRequest<ParticipantGroupV2[]>(
+    return createApiRequest<ParticipantGroup[]>(
       'GET',
-      `/groups-v2/${include}`,
+      `/groups/${include}`,
       getEventumSlugForRequest(eventumSlug)
     );
   },
   
-  // Создать группу V2
-  create: (data: CreateParticipantGroupV2Data, eventumSlug?: string) => 
-    createApiRequest<ParticipantGroupV2>('POST', '/groups-v2/', getEventumSlugForRequest(eventumSlug), data),
+  // Создать группу
+  create: (data: CreateParticipantGroupData, eventumSlug?: string) => 
+    createApiRequest<ParticipantGroup>('POST', '/groups/', getEventumSlugForRequest(eventumSlug), data),
   
-  // Обновить группу V2
-  update: (id: number, data: UpdateParticipantGroupV2Data, eventumSlug?: string) => 
-    createApiRequest<ParticipantGroupV2>('PATCH', `/groups-v2/${id}/?include_event_groups=true`, getEventumSlugForRequest(eventumSlug), data),
+  // Обновить группу
+  update: (id: number, data: UpdateParticipantGroupData, eventumSlug?: string) => 
+    createApiRequest<ParticipantGroup>('PATCH', `/groups/${id}/?include_event_groups=true`, getEventumSlugForRequest(eventumSlug), data),
   
-  // Удалить группу V2
+  // Удалить группу
   delete: (id: number, eventumSlug?: string) => 
-    createApiRequest<void>('DELETE', `/groups-v2/${id}/?include_event_groups=true`, getEventumSlugForRequest(eventumSlug))
+    createApiRequest<void>('DELETE', `/groups/${id}/?include_event_groups=true`, getEventumSlugForRequest(eventumSlug))
 };
 
-// ============= EVENT RELATIONS V2 API =============
+// ============= EVENT RELATIONS API =============
 
-export interface EventRelationV2 {
+export interface EventRelation {
   id: number;
   group_id: number;
   event_id: number;
   event?: Event;
 }
 
-export const eventRelationsV2Api = {
-  // Получить все связи группа↔событие V2
+export const eventRelationsApi = {
+  // Получить все связи группа↔событие
   getAll: (eventumSlug?: string, options?: { event_id?: number; group_id?: number }) => {
     const params = new URLSearchParams();
     if (options?.event_id) params.append('event_id', options.event_id.toString());
     if (options?.group_id) params.append('group_id', options.group_id.toString());
     const query = params.toString();
-    const url = query ? `/event-relations-v2/?${query}` : '/event-relations-v2/';
-    return createApiRequest<EventRelationV2[]>(
+    const url = query ? `/event-relations/?${query}` : '/event-relations/';
+    return createApiRequest<EventRelation[]>(
       'GET',
       url,
       getEventumSlugForRequest(eventumSlug)
     );
   },
   
-  // Создать связь группа↔событие V2 (one-to-one предполагается с нашей стороны)
+  // Создать связь группа↔событие (one-to-one предполагается с нашей стороны)
   create: (params: { group_id: number; event_id: number }, eventumSlug?: string) =>
-    createApiRequest<{ id: number }>('POST', '/event-relations-v2/', getEventumSlugForRequest(eventumSlug), params),
+    createApiRequest<{ id: number }>('POST', '/event-relations/', getEventumSlugForRequest(eventumSlug), params),
   
   // Удалить связь
   delete: (id: number, eventumSlug?: string) =>
-    createApiRequest<void>('DELETE', `/event-relations-v2/${id}/`, getEventumSlugForRequest(eventumSlug)),
+    createApiRequest<void>('DELETE', `/event-relations/${id}/`, getEventumSlugForRequest(eventumSlug)),
 };
 
 // ============= EVENTS API =============

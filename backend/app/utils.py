@@ -89,9 +89,9 @@ class EventumGroupGraph:
                             Если None, загружает всех участников eventum.
         """
         from .models import (
-            ParticipantGroupV2, 
-            ParticipantGroupV2ParticipantRelation, 
-            ParticipantGroupV2GroupRelation,
+            ParticipantGroup, 
+            ParticipantGroupParticipantRelation, 
+            ParticipantGroupGroupRelation,
             Participant
         )
         
@@ -111,7 +111,7 @@ class EventumGroupGraph:
             self.participants_map = participants_map
         
         # Загружаем все группы eventum
-        groups = ParticipantGroupV2.objects.filter(eventum_id=self.eventum_id)
+        groups = ParticipantGroup.objects.filter(eventum_id=self.eventum_id)
         
         # Строим структуру данных для каждой группы
         # Структура: {group_id: {
@@ -120,7 +120,7 @@ class EventumGroupGraph:
         #   'exclusive_participants': list[participant_id],
         #   'inclusive_groups': list[group_id],
         #   'exclusive_groups': list[group_id],
-        #   'group_obj': ParticipantGroupV2
+        #   'group_obj': ParticipantGroup
         # }}
         self.groups_data = {}
         
@@ -134,10 +134,10 @@ class EventumGroupGraph:
         
         # Загружаем все связи одним запросом
         group_ids = [g.id for g in groups]
-        participant_relations = ParticipantGroupV2ParticipantRelation.objects.filter(
+        participant_relations = ParticipantGroupParticipantRelation.objects.filter(
             group_id__in=group_ids
         )
-        group_relations = ParticipantGroupV2GroupRelation.objects.filter(
+        group_relations = ParticipantGroupGroupRelation.objects.filter(
             group_id__in=group_ids
         )
         
@@ -179,10 +179,10 @@ class EventumGroupGraph:
             relations = participant_relations_by_group.get(group_id, [])
             for rel in relations:
                 participant_id = rel.participant_id
-                if rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.INCLUSIVE:
+                if rel.relation_type == ParticipantGroupParticipantRelation.RelationType.INCLUSIVE:
                     self.groups_data[group_id]['inclusive_participants'].append(participant_id)
                     self.inclusive_participants_map[group_id][participant_id] = True
-                elif rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.EXCLUSIVE:
+                elif rel.relation_type == ParticipantGroupParticipantRelation.RelationType.EXCLUSIVE:
                     self.groups_data[group_id]['exclusive_participants'].append(participant_id)
                     self.exclusive_participants_map[group_id][participant_id] = True
             
@@ -190,10 +190,10 @@ class EventumGroupGraph:
             relations = group_relations_by_group.get(group_id, [])
             for rel in relations:
                 target_group_id = rel.target_group_id
-                if rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.INCLUSIVE:
+                if rel.relation_type == ParticipantGroupGroupRelation.RelationType.INCLUSIVE:
                     self.groups_data[group_id]['inclusive_groups'].append(target_group_id)
                     self.inclusive_groups_map[group_id][target_group_id] = True
-                elif rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.EXCLUSIVE:
+                elif rel.relation_type == ParticipantGroupGroupRelation.RelationType.EXCLUSIVE:
                     self.groups_data[group_id]['exclusive_groups'].append(target_group_id)
                     self.exclusive_groups_map[group_id][target_group_id] = True
         
@@ -314,7 +314,7 @@ class EventumGroupGraph:
             group_id: ID группы
         
         Returns:
-            ParticipantGroupV2 или None
+            ParticipantGroup или None
         """
         group_data = self.groups_data.get(group_id)
         return group_data['group_obj'] if group_data else None
@@ -347,7 +347,7 @@ def get_group_participant_ids(
     Иначе работает в старом режиме для обратной совместимости.
     
     Args:
-        group: Группа участников (ParticipantGroupV2) или group_id
+        group: Группа участников (ParticipantGroup) или group_id
         all_participant_ids: Множество всех ID участников eventum (для случая, когда нет inclusive связей)
         visited_groups: Множество ID уже посещенных групп (для предотвращения циклов)
         prefetch_nested_groups: Если True, загружает связи для вложенных групп, если они не prefetch'нуты
@@ -365,7 +365,7 @@ def get_group_participant_ids(
         return group_graph.get_participant_ids(group_id, visited_groups)
     
     # Старая логика для обратной совместимости
-    from .models import ParticipantGroupV2ParticipantRelation, ParticipantGroupV2GroupRelation, ParticipantGroupV2
+    from .models import ParticipantGroupParticipantRelation, ParticipantGroupGroupRelation, ParticipantGroup
     
     if not group:
         return set()
@@ -385,7 +385,7 @@ def get_group_participant_ids(
         participant_relations = group._prefetched_objects_cache['participant_relations']
     else:
         # Fallback: если prefetch не сработал, загружаем связи напрямую
-        participant_relations = list(ParticipantGroupV2ParticipantRelation.objects.filter(
+        participant_relations = list(ParticipantGroupParticipantRelation.objects.filter(
             group=group
         ).select_related('participant'))
     
@@ -401,28 +401,28 @@ def get_group_participant_ids(
                     # Если у target_group нет prefetch'нутых данных, загружаем их
                     target_group._prefetched_objects_cache = {}
                     target_group._prefetched_objects_cache['participant_relations'] = list(
-                        ParticipantGroupV2ParticipantRelation.objects.filter(
+                        ParticipantGroupParticipantRelation.objects.filter(
                             group=target_group
                         ).select_related('participant')
                     )
                     target_group._prefetched_objects_cache['group_relations'] = list(
-                        ParticipantGroupV2GroupRelation.objects.filter(
+                        ParticipantGroupGroupRelation.objects.filter(
                             group=target_group
                         ).select_related('target_group')
                     )
     else:
         # Fallback: если prefetch не сработал, загружаем связи напрямую
-        group_relations = list(ParticipantGroupV2GroupRelation.objects.filter(
+        group_relations = list(ParticipantGroupGroupRelation.objects.filter(
             group=group
         ).select_related('target_group'))
     
     # Проверяем, есть ли хотя бы одна inclusive связь
     has_inclusive_participants = any(
-        rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.INCLUSIVE
+        rel.relation_type == ParticipantGroupParticipantRelation.RelationType.INCLUSIVE
         for rel in participant_relations
     )
     has_inclusive_groups = any(
-        rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.INCLUSIVE
+        rel.relation_type == ParticipantGroupGroupRelation.RelationType.INCLUSIVE
         for rel in group_relations
     )
     
@@ -435,17 +435,17 @@ def get_group_participant_ids(
         # Исключаем excluded участников
         excluded_participant_ids = set()
         for rel in participant_relations:
-            if rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.EXCLUSIVE:
+            if rel.relation_type == ParticipantGroupParticipantRelation.RelationType.EXCLUSIVE:
                 excluded_participant_ids.add(rel.participant_id)
         
         # Исключаем участников из excluded групп (рекурсивно)
         for group_rel in group_relations:
-            if group_rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.EXCLUSIVE:
+            if group_rel.relation_type == ParticipantGroupGroupRelation.RelationType.EXCLUSIVE:
                 target_group = group_rel.target_group
                 if not target_group and group_rel.target_group_id:
                     # Если объекта нет, но есть ID, создаем минимальный объект для работы
                     # target_group должен быть из того же eventum
-                    target_group = ParticipantGroupV2(id=group_rel.target_group_id, eventum_id=group.eventum_id)
+                    target_group = ParticipantGroup(id=group_rel.target_group_id, eventum_id=group.eventum_id)
                 if target_group:
                     excluded_participant_ids.update(
                         get_group_participant_ids(
@@ -465,9 +465,9 @@ def get_group_participant_ids(
         
         # Обрабатываем прямые связи с участниками
         for rel in participant_relations:
-            if rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.INCLUSIVE:
+            if rel.relation_type == ParticipantGroupParticipantRelation.RelationType.INCLUSIVE:
                 included_participant_ids.add(rel.participant_id)
-            elif rel.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.EXCLUSIVE:
+            elif rel.relation_type == ParticipantGroupParticipantRelation.RelationType.EXCLUSIVE:
                 excluded_participant_ids.add(rel.participant_id)
         
         # Обрабатываем связи с группами
@@ -476,7 +476,7 @@ def get_group_participant_ids(
             if not target_group and group_rel.target_group_id:
                 # Если объекта нет, но есть ID, создаем минимальный объект для работы
                 # target_group должен быть из того же eventum
-                target_group = ParticipantGroupV2(id=group_rel.target_group_id, eventum_id=group.eventum_id)
+                target_group = ParticipantGroup(id=group_rel.target_group_id, eventum_id=group.eventum_id)
             if target_group:
                 target_participant_ids = get_group_participant_ids(
                     target_group, 
@@ -485,9 +485,9 @@ def get_group_participant_ids(
                     prefetch_nested_groups=prefetch_nested_groups
                 )
                 
-                if group_rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.INCLUSIVE:
+                if group_rel.relation_type == ParticipantGroupGroupRelation.RelationType.INCLUSIVE:
                     included_participant_ids.update(target_participant_ids)
-                elif group_rel.relation_type == ParticipantGroupV2GroupRelation.RelationType.EXCLUSIVE:
+                elif group_rel.relation_type == ParticipantGroupGroupRelation.RelationType.EXCLUSIVE:
                     excluded_participant_ids.update(target_participant_ids)
         
         # Исключаем участников из списка включенных

@@ -28,9 +28,9 @@ const EventCalendar: React.FC<EventCalendarProps> = ({ events, participantId, cu
 
     return events.filter(event => {
       // Используем is_participant, которое правильно вычисляется на бэкенде
-      // с учетом вложенных v2 групп для всех типов мероприятий
+      // с учетом вложенных групп для всех типов мероприятий
       // (работает и для мероприятий с регистрацией, и без)
-      // Для мероприятий без регистрации (без event_group_v2) все участники eventum видят их
+      // Для мероприятий без регистрации (без event_group) все участники eventum видят их
       return event.is_participant === true;
     });
   }, [events, participantId, currentParticipant]);

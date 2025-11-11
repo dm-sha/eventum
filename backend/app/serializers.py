@@ -8,8 +8,8 @@ import logging
 from .models import (
     Eventum, Participant,
     Event, EventTag, UserProfile, UserRole, Location, EventWave, EventRegistration,
-    ParticipantGroupV2, ParticipantGroupV2ParticipantRelation, ParticipantGroupV2GroupRelation,
-    ParticipantGroupV2EventRelation
+    ParticipantGroup, ParticipantGroupParticipantRelation, ParticipantGroupGroupRelation,
+    ParticipantGroupEventRelation
 )
 from .utils import get_group_participant_ids
 
@@ -164,22 +164,22 @@ class ParticipantSerializer(serializers.ModelSerializer):
         return None
     
     def get_groups(self, obj):
-        """Возвращает группы участника (v2)"""
+        """Возвращает группы участника"""
         # ИСПОЛЬЗУЕМ prefetch'нутые данные вместо запроса к БД
         # Данные должны быть загружены через prefetch_related в ViewSet
-        if hasattr(obj, 'v2_groups'):
+        if hasattr(obj, 'groups'):
             # Используем prefetch'нутые данные
             return [{
                 'id': rel.group.id,
                 'name': rel.group.name,
-            } for rel in obj.v2_groups]
+            } for rel in obj.groups]
         
         # Fallback: если prefetch не сработал, делаем запрос (но это не должно происходить)
-        from .models import ParticipantGroupV2ParticipantRelation
+        from .models import ParticipantGroupParticipantRelation
         
-        group_relations = ParticipantGroupV2ParticipantRelation.objects.filter(
+        group_relations = ParticipantGroupParticipantRelation.objects.filter(
             participant=obj,
-            relation_type=ParticipantGroupV2ParticipantRelation.RelationType.INCLUSIVE
+            relation_type=ParticipantGroupParticipantRelation.RelationType.INCLUSIVE
         ).select_related('group')
         return [{
             'id': rel.group.id,
@@ -227,14 +227,14 @@ class EventTagSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'slug']
 
 
-class ParticipantGroupV2ParticipantRelationSerializer(serializers.ModelSerializer):
-    """Сериализатор для связи группы V2 с участником"""
+class ParticipantGroupParticipantRelationSerializer(serializers.ModelSerializer):
+    """Сериализатор для связи группы с участником"""
     group_id = serializers.IntegerField(write_only=True, required=False)
     participant_id = serializers.IntegerField()
     participant = ParticipantSerializer(read_only=True)
     
     class Meta:
-        model = ParticipantGroupV2ParticipantRelation
+        model = ParticipantGroupParticipantRelation
         fields = [
             'id', 'relation_type', 
             'group_id', 'participant_id', 'participant'
@@ -258,8 +258,8 @@ class ParticipantGroupV2ParticipantRelationSerializer(serializers.ModelSerialize
             })
         
         try:
-            validated_data['group'] = ParticipantGroupV2.objects.get(id=group_id)
-        except ParticipantGroupV2.DoesNotExist:
+            validated_data['group'] = ParticipantGroup.objects.get(id=group_id)
+        except ParticipantGroup.DoesNotExist:
             raise serializers.ValidationError({
                 'group_id': f'Group with ID {group_id} does not exist'
             })
@@ -279,8 +279,8 @@ class ParticipantGroupV2ParticipantRelationSerializer(serializers.ModelSerialize
         
         if group_id is not None:
             try:
-                validated_data['group'] = ParticipantGroupV2.objects.get(id=group_id)
-            except ParticipantGroupV2.DoesNotExist:
+                validated_data['group'] = ParticipantGroup.objects.get(id=group_id)
+            except ParticipantGroup.DoesNotExist:
                 raise serializers.ValidationError({
                     'group_id': f'Group with ID {group_id} does not exist'
                 })
@@ -295,14 +295,14 @@ class ParticipantGroupV2ParticipantRelationSerializer(serializers.ModelSerialize
         return super().update(instance, validated_data)
 
 
-class ParticipantGroupV2GroupRelationSerializer(serializers.ModelSerializer):
-    """Сериализатор для связи группы V2 с другой группой"""
+class ParticipantGroupGroupRelationSerializer(serializers.ModelSerializer):
+    """Сериализатор для связи группы с другой группой"""
     group_id = serializers.IntegerField(write_only=True, required=False)
     target_group_id = serializers.IntegerField()
     target_group = serializers.SerializerMethodField(read_only=True)
     
     class Meta:
-        model = ParticipantGroupV2GroupRelation
+        model = ParticipantGroupGroupRelation
         fields = [
             'id', 'relation_type', 
             'group_id', 'target_group_id', 'target_group'
@@ -335,15 +335,15 @@ class ParticipantGroupV2GroupRelationSerializer(serializers.ModelSerializer):
             })
         
         try:
-            validated_data['group'] = ParticipantGroupV2.objects.get(id=group_id)
-        except ParticipantGroupV2.DoesNotExist:
+            validated_data['group'] = ParticipantGroup.objects.get(id=group_id)
+        except ParticipantGroup.DoesNotExist:
             raise serializers.ValidationError({
                 'group_id': f'Group with ID {group_id} does not exist'
             })
         
         try:
-            validated_data['target_group'] = ParticipantGroupV2.objects.get(id=target_group_id)
-        except ParticipantGroupV2.DoesNotExist:
+            validated_data['target_group'] = ParticipantGroup.objects.get(id=target_group_id)
+        except ParticipantGroup.DoesNotExist:
             raise serializers.ValidationError({
                 'target_group_id': f'Target group with ID {target_group_id} does not exist'
             })
@@ -356,31 +356,31 @@ class ParticipantGroupV2GroupRelationSerializer(serializers.ModelSerializer):
         
         if group_id is not None:
             try:
-                validated_data['group'] = ParticipantGroupV2.objects.get(id=group_id)
-            except ParticipantGroupV2.DoesNotExist:
+                validated_data['group'] = ParticipantGroup.objects.get(id=group_id)
+            except ParticipantGroup.DoesNotExist:
                 raise serializers.ValidationError({
                     'group_id': f'Group with ID {group_id} does not exist'
                 })
         
         if target_group_id is not None:
             try:
-                validated_data['target_group'] = ParticipantGroupV2.objects.get(id=target_group_id)
-            except ParticipantGroupV2.DoesNotExist:
+                validated_data['target_group'] = ParticipantGroup.objects.get(id=target_group_id)
+            except ParticipantGroup.DoesNotExist:
                 raise serializers.ValidationError({
                     'target_group_id': f'Target group with ID {target_group_id} does not exist'
                 })
         return super().update(instance, validated_data)
 
 
-class ParticipantGroupV2EventRelationSerializer(serializers.ModelSerializer):
-    """Сериализатор для связи группы V2 с событием"""
+class ParticipantGroupEventRelationSerializer(serializers.ModelSerializer):
+    """Сериализатор для связи группы с событием"""
     group_id = serializers.IntegerField(source='group.id', read_only=True)
     event_id = serializers.IntegerField(source='event.id', read_only=True)
     # Для записи используем эти же поля, но они будут обработаны в to_internal_value
     event = serializers.SerializerMethodField(read_only=True)
     
     class Meta:
-        model = ParticipantGroupV2EventRelation
+        model = ParticipantGroupEventRelation
         fields = [
             'id', 
             'group_id', 'event_id', 'event'
@@ -422,8 +422,8 @@ class ParticipantGroupV2EventRelationSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({'event_id': 'event_id is required'})
         
         try:
-            validated_data['group'] = ParticipantGroupV2.objects.get(id=group_id)
-        except ParticipantGroupV2.DoesNotExist:
+            validated_data['group'] = ParticipantGroup.objects.get(id=group_id)
+        except ParticipantGroup.DoesNotExist:
             raise serializers.ValidationError({
                 'group_id': f'Group with ID {group_id} does not exist'
             })
@@ -443,8 +443,8 @@ class ParticipantGroupV2EventRelationSerializer(serializers.ModelSerializer):
         
         if group_id is not None:
             try:
-                validated_data['group'] = ParticipantGroupV2.objects.get(id=group_id)
-            except ParticipantGroupV2.DoesNotExist:
+                validated_data['group'] = ParticipantGroup.objects.get(id=group_id)
+            except ParticipantGroup.DoesNotExist:
                 raise serializers.ValidationError({
                     'group_id': f'Group with ID {group_id} does not exist'
                 })
@@ -459,13 +459,13 @@ class ParticipantGroupV2EventRelationSerializer(serializers.ModelSerializer):
         return super().update(instance, validated_data)
 
 
-class ParticipantGroupV2Serializer(serializers.ModelSerializer):
-    """Сериализатор для групп участников V2"""
-    participant_relations = ParticipantGroupV2ParticipantRelationSerializer(many=True, required=False)
-    group_relations = ParticipantGroupV2GroupRelationSerializer(many=True, required=False)
+class ParticipantGroupSerializer(serializers.ModelSerializer):
+    """Сериализатор для групп участников"""
+    participant_relations = ParticipantGroupParticipantRelationSerializer(many=True, required=False)
+    group_relations = ParticipantGroupGroupRelationSerializer(many=True, required=False)
     
     class Meta:
-        model = ParticipantGroupV2
+        model = ParticipantGroup
         fields = ['id', 'name', 'is_event_group', 'participant_relations', 'group_relations']
     
     def create(self, validated_data):
@@ -483,14 +483,14 @@ class ParticipantGroupV2Serializer(serializers.ModelSerializer):
         # Создаем связи с участниками
         for relation_data in participant_relations_data:
             relation_data['group_id'] = group.id
-            serializer = ParticipantGroupV2ParticipantRelationSerializer(data=relation_data, context=self.context)
+            serializer = ParticipantGroupParticipantRelationSerializer(data=relation_data, context=self.context)
             serializer.is_valid(raise_exception=True)
             serializer.save()
         
         # Создаем связи с группами
         for relation_data in group_relations_data:
             relation_data['group_id'] = group.id
-            serializer = ParticipantGroupV2GroupRelationSerializer(data=relation_data, context=self.context)
+            serializer = ParticipantGroupGroupRelationSerializer(data=relation_data, context=self.context)
             serializer.is_valid(raise_exception=True)
             serializer.save()
         
@@ -511,7 +511,7 @@ class ParticipantGroupV2Serializer(serializers.ModelSerializer):
             # Создаем новые связи
             for relation_data in participant_relations_data:
                 relation_data['group_id'] = instance.id
-                serializer = ParticipantGroupV2ParticipantRelationSerializer(data=relation_data, context=self.context)
+                serializer = ParticipantGroupParticipantRelationSerializer(data=relation_data, context=self.context)
                 serializer.is_valid(raise_exception=True)
                 serializer.save()
         
@@ -522,7 +522,7 @@ class ParticipantGroupV2Serializer(serializers.ModelSerializer):
             # Создаем новые связи
             for relation_data in group_relations_data:
                 relation_data['group_id'] = instance.id
-                serializer = ParticipantGroupV2GroupRelationSerializer(data=relation_data, context=self.context)
+                serializer = ParticipantGroupGroupRelationSerializer(data=relation_data, context=self.context)
                 serializer.is_valid(raise_exception=True)
                 serializer.save()
         
@@ -539,14 +539,14 @@ class ParticipantGroupV2Serializer(serializers.ModelSerializer):
                 # Получаем prefetch'нутые данные напрямую из кэша и сортируем по id
                 prefetched_relations = list(instance._prefetched_objects_cache['participant_relations'])
                 prefetched_relations.sort(key=lambda x: x.id)
-                data['participant_relations'] = ParticipantGroupV2ParticipantRelationSerializer(
+                data['participant_relations'] = ParticipantGroupParticipantRelationSerializer(
                     prefetched_relations, many=True
                 ).data
             if 'group_relations' in instance._prefetched_objects_cache:
                 # Получаем prefetch'нутые данные напрямую из кэша и сортируем по id
                 prefetched_group_relations = list(instance._prefetched_objects_cache['group_relations'])
                 prefetched_group_relations.sort(key=lambda x: x.id)
-                data['group_relations'] = ParticipantGroupV2GroupRelationSerializer(
+                data['group_relations'] = ParticipantGroupGroupRelationSerializer(
                     prefetched_group_relations, many=True
                 ).data
         
@@ -599,14 +599,14 @@ class BaseEventSerializer(serializers.ModelSerializer):
                 # Получаем ID всех участников, уже записанных на мероприятия волны
                 for registration in wave.registrations.all():
                     event = registration.event
-                    # Теперь participant_type определяется наличием event_group_v2
-                    # Если есть event_group_v2 - это REGISTRATION, иначе - ALL
-                    if event.event_group_v2_id and event.id != obj.id:
+                    # Теперь participant_type определяется наличием event_group
+                    # Если есть event_group - это REGISTRATION, иначе - ALL
+                    if event.event_group_id and event.id != obj.id:
                         # Для типа REGISTRATION проверяем, зарегистрированы ли участники
                         if registration.registration_type == EventRegistration.RegistrationType.BUTTON:
-                            # Участники в event_group_v2
+                            # Участники в event_group
                             assigned_participant_ids.update(
-                                event.event_group_v2.get_participants().values_list('id', flat=True)
+                                event.event_group.get_participants().values_list('id', flat=True)
                             )
                         else:
                             # Участники в applicants
@@ -661,10 +661,10 @@ class EventFullInfoSerializer(EventBasicInfoSerializer):
         current_event_participant_ids = set()
         if hasattr(obj, 'registration') and obj.registration:
             if obj.registration.registration_type == EventRegistration.RegistrationType.BUTTON:
-                # Для типа button участники в event_group_v2
-                if obj.event_group_v2:
+                # Для типа button участники в event_group
+                if obj.event_group:
                     current_event_participant_ids = set(
-                        obj.event_group_v2.get_participants().values_list('id', flat=True)
+                        obj.event_group.get_participants().values_list('id', flat=True)
                     )
             else:
                 # Для типа application участники в applicants
@@ -695,10 +695,10 @@ class EventFullInfoSerializer(EventBasicInfoSerializer):
         current_event_participant_ids = set()
         if hasattr(obj, 'registration') and obj.registration:
             if obj.registration.registration_type == EventRegistration.RegistrationType.BUTTON:
-                # Для типа button участники в event_group_v2
-                if obj.event_group_v2:
+                # Для типа button участники в event_group
+                if obj.event_group:
                     current_event_participant_ids = set(
-                        obj.event_group_v2.get_participants().values_list('id', flat=True)
+                        obj.event_group.get_participants().values_list('id', flat=True)
                     )
             else:
                 # Для типа application участники в applicants
@@ -747,12 +747,12 @@ class EventWithRegistrationInfoSerializer(BaseEventSerializer):
         registration_participant_ids = set()
         if hasattr(obj, 'registration') and obj.registration:
             if obj.registration.registration_type == EventRegistration.RegistrationType.BUTTON:
-                # Для типа button участники в event_group_v2
-                # ИСПОЛЬЗУЕМ get_group_participant_ids вместо get_participants().values_list() для избежания запросов к БД
-                if obj.event_group_v2:
-                    registration_participant_ids = self._get_group_participant_ids(
-                        obj.event_group_v2
-                    )
+                    # Для типа button участники в event_group
+                    # ИСПОЛЬЗУЕМ get_group_participant_ids вместо get_participants().values_list() для избежания запросов к БД
+                    if obj.event_group:
+                        registration_participant_ids = self._get_group_participant_ids(
+                            obj.event_group
+                        )
             else:
                 # Для типа application участники в applicants
                 # ИСПОЛЬЗУЕМ prefetch'нутые данные
@@ -791,12 +791,12 @@ class EventWithRegistrationInfoSerializer(BaseEventSerializer):
         registration_participant_ids = set()
         if hasattr(obj, 'registration') and obj.registration:
             if obj.registration.registration_type == EventRegistration.RegistrationType.BUTTON:
-                # Для типа button участники в event_group_v2
-                # ИСПОЛЬЗУЕМ get_group_participant_ids вместо get_participants().values_list() для избежания запросов к БД
-                if obj.event_group_v2:
-                    registration_participant_ids = self._get_group_participant_ids(
-                        obj.event_group_v2
-                    )
+                    # Для типа button участники в event_group
+                    # ИСПОЛЬЗУЕМ get_group_participant_ids вместо get_participants().values_list() для избежания запросов к БД
+                    if obj.event_group:
+                        registration_participant_ids = self._get_group_participant_ids(
+                            obj.event_group
+                        )
             else:
                 # Для типа application участники в applicants
                 # ИСПОЛЬЗУЕМ prefetch'нутые данные
@@ -850,9 +850,9 @@ class EventWithRegistrationInfoSerializer(BaseEventSerializer):
         if hasattr(obj, 'registration') and obj.registration:
             max_participants = obj.registration.max_participants
         
-        # Проверяем наличие event_group_v2 вместо participant_type
+        # Проверяем наличие event_group вместо participant_type
         return (
-            obj.event_group_v2_id is not None and
+            obj.event_group_id is not None and
             self.get_registrations_count(obj) > 0 and
             available_count > 0 and
             (max_participants is None or available_count <= max_participants)
@@ -952,9 +952,9 @@ class EventWaveSerializer(serializers.ModelSerializer):
                 # Оптимизированный подсчет зарегистрированных участников
                 # Используем prefetch'енные данные вместо запросов к БД
                 if reg.registration_type == EventRegistration.RegistrationType.BUTTON:
-                    # Для типа button считаем участников в event_group_v2
-                    if reg.event.event_group_v2:
-                        participant_ids = self._get_group_participant_ids(reg.event.event_group_v2)
+                    # Для типа button считаем участников в event_group
+                    if reg.event.event_group:
+                        participant_ids = self._get_group_participant_ids(reg.event.event_group)
                         registered_count = len(participant_ids)
                     else:
                         registered_count = 0
@@ -1192,17 +1192,17 @@ class EventSerializer(serializers.ModelSerializer):
         allow_empty=True,
         select_related="eventum",
     )
-    # Поле для чтения связанной группы V2 (упрощенно: id и name)
-    event_group_v2 = serializers.SerializerMethodField(read_only=True)
-    # Поле для чтения id связанной группы V2
-    event_group_v2_id = serializers.SerializerMethodField(read_only=True)
-    # Поле для записи id связанной группы V2
-    event_group_v2_id_write = serializers.PrimaryKeyRelatedField(
+    # Поле для чтения связанной группы (упрощенно: id и name)
+    event_group = serializers.SerializerMethodField(read_only=True)
+    # Поле для чтения id связанной группы
+    event_group_id = serializers.SerializerMethodField(read_only=True)
+    # Поле для записи id связанной группы
+    event_group_id_write = serializers.PrimaryKeyRelatedField(
         write_only=True,
         required=False,
         allow_null=True,
-        source='event_group_v2',
-        queryset=ParticipantGroupV2.objects.all()
+        source='event_group',
+        queryset=ParticipantGroup.objects.all()
     )
     registrations_count = serializers.SerializerMethodField()
     is_registered = serializers.SerializerMethodField()
@@ -1223,12 +1223,12 @@ class EventSerializer(serializers.ModelSerializer):
             'id', 'name', 'description', 'start_time', 'end_time',
             'image_url',
             'participants', 'tags', 'tag_ids', 
-            'locations', 'location_ids', 'event_group_v2', 'event_group_v2_id', 'event_group_v2_id_write',
+            'locations', 'location_ids', 'event_group', 'event_group_id', 'event_group_id_write',
             'registrations_count', 'is_registered', 'is_participant', 'registration_type',
             'registration_max_participants', 'participants_count'
         ]
         extra_kwargs = {
-            'event_group_v2_id_write': {'write_only': True},
+            'event_group_id_write': {'write_only': True},
         }
     
     def get_registration_type(self, obj):
@@ -1247,8 +1247,8 @@ class EventSerializer(serializers.ModelSerializer):
         groups = validated_data.pop('groups', None)
         tags = validated_data.pop('tags', None)
         locations = validated_data.pop('locations', None)
-        # One-to-one поле (может приходить как event_group_v2_id_write или event_group_v2)
-        event_group_v2 = validated_data.pop('event_group_v2', None) or validated_data.pop('event_group_v2_id_write', None)
+        # One-to-one поле (может приходить как event_group_id_write или event_group)
+        event_group = validated_data.pop('event_group', None) or validated_data.pop('event_group_id_write', None)
         
         # Создаем событие
         instance = super().create(validated_data)
@@ -1261,9 +1261,9 @@ class EventSerializer(serializers.ModelSerializer):
         if locations is not None:
             instance.locations.set(locations)
         # Устанавливаем связь 1:1
-        if event_group_v2 is not None:
-            instance.event_group_v2 = event_group_v2
-            instance.save(update_fields=['event_group_v2'])
+        if event_group is not None:
+            instance.event_group = event_group
+            instance.save(update_fields=['event_group'])
         
         return instance
 
@@ -1274,9 +1274,9 @@ class EventSerializer(serializers.ModelSerializer):
         tags = validated_data.pop('tags', None)
         locations = validated_data.pop('locations', None)
         # One-to-one поле
-        event_group_v2 = validated_data.pop('event_group_v2', 'NOT_PROVIDED')
-        if event_group_v2 == 'NOT_PROVIDED':
-            event_group_v2 = validated_data.pop('event_group_v2_id_write', 'NOT_PROVIDED')
+        event_group = validated_data.pop('event_group', 'NOT_PROVIDED')
+        if event_group == 'NOT_PROVIDED':
+            event_group = validated_data.pop('event_group_id_write', 'NOT_PROVIDED')
         
         # Обновляем обычные поля
         for attr, value in validated_data.items():
@@ -1293,9 +1293,9 @@ class EventSerializer(serializers.ModelSerializer):
         if locations is not None:
             instance.locations.set(locations)
         # Обновляем связь 1:1
-        if event_group_v2 != 'NOT_PROVIDED':
-            instance.event_group_v2 = event_group_v2
-            instance.save(update_fields=['event_group_v2'])
+        if event_group != 'NOT_PROVIDED':
+            instance.event_group = event_group
+            instance.save(update_fields=['event_group'])
         
         return instance
 
@@ -1372,17 +1372,17 @@ class EventSerializer(serializers.ModelSerializer):
         
         # В зависимости от типа регистрации проверяем по-разному
         if registration.registration_type == EventRegistration.RegistrationType.BUTTON:
-            # Для типа button проверяем, входит ли участник в event_group_v2
-            if obj.event_group_v2:
+            # Для типа button проверяем, входит ли участник в event_group
+            if obj.event_group:
                 # ИСПОЛЬЗУЕМ метод, который работает с уже загруженными данными
-                return self._has_participant_in_group(obj.event_group_v2, participant.id)
+                return self._has_participant_in_group(obj.event_group, participant.id)
             return False
         else:
             # Для типа application проверяем:
-            # 1. Участник в event_group_v2 (заявка одобрена и он добавлен в группу)
+            # 1. Участник в event_group (заявка одобрена и он добавлен в группу)
             # 2. ИЛИ участник в applicants (подал заявку, но еще не одобрена)
-            if obj.event_group_v2:
-                if self._has_participant_in_group(obj.event_group_v2, participant.id):
+            if obj.event_group:
+                if self._has_participant_in_group(obj.event_group, participant.id):
                     return True
             
             # Проверяем applicants (используем prefetch'енные данные)
@@ -1420,13 +1420,13 @@ class EventSerializer(serializers.ModelSerializer):
             if not participant:
                 return False
         
-        # Если есть event_group_v2, проверяем участие через него
+        # Если есть event_group, проверяем участие через него
         # (это работает для всех мероприятий с регистрацией)
-        if obj.event_group_v2:
+        if obj.event_group:
             # ИСПОЛЬЗУЕМ метод, который работает с уже загруженными данными
-            return self._has_participant_in_group(obj.event_group_v2, participant.id)
+            return self._has_participant_in_group(obj.event_group, participant.id)
         
-        # Для мероприятий без регистрации (без event_group_v2)
+        # Для мероприятий без регистрации (без event_group)
         # все участники eventum должны видеть такие мероприятия в расписании
         # participant уже проверен выше (если его нет, вернули False)
         return True
@@ -1438,16 +1438,16 @@ class EventSerializer(serializers.ModelSerializer):
         return None
     
     def get_participants_count(self, obj):
-        """Получить количество участников по v2 группе (всегда, если группа есть)"""
+        """Получить количество участников по группе (всегда, если группа есть)"""
         # Если группы нет, возвращаем 0
-        if not obj.event_group_v2:
+        if not obj.event_group:
             return 0
         
-        # Получаем количество участников по v2 группе
+        # Получаем количество участников по группе
         # Используем get_participants_count() который работает с prefetch'нутыми данными в памяти
         # Данные уже загружены через prefetch_related в views.py
         all_participant_ids = self.context.get('all_participant_ids')
-        return obj.event_group_v2.get_participants_count(all_participant_ids)
+        return obj.event_group.get_participants_count(all_participant_ids)
     
     def validate_participants(self, value):
         if not value:
@@ -1472,7 +1472,7 @@ class EventSerializer(serializers.ModelSerializer):
 
     def validate(self, data):
         """Валидация на уровне объекта"""
-        # participant_type теперь вычисляется автоматически из event_group_v2
+        # participant_type теперь вычисляется автоматически из event_group
         # max_participants теперь только в EventRegistration, не валидируем здесь
         
         return data
@@ -1515,8 +1515,8 @@ class EventSerializer(serializers.ModelSerializer):
 
         return value
 
-    def validate_event_group_v2_id(self, value):
-        """Группа V2 должна принадлежать тому же eventum"""
+    def validate_event_group_id(self, value):
+        """Группа должна принадлежать тому же eventum"""
         if value is None:
             return value
         eventum = self.context.get('eventum')
@@ -1524,19 +1524,19 @@ class EventSerializer(serializers.ModelSerializer):
             eventum_id = getattr(eventum, 'id', eventum)
             if value.eventum_id != eventum_id:
                 raise serializers.ValidationError(
-                    "Группа V2 не принадлежит данному eventum"
+                    "Группа не принадлежит данному eventum"
                 )
         return value
 
-    def get_event_group_v2_id(self, obj):
-        """Возвращает ID связанной группы V2 для чтения"""
-        return getattr(obj, 'event_group_v2_id', None)
+    def get_event_group_id(self, obj):
+        """Возвращает ID связанной группы для чтения"""
+        return getattr(obj, 'event_group_id', None)
     
-    def get_event_group_v2(self, obj):
-        if getattr(obj, 'event_group_v2_id', None):
+    def get_event_group(self, obj):
+        if getattr(obj, 'event_group_id', None):
             return {
-                'id': obj.event_group_v2_id,
-                'name': obj.event_group_v2.name,
+                'id': obj.event_group_id,
+                'name': obj.event_group.name,
             }
         return None
 
@@ -1592,7 +1592,7 @@ class EventRegistrationSerializer(serializers.ModelSerializer):
     event = EventSerializer(read_only=True)
     event_id = serializers.IntegerField(write_only=True)
     allowed_group = serializers.PrimaryKeyRelatedField(
-        queryset=ParticipantGroupV2.objects.all(),
+        queryset=ParticipantGroup.objects.all(),
         required=False,
         allow_null=True
     )
@@ -1688,29 +1688,29 @@ class EventRegistrationSerializer(serializers.ModelSerializer):
         return obj.get_registered_count(all_participant_ids)
     
     def get_event_participants_count(self, obj):
-        """Получить количество участников мероприятия (связанных через группы v2)"""
+        """Получить количество участников мероприятия (связанных через группы)"""
         event = obj.event
         if not event:
             return 0
         
-        # Проверяем прямую связь через event_group_v2
-        if hasattr(event, 'event_group_v2') and event.event_group_v2:
+        # Проверяем прямую связь через event_group
+        if hasattr(event, 'event_group') and event.event_group:
             try:
-                return event.event_group_v2.get_participants_count()
+                return event.event_group.get_participants_count()
             except (AttributeError, Exception):
                 pass
         
-        # Если нет прямой связи, проверяем через event-relations-v2
-        from .models import ParticipantGroupV2EventRelation, ParticipantGroupV2ParticipantRelation
+        # Если нет прямой связи, проверяем через event-relations
+        from .models import ParticipantGroupEventRelation, ParticipantGroupParticipantRelation
         from django.db.models import Prefetch
         
-        relations = ParticipantGroupV2EventRelation.objects.filter(
+        relations = ParticipantGroupEventRelation.objects.filter(
             event=event
         ).select_related('group').prefetch_related(
             Prefetch(
                 'group__participant_relations',
-                queryset=ParticipantGroupV2ParticipantRelation.objects.filter(
-                    relation_type=ParticipantGroupV2ParticipantRelation.RelationType.INCLUSIVE
+                queryset=ParticipantGroupParticipantRelation.objects.filter(
+                    relation_type=ParticipantGroupParticipantRelation.RelationType.INCLUSIVE
                 ).select_related('participant')
             )
         )
@@ -1725,7 +1725,7 @@ class EventRegistrationSerializer(serializers.ModelSerializer):
             if group and hasattr(group, 'participant_relations'):
                 # Используем prefetched relations
                 for participant_relation in group.participant_relations.all():
-                    if (participant_relation.relation_type == ParticipantGroupV2ParticipantRelation.RelationType.INCLUSIVE and 
+                    if (participant_relation.relation_type == ParticipantGroupParticipantRelation.RelationType.INCLUSIVE and 
                         participant_relation.participant_id):
                         all_participant_ids.add(participant_relation.participant_id)
         

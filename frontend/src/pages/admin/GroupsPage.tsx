@@ -1,19 +1,19 @@
 import { useEffect, useState } from 'react';
-import { groupsV2Api, participantsApi } from '../../api/eventumApi';
+import { groupsApi, participantsApi } from '../../api/eventumApi';
 import type { 
-  ParticipantGroupV2, 
+  ParticipantGroup, 
   Participant,
-  CreateParticipantGroupV2Data,
-  UpdateParticipantGroupV2Data
+  CreateParticipantGroupData,
+  UpdateParticipantGroupData
 } from '../../types';
 import { IconPencil, IconPlus, IconInformationCircle, IconTrash } from '../../components/icons';
 import { useEventumSlug } from '../../hooks/useEventumSlug';
-import ParticipantGroupV2Editor from '../../components/participantGroupV2/ParticipantGroupV2Editor';
+import ParticipantGroupEditor from '../../components/participantGroup/ParticipantGroupEditor';
 import GroupsLoadingSkeleton from '../../components/admin/skeletons/GroupsLoadingSkeleton';
 
-const AdminGroupsV2Page = () => {
+const AdminGroupsPage = () => {
   const eventumSlug = useEventumSlug();
-  const [groups, setGroups] = useState<ParticipantGroupV2[]>([]);
+  const [groups, setGroups] = useState<ParticipantGroup[]>([]);
   const [allParticipants, setAllParticipants] = useState<Participant[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState('');
@@ -30,7 +30,7 @@ const AdminGroupsV2Page = () => {
       setIsLoading(true);
       try {
         const [groupsData, participantsData] = await Promise.all([
-          groupsV2Api.getAll(eventumSlug),
+          groupsApi.getAll(eventumSlug),
           participantsApi.getAll(eventumSlug)
         ]);
         setGroups(groupsData.data);
@@ -50,7 +50,7 @@ const AdminGroupsV2Page = () => {
   );
 
   // Подсчет участников в группе с учетом включений/исключений
-  const getParticipantsCount = (group: ParticipantGroupV2, visitedGroups = new Set<number>()): number => {
+  const getParticipantsCount = (group: ParticipantGroup, visitedGroups = new Set<number>()): number => {
     // Предотвращаем циклические ссылки
     if (visitedGroups.has(group.id)) {
       return 0;
@@ -138,7 +138,7 @@ const AdminGroupsV2Page = () => {
   };
 
   // Вспомогательная функция для получения множества ID участников из группы
-  const getParticipantsIdsFromGroup = (group: ParticipantGroupV2, visitedGroups = new Set<number>()): Set<number> => {
+  const getParticipantsIdsFromGroup = (group: ParticipantGroup, visitedGroups = new Set<number>()): Set<number> => {
     // Предотвращаем циклические ссылки
     if (visitedGroups.has(group.id)) {
       return new Set();
@@ -220,7 +220,7 @@ const AdminGroupsV2Page = () => {
   };
 
   // Получить участников для отображения
-  const getParticipantsForDisplay = (group: ParticipantGroupV2): Participant[] => {
+  const getParticipantsForDisplay = (group: ParticipantGroup): Participant[] => {
     return group.participant_relations
       .filter(rel => rel.participant)
       .map(rel => rel.participant!)
@@ -232,12 +232,12 @@ const AdminGroupsV2Page = () => {
     setExpandedGroups(prev => new Set([...prev, -1]));
   };
 
-  const handleSaveCreate = async (data: CreateParticipantGroupV2Data | UpdateParticipantGroupV2Data) => {
+  const handleSaveCreate = async (data: CreateParticipantGroupData | UpdateParticipantGroupData) => {
     if (!eventumSlug) return;
     
     setIsSaving(true);
     try {
-      const created = (await groupsV2Api.create(data as CreateParticipantGroupV2Data, eventumSlug)).data;
+      const created = (await groupsApi.create(data as CreateParticipantGroupData, eventumSlug)).data;
       setGroups([...groups, created]);
       setIsCreatingGroup(false);
     } catch (error) {
@@ -247,17 +247,17 @@ const AdminGroupsV2Page = () => {
     }
   };
 
-  const handleEditGroup = (group: ParticipantGroupV2) => {
+  const handleEditGroup = (group: ParticipantGroup) => {
     setEditingGroup(group.id);
     setExpandedGroups(prev => new Set([...prev, group.id]));
   };
 
-  const handleSaveUpdate = async (data: UpdateParticipantGroupV2Data) => {
+  const handleSaveUpdate = async (data: UpdateParticipantGroupData) => {
     if (!eventumSlug || !editingGroup) return;
     
     setIsUpdating(true);
     try {
-      const updated = (await groupsV2Api.update(editingGroup, data, eventumSlug)).data;
+      const updated = (await groupsApi.update(editingGroup, data, eventumSlug)).data;
       setGroups(groups.map(g => g.id === editingGroup ? updated : g));
       setEditingGroup(null);
     } catch (error) {
@@ -277,7 +277,7 @@ const AdminGroupsV2Page = () => {
     if (!eventumSlug) return;
     
     try {
-      await groupsV2Api.delete(groupId, eventumSlug);
+      await groupsApi.delete(groupId, eventumSlug);
       setGroups(groups.filter(g => g.id !== groupId));
     } catch (error) {
       console.error('Error deleting group:', error);
@@ -301,7 +301,7 @@ const AdminGroupsV2Page = () => {
     <div className="space-y-6">
       <header className="space-y-2">
         <div className="flex items-center gap-2">
-          <h2 className="text-2xl font-semibold text-gray-900">Группы участников V2</h2>
+          <h2 className="text-2xl font-semibold text-gray-900">Группы участников</h2>
           <div className="group relative">
             <IconInformationCircle size={20} className="text-gray-400 cursor-help" />
             <div className="absolute top-full left-0 mt-2 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-normal w-80 z-50">
@@ -338,7 +338,7 @@ const AdminGroupsV2Page = () => {
             </div>
           ) : (
             <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-              <ParticipantGroupV2Editor
+              <ParticipantGroupEditor
                 eventumSlug={eventumSlug || ''}
                 availableGroups={groups}
                 onSave={handleSaveCreate}
@@ -369,7 +369,7 @@ const AdminGroupsV2Page = () => {
                         <IconTrash size={16} />
                       </button>
                     </div>
-                    <ParticipantGroupV2Editor
+                    <ParticipantGroupEditor
                       group={group}
                       eventumSlug={eventumSlug || ''}
                       availableGroups={groups.filter(g => g.id !== group.id)}
@@ -472,5 +472,5 @@ const AdminGroupsV2Page = () => {
   );
 };
 
-export default AdminGroupsV2Page;
+export default AdminGroupsPage;
 

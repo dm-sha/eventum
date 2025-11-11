@@ -8,7 +8,7 @@ from import_export.admin import ImportExportModelAdmin
 from .models import (
     Eventum, Participant,
     Event, EventTag, UserProfile, UserRole, Location,
-    EventRegistration, ParticipantGroupV2
+    EventRegistration, ParticipantGroup
 )
 
 # Импортируем все ресурсы, которые мы определили в resources.py
@@ -228,9 +228,9 @@ class UserRoleAdmin(admin.ModelAdmin):
     autocomplete_fields = ('user', 'eventum')
 
 
-# --- ParticipantGroupV2Admin ---
-@admin.register(ParticipantGroupV2)
-class ParticipantGroupV2Admin(admin.ModelAdmin):
+# --- ParticipantGroupAdmin ---
+@admin.register(ParticipantGroup)
+class ParticipantGroupAdmin(admin.ModelAdmin):
     list_display = ('name', 'eventum', 'is_event_group')
     list_filter = ('eventum', 'is_event_group')
     search_fields = ('name', 'eventum__name')

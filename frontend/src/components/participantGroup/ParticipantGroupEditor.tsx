@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import type { 
-  ParticipantGroupV2, 
+  ParticipantGroup, 
   Participant, 
   RelationType,
-  CreateParticipantGroupV2Data,
-  UpdateParticipantGroupV2Data
+  CreateParticipantGroupData,
+  UpdateParticipantGroupData
 } from '../../types';
 import { IconX } from '../icons';
 import { getParticipantsForEventum } from '../../api';
@@ -21,11 +21,11 @@ interface GroupRelation {
   relation_type: RelationType;
 }
 
-interface ParticipantGroupV2EditorProps {
-  group?: ParticipantGroupV2 | null;
+interface ParticipantGroupEditorProps {
+  group?: ParticipantGroup | null;
   eventumSlug: string;
-  availableGroups?: ParticipantGroupV2[];
-  onSave: (data: CreateParticipantGroupV2Data | UpdateParticipantGroupV2Data) => Promise<void>;
+  availableGroups?: ParticipantGroup[];
+  onSave: (data: CreateParticipantGroupData | UpdateParticipantGroupData) => Promise<void>;
   onCancel: () => void;
   isModal?: boolean;
   isSaving?: boolean;
@@ -40,7 +40,7 @@ interface ParticipantGroupV2EditorProps {
   }) => void;
 }
 
-const ParticipantGroupV2Editor: React.FC<ParticipantGroupV2EditorProps> = ({
+const ParticipantGroupEditor: React.FC<ParticipantGroupEditorProps> = ({
   group,
   eventumSlug,
   availableGroups = [],
@@ -178,7 +178,7 @@ const ParticipantGroupV2Editor: React.FC<ParticipantGroupV2EditorProps> = ({
     );
   };
 
-  const addGroupRelation = (targetGroup: ParticipantGroupV2, relationType: RelationType = 'inclusive') => {
+  const addGroupRelation = (targetGroup: ParticipantGroup, relationType: RelationType = 'inclusive') => {
     if (!groupRelations.some((rel) => rel.target_group_id === targetGroup.id)) {
       setGroupRelations([
         ...groupRelations,
@@ -208,7 +208,7 @@ const ParticipantGroupV2Editor: React.FC<ParticipantGroupV2EditorProps> = ({
     const effectiveName = (nameOverride ?? name).trim();
     if (!effectiveName) return;
 
-    const data: CreateParticipantGroupV2Data | UpdateParticipantGroupV2Data = {
+    const data: CreateParticipantGroupData | UpdateParticipantGroupData = {
       name: effectiveName,
       participant_relations: participantRelations.map(rel => ({
         participant_id: rel.participant_id,
@@ -413,5 +413,5 @@ const ParticipantGroupV2Editor: React.FC<ParticipantGroupV2EditorProps> = ({
   );
 };
 
-export default ParticipantGroupV2Editor;
+export default ParticipantGroupEditor;
 

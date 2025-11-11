@@ -25,7 +25,7 @@ export interface Participant {
   user?: User;
   user_id?: number | null;
   eventum: number; // ID of the eventum
-  groups?: ParticipantGroupV2[];
+  groups?: ParticipantGroup[];
 }
 
 export interface EventTag {
@@ -52,12 +52,12 @@ export interface Event {
   is_participant?: boolean; // Участвует ли участник в мероприятии (для расписания, работает для всех мероприятий)
   registration_type?: RegistrationType | null; // Тип регистрации: 'button' - по кнопке, 'application' - по заявкам
   registration_max_participants?: number | null; // Максимальное количество участников для регистрации
-  participants_count?: number; // Количество участников по v2 группе (для проверки is_full: participants_count >= registration_max_participants)
+  participants_count?: number; // Количество участников по группе (для проверки is_full: participants_count >= registration_max_participants)
   // (arrays of IDs)
   participants: number[];
   tags: EventTag[]; // Объекты тегов для чтения
-  event_group_v2?: { id: number; name: string } | null; // Связанная группа V2 (для регистрации)
-  event_group_v2_id?: number | null; // ID связанной группы V2
+  event_group?: { id: number; name: string } | null; // Связанная группа (для регистрации)
+  event_group_id?: number | null; // ID связанной группы
 }
 
 export interface UserEvent extends Event {
@@ -135,7 +135,7 @@ export interface EventRegistration {
 
 export type RelationType = 'inclusive' | 'exclusive';
 
-export interface ParticipantGroupV2ParticipantRelation {
+export interface ParticipantGroupParticipantRelation {
   id: number;
   relation_type: RelationType;
   group_id: number;
@@ -143,7 +143,7 @@ export interface ParticipantGroupV2ParticipantRelation {
   participant?: Participant;
 }
 
-export interface ParticipantGroupV2GroupRelation {
+export interface ParticipantGroupGroupRelation {
   id: number;
   relation_type: RelationType;
   group_id: number;
@@ -154,15 +154,15 @@ export interface ParticipantGroupV2GroupRelation {
   };
 }
 
-export interface ParticipantGroupV2 {
+export interface ParticipantGroup {
   id: number;
   name: string;
   is_event_group: boolean;
-  participant_relations: ParticipantGroupV2ParticipantRelation[];
-  group_relations: ParticipantGroupV2GroupRelation[];
+  participant_relations: ParticipantGroupParticipantRelation[];
+  group_relations: ParticipantGroupGroupRelation[];
 }
 
-export interface CreateParticipantGroupV2Data {
+export interface CreateParticipantGroupData {
   name: string;
   is_event_group?: boolean;
   participant_relations?: {
@@ -175,7 +175,7 @@ export interface CreateParticipantGroupV2Data {
   }[];
 }
 
-export interface UpdateParticipantGroupV2Data {
+export interface UpdateParticipantGroupData {
   name?: string;
   is_event_group?: boolean;
   participant_relations?: {

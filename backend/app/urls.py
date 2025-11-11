@@ -24,10 +24,10 @@ from .views import (
     search_users,
     participant_calendar_ics,
     participant_calendar_webcal,
-    ParticipantGroupV2ViewSet,
-    ParticipantGroupV2ParticipantRelationViewSet,
-    ParticipantGroupV2GroupRelationViewSet,
-    ParticipantGroupV2EventRelationViewSet,
+    ParticipantGroupViewSet,
+    ParticipantGroupParticipantRelationViewSet,
+    ParticipantGroupGroupRelationViewSet,
+    ParticipantGroupEventRelationViewSet,
     upload_image
 )
 
@@ -37,10 +37,10 @@ router.register(r'users', UserViewSet)
 
 eventum_scoped_router = DefaultRouter()
 eventum_scoped_router.register(r'participants', ParticipantViewSet, basename='participant')
-eventum_scoped_router.register(r'groups-v2', ParticipantGroupV2ViewSet, basename='participantgroupv2')
-eventum_scoped_router.register(r'participant-relations-v2', ParticipantGroupV2ParticipantRelationViewSet, basename='participantgroupv2participantrelation')
-eventum_scoped_router.register(r'group-relations-v2', ParticipantGroupV2GroupRelationViewSet, basename='participantgroupv2grouprelation')
-eventum_scoped_router.register(r'event-relations-v2', ParticipantGroupV2EventRelationViewSet, basename='participantgroupv2eventrelation')
+eventum_scoped_router.register(r'groups', ParticipantGroupViewSet, basename='participantgroup')
+eventum_scoped_router.register(r'participant-relations', ParticipantGroupParticipantRelationViewSet, basename='participantgroupparticipantrelation')
+eventum_scoped_router.register(r'group-relations', ParticipantGroupGroupRelationViewSet, basename='participantgroupgrouprelation')
+eventum_scoped_router.register(r'event-relations', ParticipantGroupEventRelationViewSet, basename='participantgroupeventrelation')
 eventum_scoped_router.register(r'events', EventViewSet, basename='event')
 eventum_scoped_router.register(r'event-tags', EventTagViewSet, basename='eventtag')
 eventum_scoped_router.register(r'event-waves', EventWaveViewSet, basename='eventwave')

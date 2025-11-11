@@ -19,14 +19,14 @@ from datetime import datetime
 import uuid
 import time
 from urllib.parse import urlsplit, urlunsplit
-from .models import Eventum, Participant, Event, EventTag, UserProfile, UserRole, Location, EventWave, EventRegistration, ParticipantGroupV2, ParticipantGroupV2ParticipantRelation, ParticipantGroupV2GroupRelation, ParticipantGroupV2EventRelation
+from .models import Eventum, Participant, Event, EventTag, UserProfile, UserRole, Location, EventWave, EventRegistration, ParticipantGroup, ParticipantGroupParticipantRelation, ParticipantGroupGroupRelation, ParticipantGroupEventRelation
 from .serializers import (
     EventumSerializer, ParticipantSerializer,
     EventSerializer, EventTagSerializer,
     UserProfileSerializer, UserRoleSerializer, VKAuthSerializer, CustomTokenObtainPairSerializer,
     LocationSerializer, EventWaveSerializer, EventRegistrationSerializer,
-    ParticipantGroupV2Serializer, ParticipantGroupV2ParticipantRelationSerializer, ParticipantGroupV2GroupRelationSerializer,
-    ParticipantGroupV2EventRelationSerializer
+    ParticipantGroupSerializer, ParticipantGroupParticipantRelationSerializer, ParticipantGroupGroupRelationSerializer,
+    ParticipantGroupEventRelationSerializer
 )
 from .permissions import IsEventumOrganizer, IsEventumParticipant, IsEventumOrganizerOrReadOnly, IsEventumOrganizerOrReadOnlyForList, IsEventumOrganizerOrPublicReadOnly
 from .utils import log_execution_time, csrf_exempt_class_api, get_group_participant_ids, EventumGroupGraph
@@ -130,15 +130,15 @@ class ParticipantViewSet(EventumScopedViewSet):
     def get_queryset(self):
         """Оптимизированный queryset для списка участников"""
         from django.db.models import Prefetch
-        from .models import ParticipantGroupV2ParticipantRelation
+        from .models import ParticipantGroupParticipantRelation
         
-        # Prefetch для групп участников (v2) чтобы избежать N+1 запросов в сериализаторе
+        # Prefetch для групп участников чтобы избежать N+1 запросов в сериализаторе
         group_relations_prefetch = Prefetch(
-            'group_v2_relations',
-            queryset=ParticipantGroupV2ParticipantRelation.objects.filter(
-                relation_type=ParticipantGroupV2ParticipantRelation.RelationType.INCLUSIVE
+            'group_relations',
+            queryset=ParticipantGroupParticipantRelation.objects.filter(
+                relation_type=ParticipantGroupParticipantRelation.RelationType.INCLUSIVE
             ).select_related('group'),
-            to_attr='v2_groups'
+            to_attr='groups'
         )
         
         return super().get_queryset().select_related(
@@ -200,7 +200,7 @@ class ParticipantViewSet(EventumScopedViewSet):
     def my_registrations(self, request, eventum_slug=None):
         """Получить мероприятия, на которые зарегистрирован текущий участник"""
         from django.db.models import Q, Exists, OuterRef, Prefetch
-        from .models import Participant, ParticipantGroupV2ParticipantRelation, ParticipantGroupV2GroupRelation
+        from .models import Participant, ParticipantGroupParticipantRelation, ParticipantGroupGroupRelation
         
         eventum = self.get_eventum()
         
@@ -210,13 +210,13 @@ class ParticipantViewSet(EventumScopedViewSet):
             return Response({'error': 'User is not a participant in this eventum'}, status=status.HTTP_404_NOT_FOUND)
         
         # Получаем события, на которые участник зарегистрирован или подал заявку
-        # Для типа button: участник в event_group_v2
+        # Для типа button: участник в event_group
         # Для типа application: участник в applicants
         button_events = Event.objects.filter(
             eventum=eventum,
             registration__registration_type=EventRegistration.RegistrationType.BUTTON,
-            event_group_v2__participant_relations__participant=participant,
-            event_group_v2__participant_relations__relation_type=ParticipantGroupV2ParticipantRelation.RelationType.INCLUSIVE
+            event_group__participant_relations__participant=participant,
+            event_group__participant_relations__relation_type=ParticipantGroupParticipantRelation.RelationType.INCLUSIVE
         ).distinct()
         
         application_events = Event.objects.filter(
@@ -228,33 +228,33 @@ class ParticipantViewSet(EventumScopedViewSet):
         # Объединяем результаты
         
         events = (button_events | application_events).distinct().select_related(
-            'eventum', 'event_group_v2'
+            'eventum', 'event_group'
         ).prefetch_related(
             'locations', 'tags', 'registration',
             'registration__applicants',  # Для проверки is_registered для APPLICATION типа
             # КРИТИЧНО: загружаем все participant_relations и group_relations
             # чтобы избежать N+1 запросов в has_participant
             Prefetch(
-                'event_group_v2__participant_relations',
-                queryset=ParticipantGroupV2ParticipantRelation.objects.select_related('participant')
+                'event_group__participant_relations',
+                queryset=ParticipantGroupParticipantRelation.objects.select_related('participant')
             ),
             Prefetch(
-                'event_group_v2__group_relations',
-                queryset=ParticipantGroupV2GroupRelation.objects.select_related('target_group').prefetch_related(
+                'event_group__group_relations',
+                queryset=ParticipantGroupGroupRelation.objects.select_related('target_group').prefetch_related(
                     Prefetch(
                         'target_group__participant_relations',
-                        queryset=ParticipantGroupV2ParticipantRelation.objects.select_related('participant')
+                        queryset=ParticipantGroupParticipantRelation.objects.select_related('participant')
                     ),
                     Prefetch(
                         'target_group__group_relations',
-                        queryset=ParticipantGroupV2GroupRelation.objects.select_related('target_group').prefetch_related(
+                        queryset=ParticipantGroupGroupRelation.objects.select_related('target_group').prefetch_related(
                             Prefetch(
                                 'target_group__participant_relations',
-                                queryset=ParticipantGroupV2ParticipantRelation.objects.select_related('participant')
+                                queryset=ParticipantGroupParticipantRelation.objects.select_related('participant')
                             ),
                             Prefetch(
                                 'target_group__group_relations',
-                                queryset=ParticipantGroupV2GroupRelation.objects.select_related('target_group')
+                                queryset=ParticipantGroupGroupRelation.objects.select_related('target_group')
                             ),
                         )
                     ),
@@ -286,13 +286,13 @@ class ParticipantViewSet(EventumScopedViewSet):
         
         # Получаем события, на которые участник зарегистрирован или подал заявку
         from django.db.models import Q, Prefetch
-        from .models import ParticipantGroupV2ParticipantRelation, ParticipantGroupV2GroupRelation
+        from .models import ParticipantGroupParticipantRelation, ParticipantGroupGroupRelation
         
         button_events = Event.objects.filter(
             eventum=eventum,
             registration__registration_type=EventRegistration.RegistrationType.BUTTON,
-            event_group_v2__participant_relations__participant=participant,
-            event_group_v2__participant_relations__relation_type=ParticipantGroupV2ParticipantRelation.RelationType.INCLUSIVE
+            event_group__participant_relations__participant=participant,
+            event_group__participant_relations__relation_type=ParticipantGroupParticipantRelation.RelationType.INCLUSIVE
         ).distinct()
         
         application_events = Event.objects.filter(
@@ -304,33 +304,33 @@ class ParticipantViewSet(EventumScopedViewSet):
         # Объединяем результаты
         
         events = (button_events | application_events).distinct().select_related(
-            'eventum', 'event_group_v2'
+            'eventum', 'event_group'
         ).prefetch_related(
             'locations', 'tags', 'registration',
             'registration__applicants',  # Для проверки is_registered для APPLICATION типа
             # КРИТИЧНО: загружаем все participant_relations и group_relations
             # чтобы избежать N+1 запросов в has_participant
             Prefetch(
-                'event_group_v2__participant_relations',
-                queryset=ParticipantGroupV2ParticipantRelation.objects.select_related('participant')
+                'event_group__participant_relations',
+                queryset=ParticipantGroupParticipantRelation.objects.select_related('participant')
             ),
             Prefetch(
-                'event_group_v2__group_relations',
-                queryset=ParticipantGroupV2GroupRelation.objects.select_related('target_group').prefetch_related(
+                'event_group__group_relations',
+                queryset=ParticipantGroupGroupRelation.objects.select_related('target_group').prefetch_related(
                     Prefetch(
                         'target_group__participant_relations',
-                        queryset=ParticipantGroupV2ParticipantRelation.objects.select_related('participant')
+                        queryset=ParticipantGroupParticipantRelation.objects.select_related('participant')
                     ),
                     Prefetch(
                         'target_group__group_relations',
-                        queryset=ParticipantGroupV2GroupRelation.objects.select_related('target_group').prefetch_related(
+                        queryset=ParticipantGroupGroupRelation.objects.select_related('target_group').prefetch_related(
                             Prefetch(
                                 'target_group__participant_relations',
-                                queryset=ParticipantGroupV2ParticipantRelation.objects.select_related('participant')
+                                queryset=ParticipantGroupParticipantRelation.objects.select_related('participant')
                             ),
                             Prefetch(
                                 'target_group__group_relations',
-                                queryset=ParticipantGroupV2GroupRelation.objects.select_related('target_group')
+                                queryset=ParticipantGroupGroupRelation.objects.select_related('target_group')
                             ),
                         )
                     ),
@@ -379,19 +379,19 @@ class ParticipantViewSet(EventumScopedViewSet):
         group_graph = EventumGroupGraph(eventum)
         all_participant_ids = group_graph.all_participant_ids
         
-        # Загружаем события с их event_group_v2
-        events = events.select_related('event_group_v2')
+        # Загружаем события с их event_group
+        events = events.select_related('event_group')
         
         # Собираем ID участников, которые участвуют в указанных мероприятиях
         participating_participant_ids = set()
         
         for event in events:
-            if event.event_group_v2:
+            if event.event_group:
                 # Используем граф групп для получения участников
-                participant_ids = group_graph.get_participant_ids(event.event_group_v2.id)
+                participant_ids = group_graph.get_participant_ids(event.event_group.id)
                 participating_participant_ids.update(participant_ids)
             else:
-                # Если нет event_group_v2, все участники eventum участвуют
+                # Если нет event_group, все участники eventum участвуют
                 participating_participant_ids.update(all_participant_ids)
         
         if filter_type == 'participating':
@@ -413,22 +413,22 @@ class ParticipantViewSet(EventumScopedViewSet):
         return Response(serializer.data)
     
 
-class ParticipantGroupV2ViewSet(EventumScopedViewSet):
-    """ViewSet для новых групп участников V2"""
-    queryset = ParticipantGroupV2.objects.all().prefetch_related(
+class ParticipantGroupViewSet(EventumScopedViewSet):
+    """ViewSet для групп участников"""
+    queryset = ParticipantGroup.objects.all().prefetch_related(
         'participant_relations__participant',
         'group_relations__target_group',
     )
-    serializer_class = ParticipantGroupV2Serializer
+    serializer_class = ParticipantGroupSerializer
     permission_classes = [IsEventumOrganizerOrReadOnly]
     
     def get_queryset(self):
-        """Оптимизированный queryset для списка групп V2 с использованием Prefetch для предотвращения N+1 запросов"""
+        """Оптимизированный queryset для списка групп с использованием Prefetch для предотвращения N+1 запросов"""
         eventum = self.get_eventum()
         # По умолчанию показываем только группы, не связанные с событиями
         show_event_groups = self.request.query_params.get('include_event_groups', 'false').lower() == 'true'
         
-        queryset = ParticipantGroupV2.objects.filter(eventum=eventum).order_by('id')
+        queryset = ParticipantGroup.objects.filter(eventum=eventum).order_by('id')
         
         if not show_event_groups:
             queryset = queryset.filter(is_event_group=False)
@@ -437,7 +437,7 @@ class ParticipantGroupV2ViewSet(EventumScopedViewSet):
         # Добавляем order_by для гарантии детерминированного порядка
         participant_relations_prefetch = Prefetch(
             'participant_relations',
-            queryset=ParticipantGroupV2ParticipantRelation.objects.select_related(
+            queryset=ParticipantGroupParticipantRelation.objects.select_related(
                 'participant__user',
                 'participant__eventum'
             ).order_by('id')
@@ -447,7 +447,7 @@ class ParticipantGroupV2ViewSet(EventumScopedViewSet):
         # Добавляем order_by для гарантии детерминированного порядка
         group_relations_prefetch = Prefetch(
             'group_relations',
-            queryset=ParticipantGroupV2GroupRelation.objects.select_related(
+            queryset=ParticipantGroupGroupRelation.objects.select_related(
                 'target_group'
             ).order_by('id')
         )
@@ -463,16 +463,16 @@ class ParticipantGroupV2ViewSet(EventumScopedViewSet):
         context['eventum'] = self.get_eventum()
         return context
     
-    @log_execution_time("Получение списка групп участников V2")
+    @log_execution_time("Получение списка групп участников")
     def list(self, request, *args, **kwargs):
         """Переопределяем list для логирования"""
         return super().list(request, *args, **kwargs)
 
 
-class ParticipantGroupV2ParticipantRelationViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
-    """ViewSet для связей групп V2 с участниками"""
-    queryset = ParticipantGroupV2ParticipantRelation.objects.all()
-    serializer_class = ParticipantGroupV2ParticipantRelationSerializer
+class ParticipantGroupParticipantRelationViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
+    """ViewSet для связей групп с участниками"""
+    queryset = ParticipantGroupParticipantRelation.objects.all()
+    serializer_class = ParticipantGroupParticipantRelationSerializer
     permission_classes = [IsEventumOrganizerOrReadOnly]
     
     def get_queryset(self):
@@ -480,7 +480,7 @@ class ParticipantGroupV2ParticipantRelationViewSet(EventumScopedViewSet, viewset
         eventum = self.get_eventum()
         group_id = self.request.query_params.get('group_id')
         
-        queryset = ParticipantGroupV2ParticipantRelation.objects.filter(
+        queryset = ParticipantGroupParticipantRelation.objects.filter(
             group__eventum=eventum
         ).select_related(
             'group',
@@ -513,10 +513,10 @@ class ParticipantGroupV2ParticipantRelationViewSet(EventumScopedViewSet, viewset
         serializer.save()
 
 
-class ParticipantGroupV2GroupRelationViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
-    """ViewSet для связей групп V2 с другими группами"""
-    queryset = ParticipantGroupV2GroupRelation.objects.all()
-    serializer_class = ParticipantGroupV2GroupRelationSerializer
+class ParticipantGroupGroupRelationViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
+    """ViewSet для связей групп с другими группами"""
+    queryset = ParticipantGroupGroupRelation.objects.all()
+    serializer_class = ParticipantGroupGroupRelationSerializer
     permission_classes = [IsEventumOrganizerOrReadOnly]
     
     def get_queryset(self):
@@ -524,7 +524,7 @@ class ParticipantGroupV2GroupRelationViewSet(EventumScopedViewSet, viewsets.Mode
         eventum = self.get_eventum()
         group_id = self.request.query_params.get('group_id')
         
-        queryset = ParticipantGroupV2GroupRelation.objects.filter(
+        queryset = ParticipantGroupGroupRelation.objects.filter(
             group__eventum=eventum
         ).select_related(
             'group',
@@ -555,10 +555,10 @@ class ParticipantGroupV2GroupRelationViewSet(EventumScopedViewSet, viewsets.Mode
         serializer.save()
 
 
-class ParticipantGroupV2EventRelationViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
-    """ViewSet для связей групп V2 с событиями"""
-    queryset = ParticipantGroupV2EventRelation.objects.all()
-    serializer_class = ParticipantGroupV2EventRelationSerializer
+class ParticipantGroupEventRelationViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
+    """ViewSet для связей групп с событиями"""
+    queryset = ParticipantGroupEventRelation.objects.all()
+    serializer_class = ParticipantGroupEventRelationSerializer
     permission_classes = [IsEventumOrganizerOrReadOnly]
     
     def get_queryset(self):
@@ -568,7 +568,7 @@ class ParticipantGroupV2EventRelationViewSet(EventumScopedViewSet, viewsets.Mode
         event_id = self.request.query_params.get('event_id')
         
         # Фильтруем по eventum группы И события, чтобы убедиться, что оба принадлежат одному eventum
-        queryset = ParticipantGroupV2EventRelation.objects.filter(
+        queryset = ParticipantGroupEventRelation.objects.filter(
             group__eventum=eventum,
             event__eventum=eventum
         ).select_related(
@@ -619,7 +619,7 @@ class EventWaveViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
 
     def get_queryset(self):
         from django.db.models import Prefetch
-        from .models import ParticipantGroupV2ParticipantRelation, ParticipantGroupV2GroupRelation
+        from .models import ParticipantGroupParticipantRelation, ParticipantGroupGroupRelation
         
         eventum = self.get_eventum()
         
@@ -633,20 +633,20 @@ class EventWaveViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
             return [
                 Prefetch(
                     'target_group__participant_relations',
-                    queryset=ParticipantGroupV2ParticipantRelation.objects.select_related('participant')
+                    queryset=ParticipantGroupParticipantRelation.objects.select_related('participant')
                 ),
                 Prefetch(
                     'target_group__group_relations',
-                    queryset=ParticipantGroupV2GroupRelation.objects.select_related('target_group').prefetch_related(
+                    queryset=ParticipantGroupGroupRelation.objects.select_related('target_group').prefetch_related(
                         *create_nested_group_relations_prefetch(depth - 1)
                     )
                 ),
             ]
         
-        # Prefetch для event_group_v2 с вложенными группами (глубина 3 уровня)
-        event_group_v2_group_relations_prefetch = Prefetch(
+        # Prefetch для event_group с вложенными группами (глубина 3 уровня)
+        event_group_group_relations_prefetch = Prefetch(
             'group_relations',
-            queryset=ParticipantGroupV2GroupRelation.objects.select_related('target_group').prefetch_related(
+            queryset=ParticipantGroupGroupRelation.objects.select_related('target_group').prefetch_related(
                 *create_nested_group_relations_prefetch(depth=3)
             )
         )
@@ -654,7 +654,7 @@ class EventWaveViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
         # Prefetch для allowed_group с вложенными группами (глубина 3 уровня)
         allowed_group_group_relations_prefetch = Prefetch(
             'group_relations',
-            queryset=ParticipantGroupV2GroupRelation.objects.select_related('target_group').prefetch_related(
+            queryset=ParticipantGroupGroupRelation.objects.select_related('target_group').prefetch_related(
                 *create_nested_group_relations_prefetch(depth=3)
             )
         )
@@ -667,34 +667,34 @@ class EventWaveViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
                 'registrations__event',
                 queryset=Event.objects.select_related(
                     'eventum',
-                    'event_group_v2'
+                    'event_group'
                 ).prefetch_related(
                     'locations',
                     'tags',
                     'participants',
                     'participants__user',
-                    # Добавляем prefetch для event_group_v2 со всеми связями (как в EventViewSet)
+                    # Добавляем prefetch для event_group со всеми связями (как в EventViewSet)
                     Prefetch(
-                        'event_group_v2__participant_relations',
-                        queryset=ParticipantGroupV2ParticipantRelation.objects.select_related('participant')
+                        'event_group__participant_relations',
+                        queryset=ParticipantGroupParticipantRelation.objects.select_related('participant')
                     ),
                     Prefetch(
-                        'event_group_v2__group_relations',
-                        queryset=ParticipantGroupV2GroupRelation.objects.select_related('target_group').prefetch_related(
+                        'event_group__group_relations',
+                        queryset=ParticipantGroupGroupRelation.objects.select_related('target_group').prefetch_related(
                             Prefetch(
                                 'target_group__participant_relations',
-                                queryset=ParticipantGroupV2ParticipantRelation.objects.select_related('participant')
+                                queryset=ParticipantGroupParticipantRelation.objects.select_related('participant')
                             ),
                             Prefetch(
                                 'target_group__group_relations',
-                                queryset=ParticipantGroupV2GroupRelation.objects.select_related('target_group').prefetch_related(
+                                queryset=ParticipantGroupGroupRelation.objects.select_related('target_group').prefetch_related(
                                     Prefetch(
                                         'target_group__participant_relations',
-                                        queryset=ParticipantGroupV2ParticipantRelation.objects.select_related('participant')
+                                        queryset=ParticipantGroupParticipantRelation.objects.select_related('participant')
                                     ),
                                     Prefetch(
                                         'target_group__group_relations',
-                                        queryset=ParticipantGroupV2GroupRelation.objects.select_related('target_group')
+                                        queryset=ParticipantGroupGroupRelation.objects.select_related('target_group')
                                     ),
                                 )
                             ),
@@ -707,13 +707,13 @@ class EventWaveViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
                 )
             ),
             Prefetch(
-                'registrations__event__event_group_v2',
-                queryset=ParticipantGroupV2.objects.prefetch_related(
+                'registrations__event__event_group',
+                queryset=ParticipantGroup.objects.prefetch_related(
                     Prefetch(
                         'participant_relations',
-                        queryset=ParticipantGroupV2ParticipantRelation.objects.select_related('participant')
+                        queryset=ParticipantGroupParticipantRelation.objects.select_related('participant')
                     ),
-                    event_group_v2_group_relations_prefetch,
+                    event_group_group_relations_prefetch,
                 )
             ),
             'registrations__event__registration',  # OneToOne связь для EventSerializer
@@ -722,10 +722,10 @@ class EventWaveViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
             'registrations__applicants__user',
             Prefetch(
                 'registrations__allowed_group',
-                queryset=ParticipantGroupV2.objects.prefetch_related(
+                queryset=ParticipantGroup.objects.prefetch_related(
                     Prefetch(
                         'participant_relations',
-                        queryset=ParticipantGroupV2ParticipantRelation.objects.select_related('participant')
+                        queryset=ParticipantGroupParticipantRelation.objects.select_related('participant')
                     ),
                     allowed_group_group_relations_prefetch,
                 )
@@ -765,7 +765,7 @@ class EventRegistrationViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
         ).select_related(
             'event',
             'event__eventum',
-            'event__event_group_v2',  # Для подсчета участников мероприятия
+            'event__event_group',  # Для подсчета участников мероприятия
             'allowed_group'
         ).prefetch_related(
             'event__locations',
@@ -787,14 +787,14 @@ class EventViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
     def get_queryset(self):
         """Оптимизированный queryset для списка событий с prefetch_related"""
         from django.db.models import Count, Exists, OuterRef, Prefetch
-        from .models import ParticipantGroupV2ParticipantRelation, ParticipantGroupV2GroupRelation
+        from .models import ParticipantGroupParticipantRelation, ParticipantGroupGroupRelation
         
         eventum = self.get_eventum()
         
         # Базовый queryset с аннотациями
         queryset = Event.objects.filter(eventum=eventum).select_related(
             'eventum',
-            'event_group_v2'  # Добавляем select_related для event_group_v2
+            'event_group'  # Добавляем select_related для event_group
         ).annotate(
             participants_count=Count('participants', distinct=True)
         )
@@ -807,7 +807,7 @@ class EventViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
         
         # Условный prefetch для участников и регистраций только если нужно
         if self.action in ['list', 'retrieve']:
-            # Prefetch для event_group_v2 со всеми связями для оптимизации has_participant
+            # Prefetch для event_group со всеми связями для оптимизации has_participant
             # Включая вложенные группы на 3 уровня глубины
             queryset = queryset.prefetch_related(
                 'participants',
@@ -818,26 +818,26 @@ class EventViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
                 # КРИТИЧНО: загружаем все participant_relations и group_relations
                 # чтобы избежать N+1 запросов в has_participant
                 Prefetch(
-                    'event_group_v2__participant_relations',
-                    queryset=ParticipantGroupV2ParticipantRelation.objects.select_related('participant')
+                    'event_group__participant_relations',
+                    queryset=ParticipantGroupParticipantRelation.objects.select_related('participant')
                 ),
                 Prefetch(
-                    'event_group_v2__group_relations',
-                    queryset=ParticipantGroupV2GroupRelation.objects.select_related('target_group').prefetch_related(
+                    'event_group__group_relations',
+                    queryset=ParticipantGroupGroupRelation.objects.select_related('target_group').prefetch_related(
                         Prefetch(
                             'target_group__participant_relations',
-                            queryset=ParticipantGroupV2ParticipantRelation.objects.select_related('participant')
+                            queryset=ParticipantGroupParticipantRelation.objects.select_related('participant')
                         ),
                         Prefetch(
                             'target_group__group_relations',
-                            queryset=ParticipantGroupV2GroupRelation.objects.select_related('target_group').prefetch_related(
+                            queryset=ParticipantGroupGroupRelation.objects.select_related('target_group').prefetch_related(
                                 Prefetch(
                                     'target_group__participant_relations',
-                                    queryset=ParticipantGroupV2ParticipantRelation.objects.select_related('participant')
+                                    queryset=ParticipantGroupParticipantRelation.objects.select_related('participant')
                                 ),
                                 Prefetch(
                                     'target_group__group_relations',
-                                    queryset=ParticipantGroupV2GroupRelation.objects.select_related('target_group')
+                                    queryset=ParticipantGroupGroupRelation.objects.select_related('target_group')
                                 ),
                             )
                         ),
@@ -898,8 +898,8 @@ class EventViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
         try:
             with transaction.atomic():
                 if registration.registration_type == EventRegistration.RegistrationType.BUTTON:
-                    # Для типа button: добавляем участника в event_group_v2
-                    if not event.event_group_v2:
+                    # Для типа button: добавляем участника в event_group
+                    if not event.event_group:
                         return Response({'error': 'Event group is not configured'}, status=status.HTTP_400_BAD_REQUEST)
                     
                     # Проверяем, не переполнена ли регистрация
@@ -907,14 +907,14 @@ class EventViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
                         return Response({'error': 'Event registration is full'}, status=status.HTTP_400_BAD_REQUEST)
                     
                     # Проверяем, не зарегистрирован ли уже
-                    if event.event_group_v2.has_participant(participant.id):
+                    if event.event_group.has_participant(participant.id):
                         return Response({'error': 'Already registered for this event'}, status=status.HTTP_400_BAD_REQUEST)
                     
-                    # Добавляем участника в группу через ParticipantGroupV2ParticipantRelation
-                    ParticipantGroupV2ParticipantRelation.objects.get_or_create(
-                        group=event.event_group_v2,
+                    # Добавляем участника в группу через ParticipantGroupParticipantRelation
+                    ParticipantGroupParticipantRelation.objects.get_or_create(
+                        group=event.event_group,
                         participant=participant,
-                        defaults={'relation_type': ParticipantGroupV2ParticipantRelation.RelationType.INCLUSIVE}
+                        defaults={'relation_type': ParticipantGroupParticipantRelation.RelationType.INCLUSIVE}
                     )
                     
                     return Response({'status': 'success', 'message': 'Successfully registered for event'}, status=status.HTTP_201_CREATED)
@@ -963,17 +963,17 @@ class EventViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
         try:
             with transaction.atomic():
                 if registration.registration_type == EventRegistration.RegistrationType.BUTTON:
-                    # Для типа button: удаляем участника из event_group_v2
-                    if not event.event_group_v2:
+                    # Для типа button: удаляем участника из event_group
+                    if not event.event_group:
                         return Response({'error': 'Not registered for this event'}, status=status.HTTP_404_NOT_FOUND)
                     
                     # Проверяем, зарегистрирован ли
-                    if not event.event_group_v2.has_participant(participant.id):
+                    if not event.event_group.has_participant(participant.id):
                         return Response({'error': 'Not registered for this event'}, status=status.HTTP_404_NOT_FOUND)
                     
                     # Удаляем связь участника с группой
-                    deleted_count, _ = ParticipantGroupV2ParticipantRelation.objects.filter(
-                        group=event.event_group_v2,
+                    deleted_count, _ = ParticipantGroupParticipantRelation.objects.filter(
+                        group=event.event_group,
                         participant=participant
                     ).delete()
                     
@@ -1588,13 +1588,13 @@ def eventum_registration_stats(request, slug=None):
     
     # Подсчитываем количество участников, которые зарегистрировались хотя бы на одно мероприятие
     # Подсчитываем уникальных участников, зарегистрированных на мероприятия через новую схему
-    # Для типа button: участники в event_group_v2
+    # Для типа button: участники в event_group
     # Для типа application: участники в applicants
     from django.db.models import Count
     button_participants = Participant.objects.filter(
         eventum=eventum,
-        group_v2_relations__group__event_relations__event__registration__registration_type=EventRegistration.RegistrationType.BUTTON,
-        group_v2_relations__relation_type=ParticipantGroupV2ParticipantRelation.RelationType.INCLUSIVE
+        group_relations__group__event_relations__event__registration__registration_type=EventRegistration.RegistrationType.BUTTON,
+        group_relations__relation_type=ParticipantGroupParticipantRelation.RelationType.INCLUSIVE
     ).distinct()
     
     application_participants = Participant.objects.filter(
@@ -1844,8 +1844,8 @@ def participant_calendar_ics(request, eventum_slug=None, participant_id=None):
             return Response({'error': f'Participant with ID {participant_id} not found in this eventum'}, status=status.HTTP_404_NOT_FOUND)
         
         # Используем ту же логику, что и в EventSerializer.get_is_participant
-        # Если event_group_v2 is None - участник участвует (все участники eventum)
-        # Если event_group_v2 существует - проверяем через связи группы
+        # Если event_group is None - участник участвует (все участники eventum)
+        # Если event_group существует - проверяем через связи группы
         
         # Создаем граф групп для eventum один раз на запрос
         group_graph = EventumGroupGraph(eventum)
@@ -1854,7 +1854,7 @@ def participant_calendar_ics(request, eventum_slug=None, participant_id=None):
         all_events = Event.objects.filter(
             eventum=eventum
         ).select_related(
-            'eventum', 'event_group_v2'
+            'eventum', 'event_group'
         ).prefetch_related(
             'tags',
             'locations',
@@ -1863,12 +1863,12 @@ def participant_calendar_ics(request, eventum_slug=None, participant_id=None):
         # Фильтруем события в Python, используя ту же логику, что и в EventSerializer.get_is_participant
         filtered_events = []
         for event in all_events:
-            # Если есть event_group_v2, проверяем участие через него
-            if event.event_group_v2:
-                if group_graph.has_participant(event.event_group_v2.id, participant_id):
+            # Если есть event_group, проверяем участие через него
+            if event.event_group:
+                if group_graph.has_participant(event.event_group.id, participant_id):
                     filtered_events.append(event)
             else:
-                # Для мероприятий без регистрации (без event_group_v2)
+                # Для мероприятий без регистрации (без event_group)
                 # все участники eventum должны видеть такие мероприятия
                 filtered_events.append(event)
         

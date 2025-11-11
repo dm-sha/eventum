@@ -14,7 +14,7 @@ import WavesLoadingSkeleton from '../../components/admin/skeletons/WavesLoadingS
 import { eventumApi } from '../../api/eventumApi';
 import { getEventumBySlug } from '../../api/eventum';
 import type { Eventum } from '../../types';
-import { eventsApi, participantsApi, eventRelationsV2Api, groupsV2Api } from '../../api/eventumApi';
+import { eventsApi, participantsApi, eventRelationsApi, groupsApi } from '../../api/eventumApi';
 import type { Event, Participant } from '../../types';
 
 type Mode = 'view' | 'edit' | 'create';
@@ -104,17 +104,17 @@ const RegistrationCard: React.FC<RegistrationCardProps> = ({
 
     setIsLoadingEventParticipants(true);
     try {
-      // Проверяем, есть ли прямая связь через event_group_v2_id
-      const eventGroupV2Id = (registration.event as any).event_group_v2_id;
+      // Проверяем, есть ли прямая связь через event_group_id
+      const eventGroupId = (registration.event as any).event_group_id;
       
       let groupIds: number[] = [];
       
-      if (eventGroupV2Id) {
+      if (eventGroupId) {
         // Используем прямую связь 1:1
-        groupIds = [eventGroupV2Id];
+        groupIds = [eventGroupId];
       } else {
-        // Получаем связи групп v2 с мероприятием через API
-        const relationsResponse = await eventRelationsV2Api.getAll(eventumSlug, { event_id: registration.event.id });
+        // Получаем связи групп с мероприятием через API
+        const relationsResponse = await eventRelationsApi.getAll(eventumSlug, { event_id: registration.event.id });
         const relations = relationsResponse.data;
 
         if (relations && relations.length > 0) {
@@ -127,7 +127,7 @@ const RegistrationCard: React.FC<RegistrationCardProps> = ({
         return;
       }
 
-      const allGroupsResponse = await groupsV2Api.getAll(eventumSlug, { includeEventGroups: true });
+      const allGroupsResponse = await groupsApi.getAll(eventumSlug, { includeEventGroups: true });
       const allGroups = allGroupsResponse.data || [];
       const eventGroups = allGroups.filter(group => group && groupIds.includes(group.id));
 
@@ -359,7 +359,7 @@ const RegistrationCard: React.FC<RegistrationCardProps> = ({
               </div>
             ) : eventParticipants.length === 0 ? (
               <div className="text-center py-4 text-sm text-gray-500">
-                Участники не найдены. Проверьте, что группы v2 связаны с мероприятием и содержат участников.
+                Участники не найдены. Проверьте, что группы связаны с мероприятием и содержат участников.
               </div>
             ) : (
               <div className="space-y-2">
@@ -1421,7 +1421,7 @@ const EventRegistrationPage: React.FC = () => {
         listEventRegistrations(eventumSlug),
         listEventWaves(eventumSlug),
         eventsApi.getAll(eventumSlug),
-        groupsV2Api.getAll(eventumSlug, { includeEventGroups: true })
+        groupsApi.getAll(eventumSlug, { includeEventGroups: true })
       ]);
       setEventum(eventumData);
       setRegistrations(regs);

@@ -36,7 +36,7 @@ export const updateEvent = async (eventumSlug: string, eventId: number, data: {
   tags?: number[];
   tag_ids?: number[];
   location_ids?: number[];
-  event_group_v2_id?: number | null;
+  event_group_id?: number | null;
 }): Promise<Event> => {
     const response = await eventsApi.update(eventId, data as any, eventumSlug);
     return response.data;

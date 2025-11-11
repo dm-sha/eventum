@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useEventumSlug } from "../../hooks/useEventumSlug";
-import type { Event as EventModel, EventTag, Location, Participant, ValidationError, ParticipantGroupV2 } from "../../types";
-import ParticipantGroupV2Editor from "../participantGroupV2/ParticipantGroupV2Editor";
+import type { Event as EventModel, EventTag, Location, Participant, ValidationError, ParticipantGroup } from "../../types";
+import ParticipantGroupEditor from "../participantGroup/ParticipantGroupEditor";
 import { eventumApi } from "../../api/eventumApi";
-import { groupsV2Api } from "../../api/eventumApi";
+import { groupsApi } from "../../api/eventumApi";
 import { MultiLocationSelector } from "../location/MultiLocationSelector";
 
 // Компонент для вкладки "Общее"
@@ -260,18 +260,18 @@ const ParticipantsTab = ({
   eventumSlug,
   localGroupState,
   onLocalGroupStateChange,
-  availableGroupsV2,
-  isLoadingGroupV2,
+  availableGroups,
+  isLoadingGroup,
 }: {
   eventForm: any;
   eventumSlug: string | undefined;
-  localGroupState: ParticipantGroupV2 | null;
-  onLocalGroupStateChange: (group: ParticipantGroupV2 | null) => void;
-  availableGroupsV2: ParticipantGroupV2[];
-  isLoadingGroupV2: boolean;
+  localGroupState: ParticipantGroup | null;
+  onLocalGroupStateChange: (group: ParticipantGroup | null) => void;
+  availableGroups: ParticipantGroup[];
+  isLoadingGroup: boolean;
 }) => {
   // Показываем загрузку ТОЛЬКО когда реально идет загрузка
-  const showLoading = isLoadingGroupV2;
+  const showLoading = isLoadingGroup;
   
   // Простой обработчик изменений - просто обновляем состояние
   const handleEditorChange = (data: {
@@ -281,7 +281,7 @@ const ParticipantsTab = ({
   }) => {
     if (localGroupState) {
       // Обновляем существующую группу
-      const updatedGroup: ParticipantGroupV2 = {
+      const updatedGroup: ParticipantGroup = {
         ...localGroupState,
         name: data.name,
         participant_relations: data.participant_relations.map((rel, idx) => ({
@@ -300,7 +300,7 @@ const ParticipantsTab = ({
       onLocalGroupStateChange(updatedGroup);
     } else {
       // Создаем новую группу (даже если нет relations - это нормально)
-      const newGroup: ParticipantGroupV2 = {
+      const newGroup: ParticipantGroup = {
         id: 0,
         name: data.name,
         is_event_group: true,
@@ -335,9 +335,9 @@ const ParticipantsTab = ({
       ) : (
         <>
           {/* Информация о количестве участников (оценка): если нет включающих связей — участвуют все */}
-          {/* Рендерим сам редактор групп V2 без собственных кнопок */}
+          {/* Рендерим сам редактор групп без собственных кнопок */}
           <div className="rounded-lg border border-gray-200 p-3">
-            <ParticipantGroupV2Editor
+            <ParticipantGroupEditor
               group={localGroupState}
               eventumSlug={eventumSlug || ''}
               nameOverride={eventForm.name ? `Участники \"${eventForm.name}\"` : ''}
@@ -347,7 +347,7 @@ const ParticipantsTab = ({
               onSave={async () => { /* сохранение выполняется кнопкой "Сохранить" модалки */ }}
               onCancel={() => { /* no-op */ }}
               isModal
-              availableGroups={availableGroupsV2}
+              availableGroups={availableGroups}
             />
           </div>
         </>
@@ -369,7 +369,7 @@ interface EventEditModalProps {
     tags?: number[];
     tag_ids?: number[];
     location_ids?: number[];
-    event_group_v2_id?: number | null;
+    event_group_id?: number | null;
   }) => Promise<void>;
   event?: EventModel | null;
   eventTags: EventTag[];
@@ -407,11 +407,11 @@ const EventEditModal = ({
   const [hasUserEditedEndTime, setHasUserEditedEndTime] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   // Локальное состояние группы - используется для UI и подсчетов
-  const [localGroupState, setLocalGroupState] = useState<ParticipantGroupV2 | null>(null);
+  const [localGroupState, setLocalGroupState] = useState<ParticipantGroup | null>(null);
   // Состояние группы на сервере - источник истины
-  const [serverGroupState, setServerGroupState] = useState<ParticipantGroupV2 | null>(null);
-  const [allGroupsV2, setAllGroupsV2] = useState<ParticipantGroupV2[]>([]);
-  const [isLoadingGroupV2, setIsLoadingGroupV2] = useState(false);
+  const [serverGroupState, setServerGroupState] = useState<ParticipantGroup | null>(null);
+  const [allGroups, setAllGroups] = useState<ParticipantGroup[]>([]);
+  const [isLoadingGroup, setIsLoadingGroup] = useState(false);
   const tagInputRef = useRef<HTMLDivElement>(null);
   
 
@@ -438,7 +438,7 @@ const EventEditModal = ({
     if (!isOpen) return;
     
     // Сбрасываем состояние
-    setIsLoadingGroupV2(false);
+    setIsLoadingGroup(false);
     setLocalGroupState(null);
     setServerGroupState(null);
     
@@ -459,24 +459,24 @@ const EventEditModal = ({
         location_ids: locationIds
       });
       
-      // Загружаем группу V2, если она есть
+      // Загружаем группу, если она есть
       const evAny: any = event as any;
-      if (evAny.event_group_v2?.id && eventumSlug) {
-        setIsLoadingGroupV2(true);
-        groupsV2Api.getAll(eventumSlug, { includeEventGroups: true })
+      if (evAny.event_group?.id && eventumSlug) {
+        setIsLoadingGroup(true);
+        groupsApi.getAll(eventumSlug, { includeEventGroups: true })
           .then((resp: any) => {
             const groups = resp.data ?? resp;
-            const found = groups.find((g: any) => g.id === evAny.event_group_v2.id);
+            const found = groups.find((g: any) => g.id === evAny.event_group.id);
             if (found) {
               setServerGroupState(found);
               setLocalGroupState(found);
             }
           })
           .catch((error) => {
-            console.error('Ошибка загрузки группы V2:', error);
+            console.error('Ошибка загрузки группы:', error);
           })
           .finally(() => {
-            setIsLoadingGroupV2(false);
+            setIsLoadingGroup(false);
           });
       }
     } else {
@@ -516,7 +516,7 @@ const EventEditModal = ({
         });
         setServerGroupState(null);
         setLocalGroupState(null);
-        setIsLoadingGroupV2(false);
+        setIsLoadingGroup(false);
     }
     
     // Общие действия для обоих случаев
@@ -525,18 +525,18 @@ const EventEditModal = ({
     setValidationErrors({});
     setHasUserEditedEndTime(false);
     
-    // Подгружаем все группы V2 для подсчета участников
+    // Подгружаем все группы для подсчета участников
     (async () => {
       try {
         if (eventumSlug) {
-          const resp = await groupsV2Api.getAll(eventumSlug, { includeEventGroups: true });
+          const resp = await groupsApi.getAll(eventumSlug, { includeEventGroups: true });
           const groups = (resp as any).data ?? resp;
-          setAllGroupsV2(groups as ParticipantGroupV2[]);
+          setAllGroups(groups as ParticipantGroup[]);
         } else {
-          setAllGroupsV2([]);
+          setAllGroups([]);
         }
       } catch {
-        setAllGroupsV2([]);
+        setAllGroups([]);
       }
     })();
   }, [isOpen, event, eventumSlug]);
@@ -647,11 +647,11 @@ const EventEditModal = ({
     
     setIsSaving(true);
     try {
-      // Сохраняем/обновляем группу V2 перед сохранением мероприятия
+      // Сохраняем/обновляем группу перед сохранением мероприятия
       let ensuredEventGroupId: number | null = null;
       
       // Утилита для сравнения групп - проверяет, изменились ли relations
-      const areGroupsEqual = (local: ParticipantGroupV2 | null, server: ParticipantGroupV2 | null): boolean => {
+      const areGroupsEqual = (local: ParticipantGroup | null, server: ParticipantGroup | null): boolean => {
         if (!local && !server) return true;
         if (!local || !server) return false;
         
@@ -714,14 +714,14 @@ const EventEditModal = ({
               group_relations: groupRelations
             };
             try {
-              const updatedResp = await groupsV2Api.update(serverGroupState.id, payload, eventumSlug || undefined);
+              const updatedResp = await groupsApi.update(serverGroupState.id, payload, eventumSlug || undefined);
               const updated = (updatedResp as any).data ?? updatedResp;
               ensuredEventGroupId = (updated as any).id;
               
               // Обновляем оба состояния после успешного сохранения
               // Перезагружаем для получения полных данных с relations
               try {
-                const reloadResp = await groupsV2Api.getAll(eventumSlug || '', { includeEventGroups: true });
+                const reloadResp = await groupsApi.getAll(eventumSlug || '', { includeEventGroups: true });
                 const reloadGroups = (reloadResp as any).data ?? reloadResp;
                 const reloaded = (reloadGroups as any[]).find((g: any) => g.id === ensuredEventGroupId) || updated;
                 setServerGroupState(reloaded);
@@ -732,7 +732,7 @@ const EventEditModal = ({
                 setLocalGroupState(updated);
               }
             } catch (e) {
-              console.error('Ошибка обновления группы V2:', e);
+              console.error('Ошибка обновления группы:', e);
               throw e;
             }
           } else {
@@ -744,13 +744,13 @@ const EventEditModal = ({
               group_relations: groupRelations
             };
             try {
-              const createdResp = await groupsV2Api.create(createPayload, eventumSlug || undefined);
+              const createdResp = await groupsApi.create(createPayload, eventumSlug || undefined);
               const created = (createdResp as any).data ?? createdResp;
               ensuredEventGroupId = (created as any).id;
               
               // Обновляем оба состояния после успешного создания
               try {
-                const reloadResp = await groupsV2Api.getAll(eventumSlug || '', { includeEventGroups: true });
+                const reloadResp = await groupsApi.getAll(eventumSlug || '', { includeEventGroups: true });
                 const reloadGroups = (reloadResp as any).data ?? reloadResp;
                 const reloaded = (reloadGroups as any[]).find((g: any) => g.id === ensuredEventGroupId) || created;
                 setServerGroupState(reloaded);
@@ -760,7 +760,7 @@ const EventEditModal = ({
                 setLocalGroupState(created);
               }
             } catch (e) {
-              console.error('Ошибка создания группы V2:', e);
+              console.error('Ошибка создания группы:', e);
               throw e;
             }
           }
@@ -777,9 +777,9 @@ const EventEditModal = ({
         participants: eventForm.participants,
         location_ids: eventForm.location_ids,
         tag_ids: eventForm.tags,
-        // Если выбрана/создана группа V2 — передаем её ID для привязки
+        // Если выбрана/создана группа — передаем её ID для привязки
         // Используем ensuredEventGroupId (получен после сохранения группы) или serverGroupState.id (если группа уже существовала и не изменялась)
-        event_group_v2_id_write: ensuredEventGroupId || (serverGroupState?.id && serverGroupState.id > 0 ? serverGroupState.id : null)
+        event_group_id_write: ensuredEventGroupId || (serverGroupState?.id && serverGroupState.id > 0 ? serverGroupState.id : null)
       };
       await onSave(eventData);
 
@@ -843,14 +843,14 @@ const EventEditModal = ({
     eventForm.end_time &&
     new Date(eventForm.end_time) > new Date(eventForm.start_time);
 
-  // Функция для получения группы по ID (сначала из localGroupState, потом из allGroupsV2)
-  const getGroupV2ById = (id: number): ParticipantGroupV2 | null => {
+  // Функция для получения группы по ID (сначала из localGroupState, потом из allGroups)
+  const getGroupById = (id: number): ParticipantGroup | null => {
     // Если это локальная группа - используем её напрямую
     if (localGroupState?.id === id) {
       return localGroupState;
     }
-    // Иначе ищем в allGroupsV2
-    return allGroupsV2.find(g => g.id === id) || null;
+    // Иначе ищем в allGroups
+    return allGroups.find(g => g.id === id) || null;
   };
 
   // Рекурсивная функция для подсчета участников из группы
@@ -858,7 +858,7 @@ const EventEditModal = ({
     if (visited.has(groupId)) return new Set();
     visited.add(groupId);
     
-    const group = getGroupV2ById(groupId);
+    const group = getGroupById(groupId);
     if (!group) return new Set();
 
     const inclusivePR = group.participant_relations?.filter(r => r.relation_type === 'inclusive') || [];
@@ -1023,8 +1023,8 @@ const EventEditModal = ({
               eventumSlug={eventumSlug}
               localGroupState={localGroupState}
               onLocalGroupStateChange={setLocalGroupState}
-              availableGroupsV2={allGroupsV2}
-              isLoadingGroupV2={isLoadingGroupV2}
+              availableGroups={allGroups}
+              isLoadingGroup={isLoadingGroup}
             />
           )}
           

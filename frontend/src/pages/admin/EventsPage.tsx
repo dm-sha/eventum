@@ -177,8 +177,8 @@ const AdminEventsPage = () => {
     tags?: number[];
     tag_ids?: number[];
     location_ids?: number[];
-    // Привязка к группе V2: если указано — мероприятие для конкретных участников, если null — для всех
-    event_group_v2_id?: number | null;
+    // Привязка к группе: если указано — мероприятие для конкретных участников, если null — для всех
+    event_group_id?: number | null;
   }) => {
     if (!eventumSlug) return;
     
