@@ -34,7 +34,6 @@ export interface EventTag {
   slug: string;
 }
 
-
 export type RegistrationType = 'button' | 'application';
 
 export interface Event {
