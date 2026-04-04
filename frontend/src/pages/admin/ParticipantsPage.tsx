@@ -1,7 +1,8 @@
-import { useEffect, useState, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { useDelayedLoading } from "../../hooks/useDelayedLoading";
-import { getParticipantsForEventum, createParticipant, updateParticipant, deleteParticipant } from "../../api/participant";
+import { createParticipant, updateParticipant, deleteParticipant } from "../../api/participant";
 import { groupsApi } from "../../api/eventumApi";
+import { useAdminData } from "../../contexts/AdminDataContext";
 import { IconUser, IconExternalLink, IconPencil, IconTrash, IconPlus, IconEye } from "../../components/icons";
 import ParticipantModal from "../../components/participant/ParticipantModal";
 import ParticipantsLoadingSkeleton from "../../components/participant/ParticipantsLoadingSkeleton";
@@ -12,13 +13,16 @@ import { getEventumScopedPath } from "../../utils/eventumSlug";
 
 const AdminParticipantsPage = () => {
   const eventumSlug = useEventumSlug();
-  const [participants, setParticipants] = useState<Participant[]>([]);
-  const [groups, setGroups] = useState<ParticipantGroup[]>([]);
+  const {
+    participants,
+    participantGroups: groups,
+    isLoading,
+    refetch,
+  } = useAdminData();
   const [nameFilter, setNameFilter] = useState("");
   const [groupFilter, setGroupFilter] = useState<number | "">("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingParticipant, setEditingParticipant] = useState<Participant | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [deletingParticipantId, setDeletingParticipantId] = useState<number | null>(null);
   
@@ -119,30 +123,6 @@ const AdminParticipantsPage = () => {
     return map;
   }, [groups, getGroupsThatInclude]);
 
-  useEffect(() => {
-    if (eventumSlug) {
-      loadData();
-    }
-  }, [eventumSlug]);
-
-  const loadData = async () => {
-    if (!eventumSlug) return;
-    
-    setIsLoading(true);
-    try {
-      const [participantsData, groupsResponse] = await Promise.all([
-        getParticipantsForEventum(eventumSlug),
-        groupsApi.getAll(eventumSlug, { includeEventGroups: true }),
-      ]);
-      setParticipants(participantsData);
-      setGroups(groupsResponse.data);
-    } catch (error) {
-      console.error("Ошибка при загрузке данных:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const filteredParticipants = participants
     .filter((participant) => {
       const matchesName = participant.name.toLowerCase().includes(nameFilter.toLowerCase());
@@ -208,7 +188,7 @@ const AdminParticipantsPage = () => {
       } else {
         await createParticipant(eventumSlug, participantPayload);
       }
-      await loadData();
+      await refetch(["participants", "groups"]);
     } catch (error) {
       console.error("Ошибка при сохранении участника:", error);
     } finally {
@@ -222,7 +202,7 @@ const AdminParticipantsPage = () => {
     setDeletingParticipantId(participant.id);
     try {
       await deleteParticipant(eventumSlug, participant.id);
-      await loadData();
+      await refetch(["participants", "groups"]);
     } catch (error) {
       console.error("Ошибка при удалении участника:", error);
     } finally {

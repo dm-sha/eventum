@@ -1,9 +1,10 @@
 import { useEffect, useState, useRef } from "react";
 import { useEventumSlug } from "../../hooks/useEventumSlug";
-import { getEventumDetails, updateEventumName, updateEventumDescription, updateEventumScheduleVisible } from "../../api/eventum";
+import { useAdminData } from "../../contexts/AdminDataContext";
+import { updateEventumName, updateEventumDescription, updateEventumScheduleVisible } from "../../api/eventum";
 import { addEventumOrganizer, removeEventumOrganizer, searchUsers } from "../../api/organizers";
 import { useAuth } from "../../contexts/AuthContext";
-import type { EventumDetails, User } from "../../types";
+import type { User } from "../../types";
 import {
   IconPencil,
   IconPlus,
@@ -18,7 +19,11 @@ import EventumInfoSkeleton from "../../components/admin/skeletons/EventumInfoSke
 const EventumInfoPage = () => {
   const eventumSlug = useEventumSlug();
   const { user } = useAuth();
-  const [eventum, setEventum] = useState<EventumDetails | null>(null);
+  const {
+    eventumDetails: eventum,
+    isLoading: adminLoading,
+    patchEventumDetails,
+  } = useAdminData();
   const [isLoading, setIsLoading] = useState(true);
   const [isEditingName, setIsEditingName] = useState(false);
   const [isEditingDescription, setIsEditingDescription] = useState(false);
@@ -37,10 +42,15 @@ const EventumInfoPage = () => {
   const [isSearching, setIsSearching] = useState(false);
 
   useEffect(() => {
-    if (eventumSlug) {
-      loadEventumData();
+    setIsLoading(adminLoading);
+  }, [adminLoading]);
+
+  useEffect(() => {
+    if (eventum) {
+      setTempName(eventum.name);
+      setTempDescription(eventum.description || "");
     }
-  }, [eventumSlug]);
+  }, [eventum]);
 
   // Функция для автоматического изменения размера textarea
   const adjustTextareaHeight = () => {
@@ -57,29 +67,13 @@ const EventumInfoPage = () => {
     }
   }, [isEditingDescription, tempDescription]);
 
-  const loadEventumData = async () => {
-    if (!eventumSlug) return;
-    
-    setIsLoading(true);
-    try {
-      const eventumData = await getEventumDetails(eventumSlug);
-      setEventum(eventumData);
-      setTempName(eventumData.name);
-      setTempDescription(eventumData.description || "");
-    } catch (error) {
-      console.error('Ошибка загрузки данных eventum:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const handleSaveName = async () => {
     if (!eventumSlug || !eventum) return;
     
     setIsSavingName(true);
     try {
       const updatedEventum = await updateEventumName(eventumSlug, tempName);
-      setEventum({ ...eventum, name: updatedEventum.name });
+      patchEventumDetails({ ...eventum, name: updatedEventum.name });
       setIsEditingName(false);
     } catch (error) {
       console.error('Ошибка сохранения названия:', error);
@@ -102,7 +96,7 @@ const EventumInfoPage = () => {
     setIsSavingDescription(true);
     try {
       const updatedEventum = await updateEventumDescription(eventumSlug, tempDescription);
-      setEventum({ ...eventum, description: updatedEventum.description });
+      patchEventumDetails({ ...eventum, description: updatedEventum.description });
       setIsEditingDescription(false);
     } catch (error) {
       console.error('Ошибка сохранения описания:', error);
@@ -125,7 +119,7 @@ const EventumInfoPage = () => {
     setIsTogglingSchedule(true);
     try {
       const updated = await updateEventumScheduleVisible(eventumSlug, newValue);
-      setEventum({ ...eventum, schedule_visible: updated.schedule_visible });
+      patchEventumDetails({ ...eventum, schedule_visible: updated.schedule_visible });
     } catch (error) {
       console.error('Ошибка изменения видимости расписания:', error);
       alert('Не удалось изменить настройку видимости расписания');
@@ -164,7 +158,7 @@ const EventumInfoPage = () => {
     try {
       const newOrganizerRole = await addEventumOrganizer(eventumSlug, userId);
       // Обновляем список организаторов
-      setEventum({ 
+      patchEventumDetails({ 
         ...eventum, 
         organizers: [...eventum.organizers, newOrganizerRole] 
       });
@@ -200,7 +194,7 @@ const EventumInfoPage = () => {
       await removeEventumOrganizer(eventumSlug, roleId);
       // Обновляем список организаторов
       const updatedOrganizers = eventum.organizers.filter(org => org.id !== roleId);
-      setEventum({ ...eventum, organizers: updatedOrganizers });
+      patchEventumDetails({ ...eventum, organizers: updatedOrganizers });
     } catch (error) {
       console.error('Ошибка удаления организатора:', error);
       alert('Не удалось удалить организатора. Возможно, это последний организатор мероприятия.');

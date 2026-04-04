@@ -5,6 +5,16 @@ import { listEventWaves } from "../api/eventWave";
 import { getEventsForEventum, registerForEvent, unregisterFromEvent } from "../api/event";
 import { getCurrentParticipant, getMyRegistrations, getParticipantById, getParticipantRegistrations } from "../api/participant";
 import { authApi } from "../api/eventumApi";
+import {
+  fetchRawEvents,
+  fetchRawEventTags,
+  fetchRawLocations,
+  fetchRawEventRegistrations,
+  fetchRawEventWaves,
+  fetchRawGroupStructure,
+  fetchRawParticipants,
+} from "../api/rawEventumAdmin";
+import { buildEventumPageDataFromRaw } from "../utils/eventumPageFromRaw";
 import type { Eventum, Event, Participant, UserRole, EventRegistration } from "../types";
 import type { EventWave } from "../api/eventWave";
 import LoadingSpinner from "../components/LoadingSpinner";
@@ -118,80 +128,162 @@ const EventumPage = () => {
           return roleEventumId === eventumData.id && role.role === 'organizer';
         });
         
-        // Загружаем остальные данные параллельно, обрабатывая ошибки 403 для организаторов
         let wavesData: EventWave[] = [];
         let eventsData: Event[] = [];
-        
-        // Выполняем оба запроса параллельно
-        const [wavesResult, eventsResult] = await Promise.allSettled([
-          listEventWaves(eventumSlug, participantId ? { participant: parseInt(participantId) } : undefined),
-          getEventsForEventum(eventumSlug, participantId ? { participant: parseInt(participantId) } : undefined)
-        ]);
-        
-        // Обрабатываем результат загрузки волн
-        if (wavesResult.status === 'fulfilled') {
-          wavesData = wavesResult.value;
-        } else {
-          const error = wavesResult.reason as { response?: { status?: number } };
-          if (error?.response?.status === 403 && !isOrganizer) {
-            setError('У вас нет доступа к этому событию. Вы должны быть участником или организатором, чтобы просматривать информацию о событии.');
-            return;
-          }
-          // Для организаторов игнорируем ошибки 403 при просмотре от лица другого участника
-          console.error('Ошибка загрузки волн мероприятий:', wavesResult.reason);
-        }
-        
-        // Обрабатываем результат загрузки мероприятий
-        if (eventsResult.status === 'fulfilled') {
-          eventsData = eventsResult.value;
-        } else {
-          const error = eventsResult.reason as { response?: { status?: number } };
-          if (error?.response?.status === 403 && !isOrganizer) {
-            setError('У вас нет доступа к этому событию. Вы должны быть участником или организатором, чтобы просматривать информацию о событии.');
-            return;
-          }
-          // Для организаторов игнорируем ошибки 403 при просмотре от лица другого участника
-          console.error('Ошибка загрузки мероприятий:', eventsResult.reason);
-        }
-        
-        setEventWaves(wavesData);
-        
-        // Загружаем данные участника отдельно, чтобы 404 не ломал всю страницу
-        let participantData = null;
+        let participantData: Participant | null = null;
         let registrationsData: EventRegistration[] = [];
-        try {
-          if (participantId) {
-            // Если указан ID участника, загружаем данные конкретного участника (для организаторов)
-            participantData = await getParticipantById(eventumSlug, parseInt(participantId));
-            if (participantData) {
-              try {
-                registrationsData = await getParticipantRegistrations(eventumSlug, parseInt(participantId));
-              } catch (registrationsErr: unknown) {
-                console.error('Ошибка загрузки заявок участника:', registrationsErr);
+
+        const loadParticipantAndRegs = async (): Promise<{
+          participantData: Participant | null;
+          registrationsData: EventRegistration[];
+        }> => {
+          let p: Participant | null = null;
+          let regs: EventRegistration[] = [];
+          try {
+            if (participantId) {
+              p = await getParticipantById(eventumSlug, parseInt(participantId, 10));
+              if (p) {
+                try {
+                  regs = await getParticipantRegistrations(
+                    eventumSlug,
+                    parseInt(participantId, 10)
+                  );
+                } catch (registrationsErr: unknown) {
+                  console.error("Ошибка загрузки заявок участника:", registrationsErr);
+                }
+              }
+            } else {
+              p = await getCurrentParticipant(eventumSlug);
+              if (p) {
+                try {
+                  regs = await getMyRegistrations(eventumSlug);
+                } catch (registrationsErr: unknown) {
+                  console.error("Ошибка загрузки заявок участника:", registrationsErr);
+                }
               }
             }
-          } else {
-            // Обычная логика для текущего пользователя
-            participantData = await getCurrentParticipant(eventumSlug);
-            // Если участник найден, загружаем его заявки
-            if (participantData) {
-              try {
-                registrationsData = await getMyRegistrations(eventumSlug);
-              } catch (registrationsErr: unknown) {
-                console.error('Ошибка загрузки заявок участника:', registrationsErr);
-              }
+          } catch (participantErr: unknown) {
+            const pErr = participantErr as { response?: { status?: number } };
+            if (pErr?.response?.status !== 404) {
+              console.error("Ошибка загрузки данных участника:", participantErr);
             }
           }
-        } catch (participantErr: unknown) {
-          // Если пользователь не является участником (404), это нормально
-          const error = participantErr as { response?: { status?: number } };
-          if (error?.response?.status !== 404) {
-            console.error('Ошибка загрузки данных участника:', participantErr);
+          return { participantData: p, registrationsData: regs };
+        };
+
+        const applyWavesEventsFailure = (
+          wavesResult: PromiseSettledResult<EventWave[]>,
+          eventsResult: PromiseSettledResult<Event[]>
+        ): boolean => {
+          if (wavesResult.status === "fulfilled") {
+            wavesData = wavesResult.value;
+          } else {
+            const wErr = wavesResult.reason as { response?: { status?: number } };
+            if (wErr?.response?.status === 403 && !isOrganizer) {
+              setError(
+                "У вас нет доступа к этому событию. Вы должны быть участником или организатором, чтобы просматривать информацию о событии."
+              );
+              return false;
+            }
+            console.error("Ошибка загрузки волн мероприятий:", wavesResult.reason);
+          }
+          if (eventsResult.status === "fulfilled") {
+            eventsData = eventsResult.value;
+          } else {
+            const eErr = eventsResult.reason as { response?: { status?: number } };
+            if (eErr?.response?.status === 403 && !isOrganizer) {
+              setError(
+                "У вас нет доступа к этому событию. Вы должны быть участником или организатором, чтобы просматривать информацию о событии."
+              );
+              return false;
+            }
+            console.error("Ошибка загрузки мероприятий:", eventsResult.reason);
+          }
+          return true;
+        };
+
+        if (isOrganizer) {
+          try {
+            const [
+              rawEv,
+              rawTags,
+              rawLoc,
+              rawRegs,
+              rawWaves,
+              structure,
+              rawParticipants,
+              participantBundle,
+            ] = await Promise.all([
+              fetchRawEvents(eventumSlug),
+              fetchRawEventTags(eventumSlug),
+              fetchRawLocations(eventumSlug),
+              fetchRawEventRegistrations(eventumSlug),
+              fetchRawEventWaves(eventumSlug),
+              fetchRawGroupStructure(eventumSlug),
+              fetchRawParticipants(eventumSlug),
+              loadParticipantAndRegs(),
+            ]);
+            const viewingPid = participantId
+              ? parseInt(participantId, 10)
+              : participantBundle.participantData?.id ?? null;
+            const built = buildEventumPageDataFromRaw(
+              eventumData.id,
+              rawEv,
+              rawTags,
+              rawLoc,
+              rawRegs,
+              rawWaves,
+              structure,
+              rawParticipants,
+              Number.isFinite(viewingPid) ? viewingPid : null
+            );
+            wavesData = built.eventWaves;
+            eventsData = built.events;
+            participantData = participantBundle.participantData;
+            registrationsData = participantBundle.registrationsData;
+          } catch (rawErr) {
+            console.warn("EventumPage: raw не удалось, fallback на ViewSet", rawErr);
+            const [wavesResult, eventsResult, participantBundle] = await Promise.allSettled([
+              listEventWaves(
+                eventumSlug,
+                participantId ? { participant: parseInt(participantId, 10) } : undefined
+              ),
+              getEventsForEventum(
+                eventumSlug,
+                participantId ? { participant: parseInt(participantId, 10) } : undefined
+              ),
+              loadParticipantAndRegs(),
+            ]);
+            if (!applyWavesEventsFailure(wavesResult, eventsResult)) {
+              return;
+            }
+            if (participantBundle.status === "fulfilled") {
+              participantData = participantBundle.value.participantData;
+              registrationsData = participantBundle.value.registrationsData;
+            }
+          }
+        } else {
+          const [wavesResult, eventsResult, participantBundle] = await Promise.allSettled([
+            listEventWaves(
+              eventumSlug,
+              participantId ? { participant: parseInt(participantId, 10) } : undefined
+            ),
+            getEventsForEventum(
+              eventumSlug,
+              participantId ? { participant: parseInt(participantId, 10) } : undefined
+            ),
+            loadParticipantAndRegs(),
+          ]);
+          if (!applyWavesEventsFailure(wavesResult, eventsResult)) {
+            return;
+          }
+          if (participantBundle.status === "fulfilled") {
+            participantData = participantBundle.value.participantData;
+            registrationsData = participantBundle.value.registrationsData;
           }
         }
-        
-        // Бэкенд уже правильно вычисляет is_registered и is_participant с учетом параметра participant
-        // Не нужно перезаписывать эти значения на фронтенде
+
+        setEventWaves(wavesData);
         setEvents(eventsData);
         setCurrentParticipant(participantData);
         setMyRegistrations(registrationsData);

@@ -155,18 +155,8 @@ export const participantsApi = {
 // ============= GROUPS API =============
 
 export const groupsApi = {
-  // Получить все группы
-  getAll: (eventumSlug?: string, options?: { includeEventGroups?: boolean }) => {
-    const include = options?.includeEventGroups ? '?include_event_groups=true' : '';
-    return createApiRequest<ParticipantGroup[]>(
-      'GET',
-      `/groups/${include}`,
-      getEventumSlugForRequest(eventumSlug)
-    );
-  },
-  
   // Создать группу
-  create: (data: CreateParticipantGroupData, eventumSlug?: string) => 
+  create: (data: CreateParticipantGroupData, eventumSlug?: string) =>
     createApiRequest<ParticipantGroup>('POST', '/groups/', getEventumSlugForRequest(eventumSlug), data),
   
   // Обновить группу
@@ -176,39 +166,6 @@ export const groupsApi = {
   // Удалить группу
   delete: (id: number, eventumSlug?: string) => 
     createApiRequest<void>('DELETE', `/groups/${id}/?include_event_groups=true`, getEventumSlugForRequest(eventumSlug))
-};
-
-// ============= EVENT RELATIONS API =============
-
-export interface EventRelation {
-  id: number;
-  group_id: number;
-  event_id: number;
-  event?: Event;
-}
-
-export const eventRelationsApi = {
-  // Получить все связи группа↔событие
-  getAll: (eventumSlug?: string, options?: { event_id?: number; group_id?: number }) => {
-    const params = new URLSearchParams();
-    if (options?.event_id) params.append('event_id', options.event_id.toString());
-    if (options?.group_id) params.append('group_id', options.group_id.toString());
-    const query = params.toString();
-    const url = query ? `/event-relations/?${query}` : '/event-relations/';
-    return createApiRequest<EventRelation[]>(
-      'GET',
-      url,
-      getEventumSlugForRequest(eventumSlug)
-    );
-  },
-  
-  // Создать связь группа↔событие (one-to-one предполагается с нашей стороны)
-  create: (params: { group_id: number; event_id: number }, eventumSlug?: string) =>
-    createApiRequest<{ id: number }>('POST', '/event-relations/', getEventumSlugForRequest(eventumSlug), params),
-  
-  // Удалить связь
-  delete: (id: number, eventumSlug?: string) =>
-    createApiRequest<void>('DELETE', `/event-relations/${id}/`, getEventumSlugForRequest(eventumSlug)),
 };
 
 // ============= EVENTS API =============
@@ -281,10 +238,6 @@ export const usersApi = {
 // ============= EVENT TAGS API =============
 
 export const eventTagsApi = {
-  // Получить все теги мероприятий
-  getAll: (eventumSlug?: string) => 
-    createApiRequest<any[]>('GET', '/event-tags/', getEventumSlugForRequest(eventumSlug)),
-  
   // Создать тег мероприятия
   create: (data: { name: string }, eventumSlug?: string) => 
     createApiRequest<any>('POST', '/event-tags/', getEventumSlugForRequest(eventumSlug), data),
@@ -296,68 +249,6 @@ export const eventTagsApi = {
   // Удалить тег мероприятия
   delete: (id: number, eventumSlug?: string) => 
     createApiRequest<void>('DELETE', `/event-tags/${id}/`, getEventumSlugForRequest(eventumSlug))
-};
-
-// ============= LOCATIONS API =============
-
-export const locationsApi = {
-  // Получить все локации
-  getAll: (eventumSlug?: string) => 
-    createApiRequest<any[]>('GET', '/locations/', getEventumSlugForRequest(eventumSlug)),
-  
-  // Получить дерево локаций
-  getTree: (eventumSlug?: string) => 
-    createApiRequest<any[]>('GET', '/locations/tree/', getEventumSlugForRequest(eventumSlug)),
-  
-  // Получить локацию по ID
-  getById: (id: number, eventumSlug?: string) => 
-    createApiRequest<any>('GET', `/locations/${id}/`, getEventumSlugForRequest(eventumSlug)),
-  
-  // Создать локацию
-  create: (data: any, eventumSlug?: string) => 
-    createApiRequest<any>('POST', '/locations/', getEventumSlugForRequest(eventumSlug), data),
-  
-  // Обновить локацию
-  update: (id: number, data: any, eventumSlug?: string) => 
-    createApiRequest<any>('PATCH', `/locations/${id}/`, getEventumSlugForRequest(eventumSlug), data),
-  
-  // Удалить локацию
-  delete: (id: number, eventumSlug?: string) => 
-    createApiRequest<void>('DELETE', `/locations/${id}/`, getEventumSlugForRequest(eventumSlug)),
-  
-  // Получить дочерние локации
-  getChildren: (id: number, eventumSlug?: string) => 
-    createApiRequest<any[]>('GET', `/locations/${id}/children/`, getEventumSlugForRequest(eventumSlug)),
-  
-  // Получить локации по типу
-  getByKind: (kind: string, eventumSlug?: string) => 
-    createApiRequest<any[]>('GET', `/locations/by_kind/?kind=${kind}`, getEventumSlugForRequest(eventumSlug)),
-  
-  // Получить валидных родителей
-  getValidParents: (kind: string, excludeId?: number, eventumSlug?: string) => {
-    const params = excludeId ? `kind=${kind}&exclude_id=${excludeId}` : `kind=${kind}`;
-    return createApiRequest<any[]>('GET', `/locations/valid_parents/?${params}`, getEventumSlugForRequest(eventumSlug));
-  }
-};
-
-// ============= EVENT WAVES API =============
-
-export const eventWavesApi = {
-  // Получить все волны
-  getAll: (eventumSlug?: string) => 
-    createApiRequest<any[]>('GET', '/event-waves/', getEventumSlugForRequest(eventumSlug)),
-  
-  // Создать волну
-  create: (data: any, eventumSlug?: string) => 
-    createApiRequest<any>('POST', '/event-waves/', getEventumSlugForRequest(eventumSlug), data),
-  
-  // Обновить волну
-  update: (id: number, data: any, eventumSlug?: string) => 
-    createApiRequest<any>('PUT', `/event-waves/${id}/`, getEventumSlugForRequest(eventumSlug), data),
-  
-  // Удалить волну
-  delete: (id: number, eventumSlug?: string) => 
-    createApiRequest<void>('DELETE', `/event-waves/${id}/`, getEventumSlugForRequest(eventumSlug))
 };
 
 // ============= AUTH API =============

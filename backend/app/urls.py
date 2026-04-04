@@ -28,7 +28,21 @@ from .views import (
     ParticipantGroupParticipantRelationViewSet,
     ParticipantGroupGroupRelationViewSet,
     ParticipantGroupEventRelationViewSet,
-    upload_image
+    upload_image,
+)
+from .raw_views import (
+    EventumRawBundleView,
+    EventumRawEventRegistrationsView,
+    EventumRawEventsView,
+    EventumRawEventTagsView,
+    EventumRawEventWavesView,
+    EventumRawGroupEventRelationsView,
+    EventumRawGroupGroupRelationsView,
+    EventumRawGroupParticipantRelationsView,
+    EventumRawGroupStructureView,
+    EventumRawGroupsView,
+    EventumRawLocationsView,
+    EventumRawParticipantsView,
 )
 
 router = DefaultRouter()
@@ -54,6 +68,18 @@ urlpatterns = [
     path('', include(router.urls)),
     
     # Основные маршруты с slug
+    path('eventums/<slug:eventum_slug>/raw/bundle/', EventumRawBundleView.as_view(), name='eventum_raw_bundle'),
+    path('eventums/<slug:eventum_slug>/raw/participants/', EventumRawParticipantsView.as_view(), name='eventum_raw_participants'),
+    path('eventums/<slug:eventum_slug>/raw/events/', EventumRawEventsView.as_view(), name='eventum_raw_events'),
+    path('eventums/<slug:eventum_slug>/raw/event-tags/', EventumRawEventTagsView.as_view(), name='eventum_raw_event_tags'),
+    path('eventums/<slug:eventum_slug>/raw/locations/', EventumRawLocationsView.as_view(), name='eventum_raw_locations'),
+    path('eventums/<slug:eventum_slug>/raw/event-registrations/', EventumRawEventRegistrationsView.as_view(), name='eventum_raw_event_registrations'),
+    path('eventums/<slug:eventum_slug>/raw/event-waves/', EventumRawEventWavesView.as_view(), name='eventum_raw_event_waves'),
+    path('eventums/<slug:eventum_slug>/raw/group-structure/', EventumRawGroupStructureView.as_view(), name='eventum_raw_group_structure'),
+    path('eventums/<slug:eventum_slug>/raw/groups/', EventumRawGroupsView.as_view(), name='eventum_raw_groups'),
+    path('eventums/<slug:eventum_slug>/raw/group-participant-relations/', EventumRawGroupParticipantRelationsView.as_view(), name='eventum_raw_group_participant_relations'),
+    path('eventums/<slug:eventum_slug>/raw/group-group-relations/', EventumRawGroupGroupRelationsView.as_view(), name='eventum_raw_group_group_relations'),
+    path('eventums/<slug:eventum_slug>/raw/group-event-relations/', EventumRawGroupEventRelationsView.as_view(), name='eventum_raw_group_event_relations'),
     path('eventums/<slug:eventum_slug>/', include(eventum_scoped_router.urls)),
     path('eventums/<slug:slug>/details/', eventum_details, name='eventum_details'),
     path('eventums/<slug:slug>/organizers/', eventum_organizers, name='eventum_organizers'),

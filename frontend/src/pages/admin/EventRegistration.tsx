@@ -1,20 +1,23 @@
 import { useEffect, useState, useRef } from 'react';
-import { listEventWaves, createEventWave, updateEventWave, deleteEventWave } from '../../api/eventWave';
+import { createEventWave, updateEventWave, deleteEventWave } from '../../api/eventWave';
 import type { EventWave } from '../../api/eventWave';
-import { 
-  listEventRegistrations, 
-  createEventRegistration, 
-  updateEventRegistration, 
-  deleteEventRegistration 
+import {
+  createEventRegistration,
+  updateEventRegistration,
+  deleteEventRegistration,
 } from '../../api/eventRegistration';
 import type { EventRegistration } from '../../api/eventRegistration';
 import { IconPencil, IconTrash, IconCheck, IconX, IconPlus, IconInformationCircle, IconChevronDown, IconChevronRight, IconUser, IconUsersCircle } from '../../components/icons';
 import { useEventumSlug } from '../../hooks/useEventumSlug';
 import WavesLoadingSkeleton from '../../components/admin/skeletons/WavesLoadingSkeleton';
 import { eventumApi } from '../../api/eventumApi';
-import { getEventumBySlug } from '../../api/eventum';
 import type { Eventum } from '../../types';
-import { eventsApi, participantsApi, eventRelationsApi, groupsApi } from '../../api/eventumApi';
+import { useAdminData } from '../../contexts/AdminDataContext';
+import {
+  resolveParticipantGroupIds,
+  participantsToIdMap,
+  type ParticipantGroupResolveOptions,
+} from '../../utils/resolveParticipantGroup';
 import type { Event, Participant } from '../../types';
 
 type Mode = 'view' | 'edit' | 'create';
@@ -50,6 +53,11 @@ const RegistrationCard: React.FC<RegistrationCardProps> = ({
   groups
 }) => {
   const eventumSlug = useEventumSlug();
+  const {
+    participants: adminParticipants,
+    participantGroups,
+    groupStructureRaw,
+  } = useAdminData();
   const [registrationType, setRegistrationType] = useState<'button' | 'application'>(registration.registration_type);
   const [maxParticipants, setMaxParticipants] = useState<string>(registration.max_participants?.toString() || '');
   const [allowedGroupId, setAllowedGroupId] = useState<string>(registration.allowed_group?.toString() || '');
@@ -78,10 +86,10 @@ const RegistrationCard: React.FC<RegistrationCardProps> = ({
 
     setIsLoadingParticipants(true);
     try {
-      const participantsResponses = await Promise.all(
-        registration.applicants.map(id => participantsApi.getById(id, eventumSlug))
-      );
-      const participantsData = participantsResponses.map(response => response.data);
+      const byId = new Map(adminParticipants.map((p) => [p.id, p]));
+      const participantsData = registration.applicants
+        .map((id) => byId.get(id))
+        .filter((p): p is Participant => p != null);
       setParticipants(participantsData);
     } catch (error) {
       console.error('Error loading participants:', error);
@@ -104,61 +112,53 @@ const RegistrationCard: React.FC<RegistrationCardProps> = ({
 
     setIsLoadingEventParticipants(true);
     try {
-      // Проверяем, есть ли прямая связь через event_group_id
-      const eventGroupId = (registration.event as any).event_group_id;
-      
-      let groupIds: number[] = [];
-      
-      if (eventGroupId) {
-        // Используем прямую связь 1:1
-        groupIds = [eventGroupId];
-      } else {
-        // Получаем связи групп с мероприятием через API
-        const relationsResponse = await eventRelationsApi.getAll(eventumSlug, { event_id: registration.event.id });
-        const relations = relationsResponse.data;
+      const eventGroupId = (registration.event as { event_group_id?: number | null })
+        .event_group_id;
 
-        if (relations && relations.length > 0) {
-          groupIds = relations.map(rel => rel.group_id).filter((id): id is number => id != null);
-        }
+      let groupIds: number[] = [];
+
+      if (eventGroupId) {
+        groupIds = [eventGroupId];
+      } else if (groupStructureRaw) {
+        groupIds = groupStructureRaw.event_relations
+          .filter((er) => er.event_id === registration.event.id)
+          .map((er) => er.group_id);
       }
-      
+
       if (groupIds.length === 0) {
         setEventParticipants([]);
         return;
       }
 
-      const allGroupsResponse = await groupsApi.getAll(eventumSlug, { includeEventGroups: true });
-      const allGroups = allGroupsResponse.data || [];
-      const eventGroups = allGroups.filter(group => group && groupIds.includes(group.id));
+      const eventGroups = participantGroups.filter(
+        (group) => group && groupIds.includes(group.id)
+      );
 
       if (eventGroups.length === 0) {
         setEventParticipants([]);
         return;
       }
 
-      // Собираем всех участников из всех групп
-      const allParticipantIds = new Set<number>();
-      for (const group of eventGroups) {
-        if (group && group.participant_relations && Array.isArray(group.participant_relations)) {
-          for (const relation of group.participant_relations) {
-            if (relation && relation.relation_type === 'inclusive' && relation.participant_id) {
-              allParticipantIds.add(relation.participant_id);
-            }
-          }
+      const opts: ParticipantGroupResolveOptions = {
+        resolveGroup: (id) => participantGroups.find((g) => g.id === id) ?? null,
+        allParticipantIds: new Set(adminParticipants.map((p) => p.id)),
+      };
+      const merged = new Set<number>();
+      for (const g of eventGroups) {
+        for (const id of resolveParticipantGroupIds(g, opts)) {
+          merged.add(id);
         }
       }
 
-      if (allParticipantIds.size === 0) {
+      if (merged.size === 0) {
         setEventParticipants([]);
         return;
       }
 
-      // Получаем данные участников
-      const participantsResponses = await Promise.all(
-        Array.from(allParticipantIds).map(id => participantsApi.getById(id, eventumSlug))
-      );
-      const participantsData = participantsResponses
-        .map(response => response?.data)
+      const byId = participantsToIdMap(adminParticipants);
+      const participantsData = Array.from(merged)
+        .sort((a, b) => a - b)
+        .map((id) => byId.get(id))
         .filter((p): p is Participant => p != null);
       setEventParticipants(participantsData);
     } catch (error) {
@@ -1396,46 +1396,25 @@ const CreateWaveForm: React.FC<{
 
 const EventRegistrationPage: React.FC = () => {
   const eventumSlug = useEventumSlug();
+  const {
+    eventumDetails,
+    eventRegistrations: registrations,
+    eventWaves: waves,
+    events,
+    participantGroups,
+    isLoading,
+    setEventRegistrations,
+    patchEventumDetails,
+    refetch,
+  } = useAdminData();
+  const eventum: Eventum | null = eventumDetails;
+  const groups: BasicItem[] = participantGroups.map((g) => ({ id: g.id, name: g.name }));
   const [activeTab, setActiveTab] = useState<'registrations' | 'waves'>('registrations');
-  const [eventum, setEventum] = useState<Eventum | null>(null);
-  const [registrations, setRegistrations] = useState<EventRegistration[]>([]);
-  const [waves, setWaves] = useState<EventWave[]>([]);
-  const [events, setEvents] = useState<Event[]>([]);
-  const [groups, setGroups] = useState<BasicItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [editingRegistrationId, setEditingRegistrationId] = useState<number | null>(null);
   const [editingWaveId, setEditingWaveId] = useState<number | null>(null);
   const [showCreateRegistration, setShowCreateRegistration] = useState(false);
   const [showCreateWave, setShowCreateWave] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-
-  const load = async () => {
-    if (!eventumSlug) {
-      setIsLoading(false);
-      return;
-    }
-    setIsLoading(true);
-    try {
-      const [eventumData, regs, ws, evsResponse, gs] = await Promise.all([
-        getEventumBySlug(eventumSlug),
-        listEventRegistrations(eventumSlug),
-        listEventWaves(eventumSlug),
-        eventsApi.getAll(eventumSlug),
-        groupsApi.getAll(eventumSlug, { includeEventGroups: true })
-      ]);
-      setEventum(eventumData);
-      setRegistrations(regs);
-      setWaves(ws);
-      setEvents(evsResponse.data);
-      setGroups(gs.data.map((g: any) => ({ id: g.id, name: g.name })));
-    } catch (error) {
-      console.error('Error loading data:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => { load(); }, [eventumSlug]);
 
   const filteredRegistrations = registrations.filter(reg =>
     reg.event.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -1454,7 +1433,7 @@ const EventRegistrationPage: React.FC = () => {
     if (!eventumSlug) return;
     await createEventRegistration(eventumSlug, data);
     setShowCreateRegistration(false);
-    await load();
+    await refetch(['registrations', 'waves', 'events']);
   };
 
   const handleUpdateRegistration = async (id: number, data: {
@@ -1467,8 +1446,8 @@ const EventRegistrationPage: React.FC = () => {
     try {
       const updatedRegistration = await updateEventRegistration(eventumSlug, id, data);
       // Обновляем только конкретную регистрацию в массиве
-      setRegistrations(prevRegistrations => 
-        prevRegistrations.map(reg => reg.id === id ? updatedRegistration : reg)
+      setEventRegistrations((prevRegistrations) =>
+        prevRegistrations.map((reg) => (reg.id === id ? updatedRegistration : reg))
       );
       setEditingRegistrationId(null);
     } catch (error) {
@@ -1479,34 +1458,39 @@ const EventRegistrationPage: React.FC = () => {
   const handleDeleteRegistration = async (id: number) => {
     if (!eventumSlug || !confirm('Вы уверены, что хотите удалить эту регистрацию?')) return;
     await deleteEventRegistration(eventumSlug, id);
-    await load();
+    await refetch(['registrations', 'waves', 'events']);
   };
 
   const handleCreateWave = async (name: string, registrationIds: number[]) => {
     if (!eventumSlug) return;
     await createEventWave(eventumSlug, { name, registration_ids: registrationIds });
     setShowCreateWave(false);
-    await load();
+    await refetch(['waves', 'registrations']);
   };
 
   const handleUpdateWave = async (id: number, data: { name: string; registration_ids?: number[] }) => {
     if (!eventumSlug) return;
     await updateEventWave(eventumSlug, id, data);
     setEditingWaveId(null);
-    await load();
+    await refetch(['waves', 'registrations']);
   };
 
   const handleDeleteWave = async (id: number) => {
     if (!eventumSlug || !confirm('Вы уверены, что хотите удалить эту волну?')) return;
     await deleteEventWave(eventumSlug, id);
-    await load();
+    await refetch(['waves', 'registrations']);
   };
 
   const handleToggleRegistration = async () => {
     if (!eventumSlug || !eventum) return;
     try {
       const updatedEventum = await eventumApi.toggleRegistration(eventumSlug);
-      setEventum(updatedEventum.data);
+      if (eventumDetails) {
+        patchEventumDetails({
+          ...eventumDetails,
+          registration_open: updatedEventum.data.registration_open,
+        });
+      }
     } catch (error) {
       console.error('Error toggling registration:', error);
     }

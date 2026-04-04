@@ -1,19 +1,24 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
-  getEventsForEventum,
   updateEvent,
 } from '../../api';
 import { eventTagsApi } from '../../api/eventumApi';
 import type { EventTag, Event } from '../../types';
 import { IconPencil, IconX, IconPlus, IconInformationCircle, IconTrash } from '../../components/icons';
 import { useEventumSlug } from '../../hooks/useEventumSlug';
+import { useAdminData } from '../../contexts/AdminDataContext';
 import TagsLoadingSkeleton from '../../components/admin/skeletons/TagsLoadingSkeleton';
 
 const AdminEventTagsPage = () => {
   const eventumSlug = useEventumSlug();
-  const [tags, setTags] = useState<EventTag[]>([]);
-  const [events, setEvents] = useState<Event[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const {
+    eventTags: tags,
+    events,
+    isLoading,
+    setEventTags: setTags,
+    setEvents,
+    refetch,
+  } = useAdminData();
 
   const [filter, setFilter] = useState('');
   const [editingTag, setEditingTag] = useState<number | null>(null);
@@ -28,28 +33,6 @@ const AdminEventTagsPage = () => {
   const [isUpdating, setIsUpdating] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(false);
-
-  useEffect(() => {
-    if (!eventumSlug) return;
-    
-    const loadData = async () => {
-      setIsLoading(true);
-      try {
-        const [tagsData, eventsData] = await Promise.all([
-          eventTagsApi.getAll(eventumSlug).then(res => res.data),
-          getEventsForEventum(eventumSlug)
-        ]);
-        setTags(tagsData);
-        setEvents(eventsData);
-      } catch (error) {
-        console.error('Error loading data:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
-    loadData();
-  }, [eventumSlug]);
 
   const filteredTags = tags.filter((t) =>
     t.name.toLowerCase().includes(filter.toLowerCase())
@@ -303,7 +286,7 @@ const AdminEventTagsPage = () => {
     
     try {
       await eventTagsApi.delete(tagId, eventumSlug);
-      setTags(tags.filter(t => t.id !== tagId));
+      await refetch(["eventTags", "events"]);
       setEditingTag(null);
     } catch (error) {
       console.error('Error deleting tag:', error);

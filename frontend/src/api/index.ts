@@ -6,7 +6,6 @@ export * from './apiClient';
 export * from './eventum';
 export * from './participant';
 export * from './event';
-export * from './eventTag';
 export * from './eventWave';
 export * from './organizers';
 export * from './location';

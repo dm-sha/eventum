@@ -7,7 +7,7 @@ import type {
   UpdateParticipantGroupData
 } from '../../types';
 import { IconX } from '../icons';
-import { getParticipantsForEventum } from '../../api';
+import { useOptionalAdminData } from '../../contexts/AdminDataContext';
 
 interface ParticipantRelation {
   participant_id: number;
@@ -23,7 +23,8 @@ interface GroupRelation {
 
 interface ParticipantGroupEditorProps {
   group?: ParticipantGroup | null;
-  eventumSlug: string;
+  /** Если задано, подставляется вместо списка из админ-контекста (например, тесты или нестандартный источник). */
+  participants?: Participant[];
   availableGroups?: ParticipantGroup[];
   onSave: (data: CreateParticipantGroupData | UpdateParticipantGroupData) => Promise<void>;
   onCancel: () => void;
@@ -42,7 +43,7 @@ interface ParticipantGroupEditorProps {
 
 const ParticipantGroupEditor: React.FC<ParticipantGroupEditorProps> = ({
   group,
-  eventumSlug,
+  participants: participantsProp,
   availableGroups = [],
   onSave,
   onCancel,
@@ -54,8 +55,10 @@ const ParticipantGroupEditor: React.FC<ParticipantGroupEditorProps> = ({
   hideActions = false,
   onChange
 }) => {
+  const admin = useOptionalAdminData();
+  const allParticipants = participantsProp ?? admin?.participants ?? [];
+
   const [name, setName] = useState(nameOverride ?? group?.name ?? '');
-  const [allParticipants, setAllParticipants] = useState<Participant[]>([]);
   const [participantQuery, setParticipantQuery] = useState('');
   const [groupQuery, setGroupQuery] = useState('');
   const [participantRelations, setParticipantRelations] = useState<ParticipantRelation[]>([]);
@@ -63,19 +66,6 @@ const ParticipantGroupEditor: React.FC<ParticipantGroupEditorProps> = ({
   const [participantFocused, setParticipantFocused] = useState(false);
   const [groupFocused, setGroupFocused] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
-
-  // Загружаем участников только один раз при монтировании или при изменении eventumSlug
-  useEffect(() => {
-    const loadParticipants = async () => {
-      try {
-        const data = await getParticipantsForEventum(eventumSlug);
-        setAllParticipants(data);
-      } catch (error) {
-        console.error('Ошибка загрузки участников:', error);
-      }
-    };
-    loadParticipants();
-  }, [eventumSlug]); // Загружаем только при изменении eventumSlug, не при каждом изменении group
 
   // Отдельный эффект для инициализации состояния группы
   // Используем useMemo для нормализации relations и сравнения только при реальных изменениях

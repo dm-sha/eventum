@@ -1,5 +1,6 @@
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
+import { AdminDataProvider } from "../contexts/AdminDataContext";
 import Header from "./Header";
 import {
   IconCalendar,
@@ -147,7 +148,9 @@ const AdminLayout = () => {
 
         {/* Page content */}
         <main className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8 overflow-y-auto">
-          <Outlet />
+          <AdminDataProvider>
+            <Outlet />
+          </AdminDataProvider>
         </main>
       </div>
     </div>

@@ -1,9 +1,7 @@
-import { useEffect, useState } from "react";
-import { getEventsForEventum, createEvent, updateEvent, deleteEvent } from "../../api/event";
-import { eventTagApi } from "../../api/eventTag";
-import { getLocationsForEventum } from "../../api/location";
-import { getParticipantsForEventum } from "../../api/participant";
-import type { Event, EventTag, Location, Participant } from "../../types";
+import { useMemo, useState } from "react";
+import { createEvent, updateEvent, deleteEvent } from "../../api/event";
+import { useAdminData } from "../../contexts/AdminDataContext";
+import type { Event, EventTag, Location } from "../../types";
 import {
   IconPencil,
   IconTrash,
@@ -20,13 +18,37 @@ interface EventWithTags extends Event {
   tags_data: EventTag[];
 }
 
+function flattenLocations(nodes: Location[]): Location[] {
+  const out: Location[] = [];
+  const walk = (n: Location) => {
+    out.push(n);
+    (n.children ?? []).forEach(walk);
+  };
+  nodes.forEach(walk);
+  return out;
+}
+
 const AdminEventsPage = () => {
   const eventumSlug = useEventumSlug();
-  const [events, setEvents] = useState<EventWithTags[]>([]);
-  const [eventTags, setEventTags] = useState<EventTag[]>([]);
-  const [locations, setLocations] = useState<Location[]>([]);
-  const [participants, setParticipants] = useState<Participant[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const {
+    isLoading,
+    events: ctxEvents,
+    eventTags,
+    locationsTree,
+    participants,
+    setEvents: setCtxEvents,
+  } = useAdminData();
+
+  const events = useMemo<EventWithTags[]>(
+    () =>
+      ctxEvents.map((event) => ({
+        ...event,
+        tags_data: event.tags,
+      })),
+    [ctxEvents]
+  );
+
+  const locations = useMemo(() => flattenLocations(locationsTree), [locationsTree]);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTags, setSelectedTags] = useState<number[]>([]);
   const [isTagDropdownOpen, setIsTagDropdownOpen] = useState(false);
@@ -35,67 +57,6 @@ const AdminEventsPage = () => {
   // Модальное окно редактирования
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
-
-  useEffect(() => {
-    if (eventumSlug) {
-      loadData();
-    }
-  }, [eventumSlug]);
-
-
-  const loadData = async () => {
-    if (!eventumSlug) return;
-    
-    setIsLoading(true);
-    try {
-      const eventsData = await getEventsForEventum(eventumSlug);
-      
-      let tagsData: EventTag[] = [];
-      
-      let locationsData: Location[] = [];
-      let participantsData: Participant[] = [];
-      
-      try {
-        tagsData = await eventTagApi.getEventTags(eventumSlug);
-      } catch (tagError) {
-        console.error('Ошибка загрузки тегов:', tagError);
-        // Продолжаем работу без тегов
-      }
-      
-      try {
-        participantsData = await getParticipantsForEventum(eventumSlug);
-      } catch (participantError) {
-        console.error('Ошибка загрузки участников:', participantError);
-        // Продолжаем работу без участников
-      }
-      
-      
-      try {
-        locationsData = await getLocationsForEventum(eventumSlug);
-      } catch (locationError) {
-        console.error('Ошибка загрузки локаций:', locationError);
-        // Продолжаем работу без локаций
-      }
-      
-      // Добавляем данные тегов к мероприятиям
-      const eventsWithTags = eventsData.map(event => {
-        // Теги приходят как объекты EventTag
-        return {
-          ...event,
-          tags_data: event.tags
-        };
-      });
-      
-      setEvents(eventsWithTags);
-      setEventTags(tagsData);
-      setLocations(locationsData);
-      setParticipants(participantsData);
-    } catch (error) {
-      console.error('Ошибка загрузки данных:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const filteredEvents = events
     .filter(event => {
@@ -185,10 +146,12 @@ const AdminEventsPage = () => {
     try {
       if (editingEvent) {
         const updated = await updateEvent(eventumSlug, editingEvent.id, eventData);
-        setEvents(prev => prev.map(e => e.id === editingEvent.id ? { ...updated, tags_data: updated.tags } : e));
+        setCtxEvents((prev) =>
+          prev.map((e) => (e.id === editingEvent.id ? updated : e))
+        );
       } else {
         const created = await createEvent(eventumSlug, eventData);
-        setEvents(prev => [...prev, { ...created, tags_data: created.tags }]);
+        setCtxEvents((prev) => [...prev, created]);
       }
     } catch (error) {
       console.error('Ошибка сохранения мероприятия:', error);
@@ -202,7 +165,7 @@ const AdminEventsPage = () => {
     
     try {
       await deleteEvent(eventumSlug, eventId);
-      setEvents(prev => prev.filter(e => e.id !== eventId));
+      setCtxEvents((prev) => prev.filter((e) => e.id !== eventId));
     } catch (error) {
       console.error('Ошибка удаления мероприятия:', error);
     }

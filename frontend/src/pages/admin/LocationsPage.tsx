@@ -1,6 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
-  getLocationTree,
   createLocation,
   updateLocation,
   deleteLocation
@@ -10,43 +9,23 @@ import { LocationForm } from '../../components/location/LocationForm';
 import { IconInformationCircle } from '../../components/icons';
 import type { Location, CreateLocationData } from '../../types';
 import { useEventumSlug } from '../../hooks/useEventumSlug';
+import { useAdminData } from '../../contexts/AdminDataContext';
 import LocationsLoadingSkeleton from '../../components/admin/skeletons/LocationsLoadingSkeleton';
 
 const LocationsPage = () => {
   const eventumSlug = useEventumSlug();
-  const [locations, setLocations] = useState<Location[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { locationsTree: locations, isLoading, refetch } = useAdminData();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingLocation, setEditingLocation] = useState<Location | null>(null);
   const [parentLocation, setParentLocation] = useState<Location | null>(null);
   const [expandedNodes, setExpandedNodes] = useState<Set<number>>(new Set());
-
-  useEffect(() => {
-    if (eventumSlug) {
-      loadLocations();
-    }
-  }, [eventumSlug]);
-
-  const loadLocations = async () => {
-    if (!eventumSlug) return;
-    
-    setIsLoading(true);
-    try {
-      const locationTree = await getLocationTree(eventumSlug);
-      setLocations(locationTree);
-    } catch (error) {
-      console.error('Ошибка загрузки локаций:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handleCreateLocation = async (data: CreateLocationData) => {
     if (!eventumSlug) return;
 
     try {
       await createLocation(eventumSlug, data);
-      await loadLocations(); // Перезагружаем дерево
+      await refetch(["locations"]);
       setIsFormOpen(false);
       setEditingLocation(null);
       setParentLocation(null);
@@ -74,7 +53,7 @@ const LocationsPage = () => {
 
     try {
       await updateLocation(eventumSlug, editingLocation.id, data);
-      await loadLocations(); // Перезагружаем дерево
+      await refetch(["locations"]);
       setIsFormOpen(false);
       setEditingLocation(null);
       setParentLocation(null);
@@ -111,7 +90,7 @@ const LocationsPage = () => {
 
     try {
       await deleteLocation(eventumSlug, location.id);
-      await loadLocations(); // Перезагружаем дерево
+      await refetch(["locations"]);
     } catch (error: any) {
       console.error('Ошибка удаления локации:', error);
       

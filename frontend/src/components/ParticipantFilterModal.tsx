@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { IconX, IconCheck } from '../components/icons';
 import { getEventsForEventum, getParticipantsByEventFilter } from '../api';
+import { loadEventsPickListFromRaw } from '../utils/eventumPageFromRaw';
 import type { Event, Participant } from '../types';
 
 interface ParticipantFilterModalProps {
@@ -38,8 +39,13 @@ const ParticipantFilterModal: React.FC<ParticipantFilterModalProps> = ({
   const loadEvents = async () => {
     setIsLoadingEvents(true);
     try {
-      const eventsData = await getEventsForEventum(eventumSlug);
-      setEvents(eventsData);
+      try {
+        const eventsData = await loadEventsPickListFromRaw(eventumSlug);
+        setEvents(eventsData);
+      } catch {
+        const eventsData = await getEventsForEventum(eventumSlug);
+        setEvents(eventsData);
+      }
     } catch (error) {
       console.error('Ошибка загрузки мероприятий:', error);
     } finally {

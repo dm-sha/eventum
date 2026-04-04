@@ -1,9 +1,17 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useEventumSlug } from "../../hooks/useEventumSlug";
 import type { Event as EventModel, EventTag, Location, Participant, ValidationError, ParticipantGroup } from "../../types";
 import ParticipantGroupEditor from "../participantGroup/ParticipantGroupEditor";
-import { eventumApi } from "../../api/eventumApi";
-import { groupsApi } from "../../api/eventumApi";
+import { eventumApi, groupsApi } from "../../api/eventumApi";
+import { useAdminData } from "../../contexts/AdminDataContext";
+import {
+  fetchRawGroupStructure,
+} from "../../api/rawEventumAdmin";
+import { participantGroupsFromRawStructure } from "../../utils/participantDataFromRaw";
+import {
+  resolveParticipantGroupIds,
+  type ParticipantGroupResolveOptions,
+} from "../../utils/resolveParticipantGroup";
 import { MultiLocationSelector } from "../location/MultiLocationSelector";
 
 // Компонент для вкладки "Общее"
@@ -257,18 +265,18 @@ const GeneralTab = ({
 // Компонент для вкладки "Участники"
 const ParticipantsTab = ({
   eventForm,
-  eventumSlug,
   localGroupState,
   onLocalGroupStateChange,
   availableGroups,
   isLoadingGroup,
+  participants,
 }: {
   eventForm: any;
-  eventumSlug: string | undefined;
   localGroupState: ParticipantGroup | null;
   onLocalGroupStateChange: (group: ParticipantGroup | null) => void;
   availableGroups: ParticipantGroup[];
   isLoadingGroup: boolean;
+  participants: Participant[];
 }) => {
   // Показываем загрузку ТОЛЬКО когда реально идет загрузка
   const showLoading = isLoadingGroup;
@@ -339,7 +347,7 @@ const ParticipantsTab = ({
           <div className="rounded-lg border border-gray-200 p-3">
             <ParticipantGroupEditor
               group={localGroupState}
-              eventumSlug={eventumSlug || ''}
+              participants={participants}
               nameOverride={eventForm.name ? `Участники \"${eventForm.name}\"` : ''}
               hideNameField
               hideActions
@@ -389,6 +397,7 @@ const EventEditModal = ({
   title 
 }: EventEditModalProps) => {
   const eventumSlug = useEventumSlug();
+  const { participantGroups, refetch: refetchAdmin } = useAdminData();
   const [activeTab, setActiveTab] = useState<'general' | 'participants'>('general');
   const [eventForm, setEventForm] = useState({
     name: "",
@@ -410,7 +419,6 @@ const EventEditModal = ({
   const [localGroupState, setLocalGroupState] = useState<ParticipantGroup | null>(null);
   // Состояние группы на сервере - источник истины
   const [serverGroupState, setServerGroupState] = useState<ParticipantGroup | null>(null);
-  const [allGroups, setAllGroups] = useState<ParticipantGroup[]>([]);
   const [isLoadingGroup, setIsLoadingGroup] = useState(false);
   const tagInputRef = useRef<HTMLDivElement>(null);
   
@@ -463,21 +471,12 @@ const EventEditModal = ({
       const evAny: any = event as any;
       if (evAny.event_group?.id && eventumSlug) {
         setIsLoadingGroup(true);
-        groupsApi.getAll(eventumSlug, { includeEventGroups: true })
-          .then((resp: any) => {
-            const groups = resp.data ?? resp;
-            const found = groups.find((g: any) => g.id === evAny.event_group.id);
-            if (found) {
-              setServerGroupState(found);
-              setLocalGroupState(found);
-            }
-          })
-          .catch((error) => {
-            console.error('Ошибка загрузки группы:', error);
-          })
-          .finally(() => {
-            setIsLoadingGroup(false);
-          });
+        const found = participantGroups.find((g) => g.id === evAny.event_group.id);
+        if (found) {
+          setServerGroupState(found);
+          setLocalGroupState(found);
+        }
+        setIsLoadingGroup(false);
       }
     } else {
         // Попытаться подставить дату и время последнего созданного мероприятия из localStorage
@@ -525,21 +524,7 @@ const EventEditModal = ({
     setValidationErrors({});
     setHasUserEditedEndTime(false);
     
-    // Подгружаем все группы для подсчета участников
-    (async () => {
-      try {
-        if (eventumSlug) {
-          const resp = await groupsApi.getAll(eventumSlug, { includeEventGroups: true });
-          const groups = (resp as any).data ?? resp;
-          setAllGroups(groups as ParticipantGroup[]);
-        } else {
-          setAllGroups([]);
-        }
-      } catch {
-        setAllGroups([]);
-      }
-    })();
-  }, [isOpen, event, eventumSlug]);
+  }, [isOpen, event, eventumSlug, participantGroups]);
 
   const formatDateTimeForInput = (dateTime: string) => {
     if (!dateTime) return "";
@@ -721,9 +706,11 @@ const EventEditModal = ({
               // Обновляем оба состояния после успешного сохранения
               // Перезагружаем для получения полных данных с relations
               try {
-                const reloadResp = await groupsApi.getAll(eventumSlug || '', { includeEventGroups: true });
-                const reloadGroups = (reloadResp as any).data ?? reloadResp;
-                const reloaded = (reloadGroups as any[]).find((g: any) => g.id === ensuredEventGroupId) || updated;
+                await refetchAdmin(["groups"]);
+                const structure = await fetchRawGroupStructure(eventumSlug || undefined);
+                const reloadGroups = participantGroupsFromRawStructure(structure);
+                const reloaded =
+                  reloadGroups.find((g) => g.id === ensuredEventGroupId) || updated;
                 setServerGroupState(reloaded);
                 setLocalGroupState(reloaded);
               } catch {
@@ -750,9 +737,11 @@ const EventEditModal = ({
               
               // Обновляем оба состояния после успешного создания
               try {
-                const reloadResp = await groupsApi.getAll(eventumSlug || '', { includeEventGroups: true });
-                const reloadGroups = (reloadResp as any).data ?? reloadResp;
-                const reloaded = (reloadGroups as any[]).find((g: any) => g.id === ensuredEventGroupId) || created;
+                await refetchAdmin(["groups"]);
+                const structure = await fetchRawGroupStructure(eventumSlug || undefined);
+                const reloadGroups = participantGroupsFromRawStructure(structure);
+                const reloaded =
+                  reloadGroups.find((g) => g.id === ensuredEventGroupId) || created;
                 setServerGroupState(reloaded);
                 setLocalGroupState(reloaded);
               } catch {
@@ -843,111 +832,25 @@ const EventEditModal = ({
     eventForm.end_time &&
     new Date(eventForm.end_time) > new Date(eventForm.start_time);
 
-  // Функция для получения группы по ID (сначала из localGroupState, потом из allGroups)
-  const getGroupById = (id: number): ParticipantGroup | null => {
-    // Если это локальная группа - используем её напрямую
-    if (localGroupState?.id === id) {
-      return localGroupState;
-    }
-    // Иначе ищем в allGroups
-    return allGroups.find(g => g.id === id) || null;
-  };
+  const groupResolveOptions = useMemo<ParticipantGroupResolveOptions>(
+    () => ({
+      resolveGroup: (id) => {
+        if (localGroupState?.id === id) {
+          return localGroupState;
+        }
+        return participantGroups.find((g) => g.id === id) ?? null;
+      },
+      allParticipantIds: new Set(participants.map((p) => p.id)),
+    }),
+    [localGroupState, participantGroups, participants]
+  );
 
-  // Рекурсивная функция для подсчета участников из группы
-  const collectParticipantsFromGroup = (groupId: number, visited: Set<number> = new Set()): Set<number> => {
-    if (visited.has(groupId)) return new Set();
-    visited.add(groupId);
-    
-    const group = getGroupById(groupId);
-    if (!group) return new Set();
-
-    const inclusivePR = group.participant_relations?.filter(r => r.relation_type === 'inclusive') || [];
-    const inclusiveGR = group.group_relations?.filter(r => r.relation_type === 'inclusive') || [];
-    const exclusivePR = group.participant_relations?.filter(r => r.relation_type === 'exclusive') || [];
-    const exclusiveGR = group.group_relations?.filter(r => r.relation_type === 'exclusive') || [];
-
-    const result = new Set<number>();
-    
-    // Если нет включений - все участники, минус исключения
-    if (inclusivePR.length === 0 && inclusiveGR.length === 0) {
-      participants.forEach(p => result.add(p.id));
-      exclusivePR.forEach(r => result.delete(r.participant_id || r.participant?.id || 0));
-      exclusiveGR.forEach(r => {
-        const sub = collectParticipantsFromGroup(r.target_group_id || r.target_group?.id || 0, visited);
-        sub.forEach(pid => result.delete(pid));
-      });
-      return result;
-    }
-
-    // Иначе только включения, минус исключения
-    inclusivePR.forEach(r => {
-      const pid = r.participant_id || r.participant?.id || 0;
-      if (pid > 0) result.add(pid);
-    });
-    inclusiveGR.forEach(r => {
-      const sub = collectParticipantsFromGroup(r.target_group_id || r.target_group?.id || 0, visited);
-      sub.forEach(pid => result.add(pid));
-    });
-    exclusivePR.forEach(r => {
-      const pid = r.participant_id || r.participant?.id || 0;
-      if (pid > 0) result.delete(pid);
-    });
-    exclusiveGR.forEach(r => {
-      const sub = collectParticipantsFromGroup(r.target_group_id || r.target_group?.id || 0, visited);
-      sub.forEach(pid => result.delete(pid));
-    });
-    
-    return result;
-  };
-
-  // Подсчет участников: если есть локальная группа (даже с id: 0) - считаем по ней, иначе все участники
-  const participantsCount = (() => {
+  const participantsCount = useMemo(() => {
     if (!localGroupState) {
       return participants.length;
     }
-    
-    // Если группа еще не создана (id: 0), считаем напрямую по localGroupState
-    if (localGroupState.id === 0) {
-      const inclusivePR = localGroupState.participant_relations?.filter(r => r.relation_type === 'inclusive') || [];
-      const inclusiveGR = localGroupState.group_relations?.filter(r => r.relation_type === 'inclusive') || [];
-      const exclusivePR = localGroupState.participant_relations?.filter(r => r.relation_type === 'exclusive') || [];
-      const exclusiveGR = localGroupState.group_relations?.filter(r => r.relation_type === 'exclusive') || [];
-      
-      const result = new Set<number>();
-      
-      if (inclusivePR.length === 0 && inclusiveGR.length === 0) {
-        participants.forEach(p => result.add(p.id));
-        exclusivePR.forEach(r => result.delete(r.participant_id || 0));
-        exclusiveGR.forEach(r => {
-          const sub = collectParticipantsFromGroup(r.target_group_id || 0);
-          sub.forEach(pid => result.delete(pid));
-        });
-        return result.size;
-      }
-      
-      inclusivePR.forEach(r => {
-        const pid = r.participant_id || 0;
-        if (pid > 0) result.add(pid);
-      });
-      inclusiveGR.forEach(r => {
-        const sub = collectParticipantsFromGroup(r.target_group_id || 0);
-        sub.forEach(pid => result.add(pid));
-      });
-      exclusivePR.forEach(r => {
-        const pid = r.participant_id || 0;
-        if (pid > 0) result.delete(pid);
-      });
-      exclusiveGR.forEach(r => {
-        const sub = collectParticipantsFromGroup(r.target_group_id || 0);
-        sub.forEach(pid => result.delete(pid));
-      });
-      
-      return result.size;
-    }
-    
-    // Для существующей группы используем обычный подсчет
-    return collectParticipantsFromGroup(localGroupState.id).size;
-  })();
+    return resolveParticipantGroupIds(localGroupState, groupResolveOptions).size;
+  }, [localGroupState, groupResolveOptions, participants.length]);
 
 
 
@@ -1020,11 +923,11 @@ const EventEditModal = ({
           ) : (
             <ParticipantsTab 
               eventForm={eventForm}
-              eventumSlug={eventumSlug}
               localGroupState={localGroupState}
               onLocalGroupStateChange={setLocalGroupState}
-              availableGroups={allGroups}
+              availableGroups={participantGroups}
               isLoadingGroup={isLoadingGroup}
+              participants={participants}
             />
           )}
           

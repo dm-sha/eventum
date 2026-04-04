@@ -411,7 +411,7 @@ class ParticipantViewSet(EventumScopedViewSet):
         
         serializer = self.get_serializer(participants, many=True)
         return Response(serializer.data)
-    
+
 
 class ParticipantGroupViewSet(EventumScopedViewSet):
     """ViewSet для групп участников"""

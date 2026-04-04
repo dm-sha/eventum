@@ -33,19 +33,6 @@ export interface UpdateEventRegistrationDto {
   allowed_group?: number | null;
 }
 
-export async function listEventRegistrations(eventumSlug: string): Promise<EventRegistration[]> {
-  if (shouldUseSubdomainApi()) {
-    const { data } = await apiClient.get('/event-registrations/');
-    return data;
-  } else if (shouldUseContainerApi()) {
-    const { data } = await apiClient.get(`/eventums/${eventumSlug}/event-registrations/`);
-    return data;
-  } else {
-    const { data } = await apiClient.get(`/eventums/${eventumSlug}/event-registrations/`);
-    return data;
-  }
-}
-
 export async function createEventRegistration(eventumSlug: string, dto: CreateEventRegistrationDto): Promise<EventRegistration> {
   if (shouldUseSubdomainApi()) {
     const { data } = await apiClient.post('/event-registrations/', dto);

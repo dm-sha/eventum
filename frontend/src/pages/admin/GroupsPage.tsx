@@ -1,235 +1,72 @@
-import { useEffect, useState } from 'react';
-import { groupsApi, participantsApi } from '../../api/eventumApi';
-import type { 
-  ParticipantGroup, 
+import { useState, useMemo, useEffect } from 'react';
+import { groupsApi } from '../../api/eventumApi';
+import { useAdminData } from '../../contexts/AdminDataContext';
+import {
+  buildResolvedParticipantGroup,
+  participantsToIdMap,
+  type ParticipantGroupResolveOptions,
+} from '../../utils/resolveParticipantGroup';
+import type {
   Participant,
+  ParticipantGroup,
   CreateParticipantGroupData,
-  UpdateParticipantGroupData
+  UpdateParticipantGroupData,
 } from '../../types';
 import { IconPencil, IconPlus, IconInformationCircle, IconTrash } from '../../components/icons';
 import { useEventumSlug } from '../../hooks/useEventumSlug';
 import ParticipantGroupEditor from '../../components/participantGroup/ParticipantGroupEditor';
 import GroupsLoadingSkeleton from '../../components/admin/skeletons/GroupsLoadingSkeleton';
 
+function participantWordRu(n: number): string {
+  const m = n % 10;
+  const h = n % 100;
+  if (m === 1 && h !== 11) return "участник";
+  if (m >= 2 && m <= 4 && (h < 10 || h >= 20)) return "участника";
+  return "участников";
+}
+
 const AdminGroupsPage = () => {
   const eventumSlug = useEventumSlug();
-  const [groups, setGroups] = useState<ParticipantGroup[]>([]);
-  const [allParticipants, setAllParticipants] = useState<Participant[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const {
+    groupsNonEvent,
+    participantGroups,
+    participants: allParticipants,
+    isLoading,
+    refetch,
+  } = useAdminData();
+  const groups = groupsNonEvent;
+
+  const participantsById = useMemo(
+    () => participantsToIdMap(allParticipants),
+    [allParticipants]
+  );
+
+  const groupResolveOptions = useMemo<ParticipantGroupResolveOptions>(
+    () => ({
+      resolveGroup: (id) => participantGroups.find((g) => g.id === id) ?? null,
+      allParticipantIds: new Set(allParticipants.map((p) => p.id)),
+    }),
+    [participantGroups, allParticipants]
+  );
   const [filter, setFilter] = useState('');
   const [editingGroup, setEditingGroup] = useState<number | null>(null);
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
-  const [expandedGroups, setExpandedGroups] = useState<Set<number>>(new Set());
+  const [fullMembersGroupId, setFullMembersGroupId] = useState<number | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
-
-  useEffect(() => {
-    if (!eventumSlug) return;
-    
-    const loadData = async () => {
-      setIsLoading(true);
-      try {
-        const [groupsData, participantsData] = await Promise.all([
-          groupsApi.getAll(eventumSlug),
-          participantsApi.getAll(eventumSlug)
-        ]);
-        setGroups(groupsData.data);
-        setAllParticipants(participantsData.data);
-      } catch (error) {
-        console.error('Error loading data:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
-    loadData();
-  }, [eventumSlug]);
 
   const filteredGroups = groups.filter((g) =>
     g.name.toLowerCase().includes(filter.toLowerCase())
   );
 
-  // Подсчет участников в группе с учетом включений/исключений
-  const getParticipantsCount = (group: ParticipantGroup, visitedGroups = new Set<number>()): number => {
-    // Предотвращаем циклические ссылки
-    if (visitedGroups.has(group.id)) {
-      return 0;
+  useEffect(() => {
+    if (fullMembersGroupId != null && !groups.some((g) => g.id === fullMembersGroupId)) {
+      setFullMembersGroupId(null);
     }
-    visitedGroups.add(group.id);
-
-    // Проверяем, есть ли хотя бы одна inclusive связь с участником или группой
-    const hasInclusiveParticipants = group.participant_relations.some(
-      rel => rel.relation_type === 'inclusive'
-    );
-    const hasInclusiveGroups = group.group_relations.some(
-      rel => rel.relation_type === 'inclusive'
-    );
-
-    // Если нет ни участников, ни inclusive групп, считаем что в группе все участники eventum
-    if (!hasInclusiveParticipants && !hasInclusiveGroups) {
-      let allParticipantIds = new Set(allParticipants.map(p => p.id));
-      
-      // Применяем исключения (exclusive), если они есть
-      const excludedIds = new Set<number>();
-      
-      // Исключенные участники из прямых связей
-      for (const rel of group.participant_relations) {
-        if (rel.relation_type === 'exclusive' && rel.participant_id) {
-          excludedIds.add(rel.participant_id);
-        }
-      }
-      
-      // Исключенные участники из групп
-      for (const rel of group.group_relations) {
-        if (rel.relation_type === 'exclusive' && rel.target_group_id) {
-          const targetGroup = groups.find(g => g.id === rel.target_group_id);
-          if (targetGroup) {
-            const targetGroupParticipants = getParticipantsIdsFromGroup(targetGroup, new Set(visitedGroups));
-            targetGroupParticipants.forEach(id => excludedIds.add(id));
-          }
-        }
-      }
-      
-      // Исключаем участников из общего списка
-      excludedIds.forEach(id => allParticipantIds.delete(id));
-      
-      return allParticipantIds.size;
-    }
-
-    // Иначе применяем стандартную логику включений/исключений
-    const includedParticipants = new Set<number>();
-    const excludedParticipants = new Set<number>();
-
-    // Обрабатываем прямые связи с участниками
-    for (const rel of group.participant_relations) {
-      if (!rel.participant_id) continue;
-      
-      if (rel.relation_type === 'inclusive') {
-        includedParticipants.add(rel.participant_id);
-      } else if (rel.relation_type === 'exclusive') {
-        excludedParticipants.add(rel.participant_id);
-      }
-    }
-
-    // Обрабатываем связи с группами
-    for (const rel of group.group_relations) {
-      if (!rel.target_group_id) continue;
-      
-      // Находим целевую группу в списке всех групп
-      const targetGroup = groups.find(g => g.id === rel.target_group_id);
-      if (!targetGroup) continue;
-
-      // Рекурсивно получаем участников целевой группы
-      const targetGroupParticipants = getParticipantsIdsFromGroup(targetGroup, new Set(visitedGroups));
-      
-      if (rel.relation_type === 'inclusive') {
-        // Добавляем всех участников из целевой группы
-        targetGroupParticipants.forEach(id => includedParticipants.add(id));
-      } else if (rel.relation_type === 'exclusive') {
-        // Исключаем всех участников из целевой группы
-        targetGroupParticipants.forEach(id => excludedParticipants.add(id));
-      }
-    }
-
-    // Исключаем участников из списка включенных
-    excludedParticipants.forEach(id => includedParticipants.delete(id));
-
-    return includedParticipants.size;
-  };
-
-  // Вспомогательная функция для получения множества ID участников из группы
-  const getParticipantsIdsFromGroup = (group: ParticipantGroup, visitedGroups = new Set<number>()): Set<number> => {
-    // Предотвращаем циклические ссылки
-    if (visitedGroups.has(group.id)) {
-      return new Set();
-    }
-    visitedGroups.add(group.id);
-
-    // Проверяем, есть ли хотя бы одна inclusive связь с участником или группой
-    const hasInclusiveParticipants = group.participant_relations.some(
-      rel => rel.relation_type === 'inclusive'
-    );
-    const hasInclusiveGroups = group.group_relations.some(
-      rel => rel.relation_type === 'inclusive'
-    );
-
-    // Если нет ни участников, ни inclusive групп, считаем что в группе все участники eventum
-    if (!hasInclusiveParticipants && !hasInclusiveGroups) {
-      const allParticipantIds = new Set(allParticipants.map(p => p.id));
-      const excludedIds = new Set<number>();
-      
-      // Исключенные участники из прямых связей
-      for (const rel of group.participant_relations) {
-        if (rel.relation_type === 'exclusive' && rel.participant_id) {
-          excludedIds.add(rel.participant_id);
-        }
-      }
-      
-      // Исключенные участники из групп
-      for (const rel of group.group_relations) {
-        if (rel.relation_type === 'exclusive' && rel.target_group_id) {
-          const targetGroup = groups.find(g => g.id === rel.target_group_id);
-          if (targetGroup) {
-            const targetGroupParticipants = getParticipantsIdsFromGroup(targetGroup, new Set(visitedGroups));
-            targetGroupParticipants.forEach(id => excludedIds.add(id));
-          }
-        }
-      }
-      
-      // Исключаем участников
-      excludedIds.forEach(id => allParticipantIds.delete(id));
-      
-      return allParticipantIds;
-    }
-
-    // Иначе применяем стандартную логику включений/исключений
-    const participantIds = new Set<number>();
-    const excludedIds = new Set<number>();
-
-    // Обрабатываем прямые связи с участниками
-    for (const rel of group.participant_relations) {
-      if (!rel.participant_id) continue;
-      
-      if (rel.relation_type === 'inclusive') {
-        participantIds.add(rel.participant_id);
-      } else if (rel.relation_type === 'exclusive') {
-        excludedIds.add(rel.participant_id);
-      }
-    }
-
-    // Обрабатываем связи с группами
-    for (const rel of group.group_relations) {
-      if (!rel.target_group_id) continue;
-      
-      const targetGroup = groups.find(g => g.id === rel.target_group_id);
-      if (!targetGroup) continue;
-
-      const targetGroupParticipants = getParticipantsIdsFromGroup(targetGroup, new Set(visitedGroups));
-      
-      if (rel.relation_type === 'inclusive') {
-        targetGroupParticipants.forEach(id => participantIds.add(id));
-      } else if (rel.relation_type === 'exclusive') {
-        targetGroupParticipants.forEach(id => excludedIds.add(id));
-      }
-    }
-
-    // Исключаем участников
-    excludedIds.forEach(id => participantIds.delete(id));
-
-    return participantIds;
-  };
-
-  // Получить участников для отображения
-  const getParticipantsForDisplay = (group: ParticipantGroup): Participant[] => {
-    return group.participant_relations
-      .filter(rel => rel.participant)
-      .map(rel => rel.participant!)
-      .filter((p, index, self) => index === self.findIndex((p2) => p2.id === p.id));
-  };
+  }, [fullMembersGroupId, groups]);
 
   const handleCreateGroup = () => {
     setIsCreatingGroup(true);
-    setExpandedGroups(prev => new Set([...prev, -1]));
   };
 
   const handleSaveCreate = async (data: CreateParticipantGroupData | UpdateParticipantGroupData) => {
@@ -237,8 +74,8 @@ const AdminGroupsPage = () => {
     
     setIsSaving(true);
     try {
-      const created = (await groupsApi.create(data as CreateParticipantGroupData, eventumSlug)).data;
-      setGroups([...groups, created]);
+      await groupsApi.create(data as CreateParticipantGroupData, eventumSlug);
+      await refetch(["groups"]);
       setIsCreatingGroup(false);
     } catch (error) {
       console.error('Ошибка создания группы:', error);
@@ -249,7 +86,6 @@ const AdminGroupsPage = () => {
 
   const handleEditGroup = (group: ParticipantGroup) => {
     setEditingGroup(group.id);
-    setExpandedGroups(prev => new Set([...prev, group.id]));
   };
 
   const handleSaveUpdate = async (data: UpdateParticipantGroupData) => {
@@ -257,8 +93,8 @@ const AdminGroupsPage = () => {
     
     setIsUpdating(true);
     try {
-      const updated = (await groupsApi.update(editingGroup, data, eventumSlug)).data;
-      setGroups(groups.map(g => g.id === editingGroup ? updated : g));
+      await groupsApi.update(editingGroup, data, eventumSlug);
+      await refetch(["groups"]);
       setEditingGroup(null);
     } catch (error) {
       console.error('Ошибка обновления группы:', error);
@@ -278,24 +114,18 @@ const AdminGroupsPage = () => {
     
     try {
       await groupsApi.delete(groupId, eventumSlug);
-      setGroups(groups.filter(g => g.id !== groupId));
+      await refetch(["groups"]);
     } catch (error) {
       console.error('Error deleting group:', error);
     }
   };
 
-  const toggleGroupExpansion = (groupId: number) => {
-    setExpandedGroups(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(groupId)) {
-        newSet.delete(groupId);
-      } else {
-        newSet.add(groupId);
-      }
-      return newSet;
-    });
-  };
-
+  const fullMembersGroup = fullMembersGroupId
+    ? groups.find((g) => g.id === fullMembersGroupId) ?? null
+    : null;
+  const fullMembersResolved = fullMembersGroup
+    ? buildResolvedParticipantGroup(fullMembersGroup, groupResolveOptions, participantsById)
+    : null;
 
   return (
     <div className="space-y-6">
@@ -339,7 +169,6 @@ const AdminGroupsPage = () => {
           ) : (
             <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
               <ParticipantGroupEditor
-                eventumSlug={eventumSlug || ''}
                 availableGroups={groups}
                 onSave={handleSaveCreate}
                 onCancel={handleCancel}
@@ -350,11 +179,18 @@ const AdminGroupsPage = () => {
 
           {filteredGroups.map((group) => {
             const isEditing = editingGroup === group.id;
-            const groupParticipants = getParticipantsForDisplay(group);
-            const isExpanded = expandedGroups.has(group.id);
-            const showAllButton = groupParticipants.length > 3;
-            const displayParticipants = isExpanded ? groupParticipants : groupParticipants.slice(0, 3);
-            const participantsCount = getParticipantsCount(group);
+            const resolved = buildResolvedParticipantGroup(
+              group,
+              groupResolveOptions,
+              participantsById
+            );
+            const participantsCount = resolved.participantIds.length;
+            const directParticipantRels = [...(group.participant_relations ?? [])].sort(
+              (a, b) => a.id - b.id
+            );
+            const directGroupRels = [...(group.group_relations ?? [])].sort((a, b) => a.id - b.id);
+            const hasDirectLinks =
+              directParticipantRels.length > 0 || directGroupRels.length > 0;
 
             return (
               <div key={group.id} className="relative rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
@@ -371,7 +207,6 @@ const AdminGroupsPage = () => {
                     </div>
                     <ParticipantGroupEditor
                       group={group}
-                      eventumSlug={eventumSlug || ''}
                       availableGroups={groups.filter(g => g.id !== group.id)}
                       onSave={handleSaveUpdate}
                       onCancel={handleCancel}
@@ -383,8 +218,13 @@ const AdminGroupsPage = () => {
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex-1">
                         <h3 className="text-lg font-semibold text-gray-900">{group.name}</h3>
-                        <div className="mt-2 text-xs text-gray-500">
-                          <div>Участников: {participantsCount}</div>
+                        <div className="mt-2 text-xs text-gray-500 space-y-0.5">
+                          <div className="font-medium text-gray-700">
+                            В составе: {participantsCount} {participantWordRu(participantsCount)}
+                          </div>
+                          <div className="text-gray-500">
+                            С учётом всех вложенных связей между группами
+                          </div>
                         </div>
                       </div>
                       <button
@@ -395,48 +235,60 @@ const AdminGroupsPage = () => {
                       </button>
                     </div>
 
-                    <div className="space-y-2">
-                      {/* Список участников */}
-                      {groupParticipants.length > 0 && (
+                    <div className="space-y-3">
+                      {!hasDirectLinks && (
+                        <p className="text-xs text-gray-500">
+                          Нет прямых связей: состав формируется только через правила «все участники
+                          eventum» и вложенные группы. Откройте полный список ниже.
+                        </p>
+                      )}
+
+                      {directParticipantRels.length > 0 && (
                         <div className="space-y-1">
-                          <div className="text-xs font-medium text-gray-500 mb-1">Участники:</div>
-                          {displayParticipants.map((participant) => {
-                            const relation = group.participant_relations.find(
-                              rel => rel.participant_id === participant.id
-                            );
-                            const relationType = relation?.relation_type || 'inclusive';
-                            const relationLabel = relationType === 'inclusive' ? '+' : '-';
-                            
+                          <div className="text-xs font-medium text-gray-600">
+                            Прямые связи с участниками
+                          </div>
+                          {directParticipantRels.map((rel) => {
+                            const p: Participant | undefined =
+                              participantsById.get(rel.participant_id) ?? rel.participant;
+                            const name =
+                              p?.name ?? `Участник #${rel.participant_id}`;
+                            const relationType = rel.relation_type;
                             return (
-                              <div key={participant.id} className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                  <span className={`text-xs px-1 rounded ${
-                                    relationType === 'inclusive' 
-                                      ? 'bg-green-100 text-green-700' 
-                                      : 'bg-red-100 text-red-700'
-                                  }`}>
-                                    {relationLabel}
-                                  </span>
-                                  <span className="text-sm text-gray-700">{participant.name}</span>
-                                </div>
+                              <div key={rel.id} className="flex items-center gap-2">
+                                <span
+                                  className={`text-xs px-1 rounded ${
+                                    relationType === "inclusive"
+                                      ? "bg-green-100 text-green-700"
+                                      : "bg-red-100 text-red-700"
+                                  }`}
+                                >
+                                  {relationType === "inclusive" ? "+" : "-"}
+                                </span>
+                                <span className="text-sm text-gray-700">{name}</span>
                               </div>
                             );
                           })}
                         </div>
                       )}
 
-                      {/* Список связей с группами */}
-                      {group.group_relations.length > 0 && (
-                        <div className="space-y-1 mt-2 pt-2 border-t border-gray-200">
-                          <div className="text-xs font-medium text-gray-500 mb-1">Группы:</div>
-                          {group.group_relations.map((rel) => (
+                      {directGroupRels.length > 0 && (
+                        <div
+                          className={`space-y-1 ${directParticipantRels.length > 0 ? "pt-2 border-t border-gray-100" : ""}`}
+                        >
+                          <div className="text-xs font-medium text-gray-600">
+                            Прямые связи с группами
+                          </div>
+                          {directGroupRels.map((rel) => (
                             <div key={rel.id} className="flex items-center gap-2">
-                              <span className={`text-xs px-1 rounded ${
-                                rel.relation_type === 'inclusive' 
-                                  ? 'bg-green-100 text-green-700' 
-                                  : 'bg-red-100 text-red-700'
-                              }`}>
-                                {rel.relation_type === 'inclusive' ? '+' : '-'}
+                              <span
+                                className={`text-xs px-1 rounded ${
+                                  rel.relation_type === "inclusive"
+                                    ? "bg-green-100 text-green-700"
+                                    : "bg-red-100 text-red-700"
+                                }`}
+                              >
+                                {rel.relation_type === "inclusive" ? "+" : "-"}
                               </span>
                               <span className="text-sm text-gray-700">
                                 {rel.target_group?.name || `Группа #${rel.target_group_id}`}
@@ -446,12 +298,13 @@ const AdminGroupsPage = () => {
                         </div>
                       )}
 
-                      {showAllButton && (
+                      {participantsCount > 0 && (
                         <button
-                          onClick={() => toggleGroupExpansion(group.id)}
-                          className="text-sm text-blue-600 hover:text-blue-800"
+                          type="button"
+                          onClick={() => setFullMembersGroupId(group.id)}
+                          className="w-full rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-800 transition-colors hover:bg-blue-100"
                         >
-                          {isExpanded ? 'Скрыть' : `Показать всех (${groupParticipants.length})`}
+                          Полный состав группы ({participantsCount})
                         </button>
                       )}
                     </div>
@@ -466,6 +319,54 @@ const AdminGroupsPage = () => {
       {!isLoading && filteredGroups.length === 0 && (
         <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-4 py-10 text-center text-sm text-gray-500">
           Группы не найдены
+        </div>
+      )}
+
+      {fullMembersResolved && fullMembersGroup && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ backgroundColor: "rgba(0, 0, 0, 0.4)" }}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="full-members-title"
+          onClick={() => setFullMembersGroupId(null)}
+        >
+          <div
+            className="flex max-h-[min(80vh,560px)] w-full max-w-md flex-col rounded-xl bg-white shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-2 border-b border-gray-100 px-4 py-3">
+              <div>
+                <h3 id="full-members-title" className="text-base font-semibold text-gray-900">
+                  Полный состав группы
+                </h3>
+                <p className="mt-0.5 text-sm text-gray-600">«{fullMembersGroup.name}»</p>
+                <p className="mt-1 text-xs text-gray-500">
+                  {fullMembersResolved.participantIds.length}{" "}
+                  {participantWordRu(fullMembersResolved.participantIds.length)} с учётом вложенных
+                  связей
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFullMembersGroupId(null)}
+                className="rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-800"
+                aria-label="Закрыть"
+              >
+                ×
+              </button>
+            </div>
+            <ul className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+              {fullMembersResolved.participants.map((p) => (
+                <li
+                  key={p.id}
+                  className="border-b border-gray-50 py-2 text-sm text-gray-800 last:border-0"
+                >
+                  {p.name}
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       )}
     </div>
