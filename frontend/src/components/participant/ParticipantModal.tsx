@@ -755,7 +755,7 @@ const ParticipantModal = ({
                 </p>
                 {participantEventsList.length === 0 ? (
                   <p className="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-3 py-6 text-center text-sm text-gray-500">
-                    Нет мероприятий по правилам event_group (и общих в eventum)
+                    Нет мероприятий
                   </p>
                 ) : (
                   <ul className="space-y-2">
