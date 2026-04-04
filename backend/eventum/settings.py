@@ -307,6 +307,8 @@ YC_S3_ENDPOINT_URL = os.getenv('YC_S3_ENDPOINT_URL', 'https://storage.yandexclou
 VK_APP_ID = os.getenv('VK_APP_ID')
 VK_APP_SECRET = os.getenv('VK_APP_SECRET')
 VK_REDIRECT_URI = os.getenv('VK_REDIRECT_URI', 'http://localhost:5173/auth/vk/callback')
+# Сервисный ключ (импорт CSV по короткой ссылке / нику); можно задать только в окружении
+VK_SERVICE_ACCESS_TOKEN = os.getenv('VK_SERVICE_ACCESS_TOKEN', '')
 
 # Настройки SSL для внешних запросов
 import ssl
