@@ -1439,6 +1439,7 @@ def user_eventums(request):
                 eventums_data.append(eventum_data)
                 logger.info(f"Added eventum {participant.eventum.name} with role participant")
         
+        eventums_data.sort(key=lambda e: e['id'], reverse=True)
         logger.info(f"Returning {len(eventums_data)} eventums")
         return Response(eventums_data)
         
