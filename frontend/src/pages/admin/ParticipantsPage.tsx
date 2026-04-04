@@ -1,7 +1,6 @@
 import { useState, useMemo } from "react";
 import { useDelayedLoading } from "../../hooks/useDelayedLoading";
-import { createParticipant, updateParticipant, deleteParticipant } from "../../api/participant";
-import { groupsApi } from "../../api/eventumApi";
+import { deleteParticipant } from "../../api/participant";
 import { useAdminData } from "../../contexts/AdminDataContext";
 import { IconUser, IconExternalLink, IconPencil, IconTrash, IconPlus, IconEye } from "../../components/icons";
 import ParticipantModal from "../../components/participant/ParticipantModal";
@@ -23,7 +22,6 @@ const AdminParticipantsPage = () => {
   const [groupFilter, setGroupFilter] = useState<number | "">("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingParticipant, setEditingParticipant] = useState<Participant | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
   const [deletingParticipantId, setDeletingParticipantId] = useState<number | null>(null);
   
   const showLoading = useDelayedLoading(isLoading, 300);
@@ -77,6 +75,28 @@ const AdminParticipantsPage = () => {
     });
 
     return result;
+  }, [groups]);
+
+  // Только прямые inclusive-связи участник ↔ группа (для модалки: добавление/удаление)
+  const directParticipantGroupsMap = useMemo(() => {
+    const map = new Map<number, ParticipantGroup[]>();
+    const nonEventGroups = groups.filter((group) => !group.is_event_group);
+    nonEventGroups.forEach((group) => {
+      group.participant_relations.forEach((rel) => {
+        if (rel.relation_type === "inclusive") {
+          const participantId = rel.participant_id || rel.participant?.id;
+          if (participantId) {
+            if (!map.has(participantId)) {
+              map.set(participantId, []);
+            }
+            if (!map.get(participantId)!.some((g) => g.id === group.id)) {
+              map.get(participantId)!.push(group);
+            }
+          }
+        }
+      });
+    });
+    return map;
   }, [groups]);
 
   // Вычисляем группы для каждого участника на основе групп (с учетом вложенных групп)
@@ -149,51 +169,6 @@ const AdminParticipantsPage = () => {
   const handleEditParticipant = (participant: Participant) => {
     setEditingParticipant(participant);
     setIsModalOpen(true);
-  };
-
-  const handleSaveParticipant = async (data: { name: string; user_id?: number | null; removedGroupIds?: number[] }) => {
-    if (!eventumSlug) return;
-
-    setIsSaving(true);
-    try {
-      const { removedGroupIds, ...participantPayload } = data;
-      if (editingParticipant) {
-        await updateParticipant(eventumSlug, editingParticipant.id, participantPayload);
-        if (removedGroupIds && removedGroupIds.length > 0) {
-          const participantId = editingParticipant.id;
-          await Promise.all(
-            removedGroupIds.map(async (groupId) => {
-              const group = groups.find((g) => g.id === groupId);
-              // Пропускаем event_group и несуществующие группы
-              if (!group || group.is_event_group) return;
-
-              // Обновляем группу, удаляя связи с участником
-              const updatedRelations = group.participant_relations
-                .filter(rel => rel.participant_id !== participantId)
-                .map(rel => ({
-                  participant_id: rel.participant_id,
-                  relation_type: rel.relation_type
-                }));
-
-              try {
-                await groupsApi.update(groupId, {
-                  participant_relations: updatedRelations
-                }, eventumSlug);
-              } catch (groupError) {
-                console.error(`Ошибка при обновлении группы ${groupId}:`, groupError);
-              }
-            })
-          );
-        }
-      } else {
-        await createParticipant(eventumSlug, participantPayload);
-      }
-      await refetch(["participants", "groups"]);
-    } catch (error) {
-      console.error("Ошибка при сохранении участника:", error);
-    } finally {
-      setIsSaving(false);
-    }
   };
 
   const handleDeleteParticipant = async (participant: Participant) => {
@@ -276,7 +251,16 @@ const AdminParticipantsPage = () => {
             return (
               <li
                 key={participant.id}
-                className="flex items-center gap-4 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm"
+                role="button"
+                tabIndex={0}
+                onClick={() => handleEditParticipant(participant)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    handleEditParticipant(participant);
+                  }
+                }}
+                className="flex cursor-pointer items-center gap-4 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm transition hover:border-gray-300 hover:bg-gray-50/80"
               >
                 {/* Аватарка или иконка участника слева */}
                 {participant.user?.avatar_url ? (
@@ -343,7 +327,7 @@ const AdminParticipantsPage = () => {
                 </div>
                 
                 {/* Кнопки действий справа */}
-                <div className="flex items-center gap-2 flex-shrink-0">
+                <div className="flex flex-shrink-0 items-center gap-2" onClick={(e) => e.stopPropagation()}>
                   <a
                     href={eventumSlug ? getEventumScopedPath(eventumSlug, `/general?participant=${participant.id}`) : '#'}
                     target="_blank"
@@ -354,6 +338,7 @@ const AdminParticipantsPage = () => {
                     <IconEye size={16} />
                   </a>
                   <button
+                    type="button"
                     onClick={() => handleEditParticipant(participant)}
                     className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
                     title="Редактировать"
@@ -361,9 +346,10 @@ const AdminParticipantsPage = () => {
                     <IconPencil size={16} />
                   </button>
                   <button
+                    type="button"
                     onClick={() => handleDeleteParticipant(participant)}
                     disabled={deletingParticipantId === participant.id}
-                    className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50"
                     title="Удалить"
                   >
                     {deletingParticipantId === participant.id ? (
@@ -388,11 +374,20 @@ const AdminParticipantsPage = () => {
       {/* Модальное окно */}
       <ParticipantModal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onSave={handleSaveParticipant}
+        onClose={() => {
+          setIsModalOpen(false);
+          setEditingParticipant(null);
+        }}
         participant={editingParticipant}
-        participantGroups={editingParticipant ? (participantGroupsMap.get(editingParticipant.id) || []) : []}
-        isLoading={isSaving}
+        participantGroups={
+          editingParticipant ? directParticipantGroupsMap.get(editingParticipant.id) || [] : []
+        }
+        availableGroups={groups}
+        eventumSlug={eventumSlug ?? null}
+        onAfterMutate={async () => {
+          await refetch(["participants", "groups"]);
+        }}
+        onParticipantCreated={(p) => setEditingParticipant(p)}
       />
     </div>
   );
