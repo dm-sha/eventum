@@ -196,9 +196,6 @@ const AdminParticipantsPage = () => {
     <div className="space-y-6">
       <header className="space-y-2">
         <h2 className="text-2xl font-semibold text-gray-900">Участники</h2>
-        <p className="text-sm text-gray-500">
-          Управляйте списком участников мероприятия.
-        </p>
       </header>
 
       {/* Кнопка добавления */}
