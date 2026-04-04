@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import type { 
   ParticipantGroup, 
   Participant, 
@@ -6,7 +6,7 @@ import type {
   CreateParticipantGroupData,
   UpdateParticipantGroupData
 } from '../../types';
-import { IconX } from '../icons';
+import { IconX, IconPencil, IconCheck, IconPlus, IconMinus } from '../icons';
 import { useOptionalAdminData } from '../../contexts/AdminDataContext';
 
 interface ParticipantRelation {
@@ -66,6 +66,9 @@ const ParticipantGroupEditor: React.FC<ParticipantGroupEditorProps> = ({
   const [participantFocused, setParticipantFocused] = useState(false);
   const [groupFocused, setGroupFocused] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState('');
+  const nameEditRef = useRef<HTMLDivElement>(null);
 
   // Отдельный эффект для инициализации состояния группы
   // Используем useMemo для нормализации relations и сравнения только при реальных изменениях
@@ -86,9 +89,12 @@ const ParticipantGroupEditor: React.FC<ParticipantGroupEditorProps> = ({
   useEffect(() => {
     // Флаг для предотвращения вызова onChange при первой инициализации
     setIsInitializing(true);
-    
+    setIsEditingName(false);
+
     if (group || nameOverride !== undefined) {
-      setName(nameOverride ?? group?.name ?? '');
+      const nextName = nameOverride ?? group?.name ?? '';
+      setName(nextName);
+      setNameDraft(nextName);
       // Инициализируем связи участников
       // Если participant_id отсутствует, извлекаем его из participant
       const participantRels: ParticipantRelation[] = (group?.participant_relations || []).map(rel => ({
@@ -115,12 +121,31 @@ const ParticipantGroupEditor: React.FC<ParticipantGroupEditorProps> = ({
         setIsInitializing(false);
       }, delay);
     } else {
+      setNameDraft('');
       // Если нет группы, сбрасываем флаг быстрее
       setTimeout(() => {
         setIsInitializing(false);
       }, 50);
     }
   }, [normalizedGroupKey]); // Используем нормализованный ключ для сравнения
+
+  useEffect(() => {
+    if (!group || hideNameField || !isEditingName) return;
+
+    const onPointerDown = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node | null;
+      if (!target || nameEditRef.current?.contains(target)) return;
+      setNameDraft(name);
+      setIsEditingName(false);
+    };
+
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('touchstart', onPointerDown);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('touchstart', onPointerDown);
+    };
+  }, [group, hideNameField, isEditingName, name]);
 
   const participantSuggestions = (() => {
     const notAlreadyAdded = allParticipants.filter((p) => !participantRelations.some((rel) => rel.participant_id === p.id));
@@ -194,6 +219,18 @@ const ParticipantGroupEditor: React.FC<ParticipantGroupEditorProps> = ({
     );
   };
 
+  const commitNameDraft = () => {
+    const trimmed = nameDraft.trim();
+    if (!trimmed) return;
+    setName(trimmed);
+    setIsEditingName(false);
+  };
+
+  const startEditName = () => {
+    setNameDraft(name);
+    setIsEditingName(true);
+  };
+
   const handleSave = async () => {
     const effectiveName = (nameOverride ?? name).trim();
     if (!effectiveName) return;
@@ -229,7 +266,54 @@ const ParticipantGroupEditor: React.FC<ParticipantGroupEditorProps> = ({
     <div className={isModal ? '' : 'rounded-2xl border border-gray-200 bg-white p-4 shadow-sm'}>
       <div className="space-y-4">
         {/* Название группы */}
-        {!hideNameField ? (
+        {!hideNameField && group ? (
+          <div className="min-w-0">
+            {isEditingName ? (
+              <div ref={nameEditRef} className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={nameDraft}
+                  onChange={(e) => setNameDraft(e.target.value)}
+                  autoFocus
+                  disabled={isSaving || isUpdating}
+                  className="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-1.5 text-lg font-semibold text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 disabled:bg-gray-50"
+                  placeholder="Название группы"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') commitNameDraft();
+                    if (e.key === 'Escape') {
+                      setNameDraft(name);
+                      setIsEditingName(false);
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={commitNameDraft}
+                  disabled={isSaving || isUpdating || !nameDraft.trim()}
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                  title="Применить название"
+                >
+                  <IconCheck size={18} />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={startEditName}
+                className="group flex w-full items-center gap-2 text-left"
+              >
+                <h3 className="truncate text-lg font-semibold text-gray-900 group-hover:text-blue-700">
+                  {(nameOverride ?? name).trim() || 'Без названия'}
+                </h3>
+                <IconPencil
+                  size={16}
+                  className="shrink-0 text-gray-400 opacity-0 transition group-hover:opacity-100"
+                />
+              </button>
+            )}
+          </div>
+        ) : null}
+        {!hideNameField && !group ? (
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Название группы
@@ -284,25 +368,46 @@ const ParticipantGroupEditor: React.FC<ParticipantGroupEditorProps> = ({
                 if (!participant) return null;
                 
                 return (
-                  <div key={rel.participant_id} className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
-                    <div className="flex items-center gap-2 flex-1">
-                      <span className="text-sm text-gray-700">{participant.name}</span>
-                      <select
-                        value={rel.relation_type}
-                        onChange={(e) => updateParticipantRelationType(rel.participant_id, e.target.value as RelationType)}
-                        className="text-xs rounded border border-gray-300 px-2 py-1 bg-white focus:border-blue-500 focus:outline-none"
+                  <div key={rel.participant_id} className="flex items-center justify-between gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+                    <span className="min-w-0 flex-1 truncate text-sm text-gray-700">
+                      {participant.name}
+                    </span>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <div className="flex items-center gap-1 rounded-lg border border-gray-200 bg-white p-0.5">
+                        <button
+                          type="button"
+                          onClick={() => updateParticipantRelationType(rel.participant_id, 'inclusive')}
+                          title="Включение в группу — участник входит в состав этой группы"
+                          className={`flex h-7 w-7 items-center justify-center rounded-md transition ${
+                            rel.relation_type === 'inclusive'
+                              ? 'bg-green-100 text-green-800 ring-2 ring-green-300'
+                              : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600'
+                          }`}
+                        >
+                          <IconPlus size={16} strokeWidth={2.25} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => updateParticipantRelationType(rel.participant_id, 'exclusive')}
+                          title="Исключение из группы — участник не входит в состав, даже если его добавили через другие правила"
+                          className={`flex h-7 w-7 items-center justify-center rounded-md transition ${
+                            rel.relation_type === 'exclusive'
+                              ? 'bg-red-100 text-red-800 ring-2 ring-red-300'
+                              : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600'
+                          }`}
+                        >
+                          <IconMinus size={16} strokeWidth={2.25} />
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeParticipantRelation(rel.participant_id)}
+                        className="rounded p-1 text-gray-400 hover:bg-red-100 hover:text-red-600"
+                        title="Убрать из списка"
                       >
-                        <option value="inclusive">Включает</option>
-                        <option value="exclusive">Исключает</option>
-                      </select>
+                        <IconX size={14} />
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => removeParticipantRelation(rel.participant_id)}
-                      className="ml-2 rounded p-1 text-gray-400 hover:bg-red-100 hover:text-red-600"
-                    >
-                      <IconX size={14} />
-                    </button>
                   </div>
                 );
               })}
@@ -350,25 +455,46 @@ const ParticipantGroupEditor: React.FC<ParticipantGroupEditorProps> = ({
                 if (!targetGroup) return null;
                 
                 return (
-                  <div key={rel.target_group_id} className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
-                    <div className="flex items-center gap-2 flex-1">
-                      <span className="text-sm text-gray-700">{targetGroup.name}</span>
-                      <select
-                        value={rel.relation_type}
-                        onChange={(e) => updateGroupRelationType(rel.target_group_id, e.target.value as RelationType)}
-                        className="text-xs rounded border border-gray-300 px-2 py-1 bg-white focus:border-blue-500 focus:outline-none"
+                  <div key={rel.target_group_id} className="flex items-center justify-between gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+                    <span className="min-w-0 flex-1 truncate text-sm text-gray-700">
+                      {targetGroup.name}
+                    </span>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <div className="flex items-center gap-1 rounded-lg border border-gray-200 bg-white p-0.5">
+                        <button
+                          type="button"
+                          onClick={() => updateGroupRelationType(rel.target_group_id, 'inclusive')}
+                          title="Включение в группу — участники связанной группы входят в состав этой группы"
+                          className={`flex h-7 w-7 items-center justify-center rounded-md transition ${
+                            rel.relation_type === 'inclusive'
+                              ? 'bg-green-100 text-green-800 ring-2 ring-green-300'
+                              : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600'
+                          }`}
+                        >
+                          <IconPlus size={16} strokeWidth={2.25} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => updateGroupRelationType(rel.target_group_id, 'exclusive')}
+                          title="Исключение из группы — участники связанной группы не входят в состав этой группы"
+                          className={`flex h-7 w-7 items-center justify-center rounded-md transition ${
+                            rel.relation_type === 'exclusive'
+                              ? 'bg-red-100 text-red-800 ring-2 ring-red-300'
+                              : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600'
+                          }`}
+                        >
+                          <IconMinus size={16} strokeWidth={2.25} />
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeGroupRelation(rel.target_group_id)}
+                        className="rounded p-1 text-gray-400 hover:bg-red-100 hover:text-red-600"
+                        title="Убрать из списка"
                       >
-                        <option value="inclusive">Включает</option>
-                        <option value="exclusive">Исключает</option>
-                      </select>
+                        <IconX size={14} />
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => removeGroupRelation(rel.target_group_id)}
-                      className="ml-2 rounded p-1 text-gray-400 hover:bg-red-100 hover:text-red-600"
-                    >
-                      <IconX size={14} />
-                    </button>
                   </div>
                 );
               })}

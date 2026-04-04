@@ -24,7 +24,7 @@ function targetGroupIdFromRelation(rel: {
 export type ParticipantGroupResolveOptions = {
   /** Получить группу по id (в т.ч. черновик с временным id при редактировании). */
   resolveGroup: (groupId: number) => ParticipantGroup | null | undefined;
-  /** Все участники eventum — для ветки «нет inclusive связей → весь eventum минус exclusive». */
+  /** Все участники eventum — только для групп мероприятия: «нет inclusive → весь eventum минус exclusive». */
   allParticipantIds: ReadonlySet<number>;
 };
 
@@ -62,6 +62,9 @@ export function resolveParticipantGroupIds(
   };
 
   if (!hasInclusiveParticipants && !hasInclusiveGroups) {
+    if (!group.is_event_group) {
+      return new Set();
+    }
     const includedIds = new Set(options.allParticipantIds);
     const excludedIds = new Set<number>();
 

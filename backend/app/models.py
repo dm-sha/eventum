@@ -96,8 +96,9 @@ class ParticipantGroup(models.Model):
         Иначе использует запросы к БД и кеширование.
         
         Логика:
-        - Если нет ни участников, ни inclusive групп, возвращаются все участники eventum
-        - Если есть участники или inclusive группы, применяется логика включений/исключений
+        - Если нет inclusive связей и группа мероприятия (is_event_group): все участники eventum минус exclusive
+        - Если нет inclusive связей и обычная группа: никого
+        - Если есть inclusive связи: логика включений/исключений
         
         Args:
             visited_groups: set ID групп, которые уже обработаны (для предотвращения циклов)
@@ -134,10 +135,13 @@ class ParticipantGroup(models.Model):
             relation_type=ParticipantGroupGroupRelation.RelationType.INCLUSIVE
         ).exists()
         
-        # Если нет ни участников, ни inclusive групп, возвращаем всех участников eventum
+        # Нет inclusive: для группы мероприятия — весь eventum минус exclusive; иначе пусто
         if not has_inclusive_participants and not has_inclusive_groups:
+            if not self.is_event_group:
+                return Participant.objects.none()
+
             all_participants = Participant.objects.filter(eventum=self.eventum)
-            
+
             # Применяем исключения (exclusive), если они есть
             excluded_participant_ids = set()
             
@@ -224,8 +228,11 @@ class ParticipantGroup(models.Model):
             for rel in group_relations
         )
         
-        # Если нет ни участников, ни inclusive групп, возвращаем всех участников eventum
+        # Нет inclusive: для группы мероприятия — весь eventum минус exclusive; иначе пусто
         if not has_inclusive_participants and not has_inclusive_groups:
+            if not self.is_event_group:
+                return set()
+
             if all_participant_ids is not None:
                 included_ids = set(all_participant_ids)
             else:
@@ -327,6 +334,9 @@ class ParticipantGroup(models.Model):
         )
         
         if not has_inclusive_participants and not has_inclusive_groups:
+            if not group.is_event_group:
+                return set()
+
             # Все участники eventum минус исключения
             if all_participant_ids is not None:
                 included_ids = set(all_participant_ids)

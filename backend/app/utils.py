@@ -239,19 +239,20 @@ class EventumGroupGraph:
         has_inclusive_participants = bool(group_data['inclusive_participants'])
         has_inclusive_groups = bool(group_data['inclusive_groups'])
         
-        # Если нет ни участников, ни inclusive групп
+        # Нет inclusive: группа мероприятия — весь eventum минус exclusive; обычная — пусто
         if not has_inclusive_participants and not has_inclusive_groups:
-            # - Если нет никаких связей - возвращаем всех участников eventum
-            # - Если только exclusive связи - возвращаем всех участников eventum кроме exclusive
-            excluded_participant_ids = set(group_data['exclusive_participants'])
-            
-            # Исключаем участников из excluded групп (рекурсивно)
-            for target_group_id in group_data['exclusive_groups']:
-                excluded_participant_ids.update(
-                    self.get_participant_ids(target_group_id, visited_groups.copy())
-                )
-            
-            result = self.all_participant_ids - excluded_participant_ids
+            group_obj = group_data.get('group_obj')
+            if not group_obj or not group_obj.is_event_group:
+                result = set()
+            else:
+                excluded_participant_ids = set(group_data['exclusive_participants'])
+
+                for target_group_id in group_data['exclusive_groups']:
+                    excluded_participant_ids.update(
+                        self.get_participant_ids(target_group_id, visited_groups.copy())
+                    )
+
+                result = self.all_participant_ids - excluded_participant_ids
         else:
             # Стандартная логика включений/исключений
             included_participant_ids = set(group_data['inclusive_participants'])
@@ -426,13 +427,13 @@ def get_group_participant_ids(
         for rel in group_relations
     )
     
-    # Если нет ни участников, ни inclusive групп
+    # Нет inclusive: группа мероприятия — весь eventum минус exclusive; обычная — пусто
     if not has_inclusive_participants and not has_inclusive_groups:
-        # - Если нет никаких связей - возвращаем всех участников eventum
-        # - Если только exclusive связи - возвращаем всех участников eventum кроме exclusive
+        if not getattr(group, 'is_event_group', False):
+            return set()
+
         all_participant_ids = all_participant_ids or set()
-        
-        # Исключаем excluded участников
+
         excluded_participant_ids = set()
         for rel in participant_relations:
             if rel.relation_type == ParticipantGroupParticipantRelation.RelationType.EXCLUSIVE:

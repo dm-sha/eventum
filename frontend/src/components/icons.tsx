@@ -130,6 +130,12 @@ export const IconPlus = ({ size = 20, ...props }: Props) => (
   </svg>
 );
 
+export const IconMinus = ({ size = 20, ...props }: Props) => (
+  <svg {...base} width={size} height={size} {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 12h-15" />
+  </svg>
+);
+
 export const IconInformationCircle = ({ size = 20, ...props }: Props) => (
   <svg {...base} width={size} height={size} {...props}>
     <path

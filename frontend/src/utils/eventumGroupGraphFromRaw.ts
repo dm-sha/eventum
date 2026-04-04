@@ -2,13 +2,14 @@ import type { RawGroupStructureResponse } from "../api/rawEventumAdmin";
 
 /**
  * Состав групп по сырым связям из raw group-structure — та же логика, что EventumGroupGraph.get_participant_ids
- * в backend/app/utils.py (включая группу «без inclusive»: все участники eventum минус exclusive).
+ * в backend/app/utils.py (без inclusive: для группы мероприятия — все участники минус exclusive, иначе пусто).
  */
 export function createEventumGroupGraphFromRaw(
   structure: RawGroupStructureResponse,
   allParticipantIds: Set<number>
 ) {
   type GroupData = {
+    is_event_group: boolean;
     inclusive_participants: number[];
     exclusive_participants: number[];
     inclusive_groups: number[];
@@ -18,6 +19,7 @@ export function createEventumGroupGraphFromRaw(
   const data = new Map<number, GroupData>();
   for (const g of structure.groups) {
     data.set(g.id, {
+      is_event_group: g.is_event_group,
       inclusive_participants: [],
       exclusive_participants: [],
       inclusive_groups: [],
@@ -70,15 +72,19 @@ export function createEventumGroupGraphFromRaw(
     let result: Set<number>;
 
     if (!hasInclusiveP && !hasInclusiveG) {
-      const excluded = new Set(groupData.exclusive_participants);
-      for (const tid of groupData.exclusive_groups) {
-        for (const pid of getParticipantIds(tid, new Set(nextVisited))) {
-          excluded.add(pid);
+      if (!groupData.is_event_group) {
+        result = new Set();
+      } else {
+        const excluded = new Set(groupData.exclusive_participants);
+        for (const tid of groupData.exclusive_groups) {
+          for (const pid of getParticipantIds(tid, new Set(nextVisited))) {
+            excluded.add(pid);
+          }
         }
-      }
-      result = new Set();
-      for (const pid of allParticipantIds) {
-        if (!excluded.has(pid)) result.add(pid);
+        result = new Set();
+        for (const pid of allParticipantIds) {
+          if (!excluded.has(pid)) result.add(pid);
+        }
       }
     } else {
       const included = new Set(groupData.inclusive_participants);

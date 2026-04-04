@@ -12,18 +12,19 @@ import type {
   CreateParticipantGroupData,
   UpdateParticipantGroupData,
 } from '../../types';
-import { IconPencil, IconPlus, IconInformationCircle, IconTrash } from '../../components/icons';
+import {
+  IconPencil,
+  IconPlus,
+  IconInformationCircle,
+  IconTrash,
+  IconUser,
+} from '../../components/icons';
 import { useEventumSlug } from '../../hooks/useEventumSlug';
 import ParticipantGroupEditor from '../../components/participantGroup/ParticipantGroupEditor';
+import ParticipantModal from '../../components/participant/ParticipantModal';
 import GroupsLoadingSkeleton from '../../components/admin/skeletons/GroupsLoadingSkeleton';
 
-function participantWordRu(n: number): string {
-  const m = n % 10;
-  const h = n % 100;
-  if (m === 1 && h !== 11) return "участник";
-  if (m >= 2 && m <= 4 && (h < 10 || h >= 20)) return "участника";
-  return "участников";
-}
+const DIRECT_RELS_VISIBLE_LIMIT = 5;
 
 const AdminGroupsPage = () => {
   const eventumSlug = useEventumSlug();
@@ -54,6 +55,28 @@ const AdminGroupsPage = () => {
   const [fullMembersGroupId, setFullMembersGroupId] = useState<number | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [expandedDirectLists, setExpandedDirectLists] = useState<Record<string, boolean>>({});
+  const [isParticipantModalOpen, setIsParticipantModalOpen] = useState(false);
+  const [participantModalParticipant, setParticipantModalParticipant] =
+    useState<Participant | null>(null);
+
+  const directParticipantGroupsMap = useMemo(() => {
+    const map = new Map<number, ParticipantGroup[]>();
+    const nonEventGroups = participantGroups.filter((g) => !g.is_event_group);
+    nonEventGroups.forEach((g) => {
+      g.participant_relations.forEach((rel) => {
+        if (rel.relation_type === 'inclusive') {
+          const participantId = rel.participant_id || rel.participant?.id;
+          if (participantId) {
+            if (!map.has(participantId)) map.set(participantId, []);
+            const list = map.get(participantId)!;
+            if (!list.some((x) => x.id === g.id)) list.push(g);
+          }
+        }
+      });
+    });
+    return map;
+  }, [participantGroups]);
 
   const filteredGroups = groups.filter((g) =>
     g.name.toLowerCase().includes(filter.toLowerCase())
@@ -127,6 +150,16 @@ const AdminGroupsPage = () => {
     ? buildResolvedParticipantGroup(fullMembersGroup, groupResolveOptions, participantsById)
     : null;
 
+  const openParticipantModal = (p: Participant) => {
+    setParticipantModalParticipant(p);
+    setIsParticipantModalOpen(true);
+  };
+
+  const closeParticipantModal = () => {
+    setIsParticipantModalOpen(false);
+    setParticipantModalParticipant(null);
+  };
+
   return (
     <div className="space-y-6">
       <header className="space-y-2">
@@ -189,8 +222,6 @@ const AdminGroupsPage = () => {
               (a, b) => a.id - b.id
             );
             const directGroupRels = [...(group.group_relations ?? [])].sort((a, b) => a.id - b.id);
-            const hasDirectLinks =
-              directParticipantRels.length > 0 || directGroupRels.length > 0;
 
             return (
               <div key={group.id} className="relative rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
@@ -216,15 +247,34 @@ const AdminGroupsPage = () => {
                 ) : (
                   <>
                     <div className="flex items-start justify-between mb-3">
-                      <div className="flex-1">
+                      <div className="flex-1 min-w-0">
                         <h3 className="text-lg font-semibold text-gray-900">{group.name}</h3>
-                        <div className="mt-2 text-xs text-gray-500 space-y-0.5">
-                          <div className="font-medium text-gray-700">
-                            В составе: {participantsCount} {participantWordRu(participantsCount)}
-                          </div>
-                          <div className="text-gray-500">
-                            С учётом всех вложенных связей между группами
-                          </div>
+                        <div className="mt-2 text-sm">
+                          {participantsCount > 0 ? (
+                            <button
+                              type="button"
+                              onClick={() => setFullMembersGroupId(group.id)}
+                              className="inline-flex shrink-0 items-center gap-1.5 rounded-md px-1 py-0.5 -mx-1 text-gray-700 transition hover:bg-blue-50 hover:text-blue-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-200"
+                              aria-label={`Список участников группы, ${participantsCount}`}
+                            >
+                              <IconUser
+                                size={18}
+                                className="shrink-0 opacity-80"
+                                aria-hidden
+                              />
+                              <span className="font-semibold tabular-nums">{participantsCount}</span>
+                            </button>
+                          ) : (
+                            <span
+                              className="inline-flex shrink-0 items-center gap-1.5 text-gray-600"
+                              aria-label={`Участников в группе: ${participantsCount}`}
+                            >
+                              <IconUser size={18} className="shrink-0 text-gray-400" aria-hidden />
+                              <span className="font-semibold tabular-nums text-gray-900">
+                                {participantsCount}
+                              </span>
+                            </span>
+                          )}
                         </div>
                       </div>
                       <button
@@ -236,24 +286,21 @@ const AdminGroupsPage = () => {
                     </div>
 
                     <div className="space-y-3">
-                      {!hasDirectLinks && (
-                        <p className="text-xs text-gray-500">
-                          Нет прямых связей: состав формируется только через правила «все участники
-                          eventum» и вложенные группы. Откройте полный список ниже.
-                        </p>
-                      )}
-
                       {directParticipantRels.length > 0 && (
                         <div className="space-y-1">
-                          <div className="text-xs font-medium text-gray-600">
-                            Прямые связи с участниками
-                          </div>
-                          {directParticipantRels.map((rel) => {
+                          <div className="text-xs font-medium text-gray-600">Участники</div>
+                          {(expandedDirectLists[`${group.id}-p`]
+                            ? directParticipantRels
+                            : directParticipantRels.slice(0, DIRECT_RELS_VISIBLE_LIMIT)
+                          ).map((rel) => {
                             const p: Participant | undefined =
                               participantsById.get(rel.participant_id) ?? rel.participant;
                             const name =
                               p?.name ?? `Участник #${rel.participant_id}`;
                             const relationType = rel.relation_type;
+                            const fullParticipant =
+                              participantsById.get(rel.participant_id) ??
+                              (p?.id === rel.participant_id ? p : undefined);
                             return (
                               <div key={rel.id} className="flex items-center gap-2">
                                 <span
@@ -265,10 +312,38 @@ const AdminGroupsPage = () => {
                                 >
                                   {relationType === "inclusive" ? "+" : "-"}
                                 </span>
-                                <span className="text-sm text-gray-700">{name}</span>
+                                {fullParticipant ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => openParticipantModal(fullParticipant)}
+                                    className="min-w-0 truncate text-left text-sm text-gray-700 underline-offset-2 hover:text-blue-700 hover:underline"
+                                  >
+                                    {name}
+                                  </button>
+                                ) : (
+                                  <span className="min-w-0 truncate text-sm text-gray-700">
+                                    {name}
+                                  </span>
+                                )}
                               </div>
                             );
                           })}
+                          {directParticipantRels.length > DIRECT_RELS_VISIBLE_LIMIT ? (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setExpandedDirectLists((prev) => ({
+                                  ...prev,
+                                  [`${group.id}-p`]: !prev[`${group.id}-p`],
+                                }))
+                              }
+                              className="mt-1 text-xs font-medium text-blue-700 hover:text-blue-900"
+                            >
+                              {expandedDirectLists[`${group.id}-p`]
+                                ? 'Свернуть'
+                                : `Показать все (${directParticipantRels.length})`}
+                            </button>
+                          ) : null}
                         </div>
                       )}
 
@@ -276,10 +351,11 @@ const AdminGroupsPage = () => {
                         <div
                           className={`space-y-1 ${directParticipantRels.length > 0 ? "pt-2 border-t border-gray-100" : ""}`}
                         >
-                          <div className="text-xs font-medium text-gray-600">
-                            Прямые связи с группами
-                          </div>
-                          {directGroupRels.map((rel) => (
+                          <div className="text-xs font-medium text-gray-600">Группы</div>
+                          {(expandedDirectLists[`${group.id}-g`]
+                            ? directGroupRels
+                            : directGroupRels.slice(0, DIRECT_RELS_VISIBLE_LIMIT)
+                          ).map((rel) => (
                             <div key={rel.id} className="flex items-center gap-2">
                               <span
                                 className={`text-xs px-1 rounded ${
@@ -295,17 +371,23 @@ const AdminGroupsPage = () => {
                               </span>
                             </div>
                           ))}
+                          {directGroupRels.length > DIRECT_RELS_VISIBLE_LIMIT ? (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setExpandedDirectLists((prev) => ({
+                                  ...prev,
+                                  [`${group.id}-g`]: !prev[`${group.id}-g`],
+                                }))
+                              }
+                              className="mt-1 text-xs font-medium text-blue-700 hover:text-blue-900"
+                            >
+                              {expandedDirectLists[`${group.id}-g`]
+                                ? 'Свернуть'
+                                : `Показать все (${directGroupRels.length})`}
+                            </button>
+                          ) : null}
                         </div>
-                      )}
-
-                      {participantsCount > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => setFullMembersGroupId(group.id)}
-                          className="w-full rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-800 transition-colors hover:bg-blue-100"
-                        >
-                          Полный состав группы ({participantsCount})
-                        </button>
                       )}
                     </div>
                   </>
@@ -336,16 +418,13 @@ const AdminGroupsPage = () => {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-2 border-b border-gray-100 px-4 py-3">
-              <div>
-                <h3 id="full-members-title" className="text-base font-semibold text-gray-900">
-                  Полный состав группы
+              <div className="min-w-0 pr-2">
+                <h3
+                  id="full-members-title"
+                  className="text-base font-semibold text-gray-900 truncate"
+                >
+                  {fullMembersGroup.name}
                 </h3>
-                <p className="mt-0.5 text-sm text-gray-600">«{fullMembersGroup.name}»</p>
-                <p className="mt-1 text-xs text-gray-500">
-                  {fullMembersResolved.participantIds.length}{" "}
-                  {participantWordRu(fullMembersResolved.participantIds.length)} с учётом вложенных
-                  связей
-                </p>
               </div>
               <button
                 type="button"
@@ -360,15 +439,37 @@ const AdminGroupsPage = () => {
               {fullMembersResolved.participants.map((p) => (
                 <li
                   key={p.id}
-                  className="border-b border-gray-50 py-2 text-sm text-gray-800 last:border-0"
+                  className="border-b border-gray-50 py-2 text-sm last:border-0"
                 >
-                  {p.name}
+                  <button
+                    type="button"
+                    onClick={() => openParticipantModal(p)}
+                    className="w-full truncate text-left text-gray-800 underline-offset-2 hover:text-blue-700 hover:underline"
+                  >
+                    {p.name}
+                  </button>
                 </li>
               ))}
             </ul>
           </div>
         </div>
       )}
+
+      <ParticipantModal
+        isOpen={isParticipantModalOpen}
+        onClose={closeParticipantModal}
+        participant={participantModalParticipant}
+        participantGroups={
+          participantModalParticipant
+            ? directParticipantGroupsMap.get(participantModalParticipant.id) ?? []
+            : []
+        }
+        availableGroups={participantGroups}
+        eventumSlug={eventumSlug ?? null}
+        onAfterMutate={async () => {
+          await refetch(['participants', 'groups']);
+        }}
+      />
     </div>
   );
 };
