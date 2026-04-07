@@ -22,6 +22,7 @@ from .views import (
     eventum_registration_stats,
     remove_eventum_organizer,
     search_users,
+    resolve_vk_user,
     participant_calendar_ics,
     participant_calendar_webcal,
     ParticipantGroupViewSet,
@@ -64,6 +65,7 @@ eventum_scoped_router.register(r'locations', LocationViewSet, basename='location
 urlpatterns = [
     # Поиск пользователей (должен быть ДО роутера users)
     path('users/search/', search_users, name='search_users'),
+    path('users/resolve-vk/', resolve_vk_user, name='resolve_vk_user'),
     
     path('', include(router.urls)),
     

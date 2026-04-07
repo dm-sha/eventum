@@ -26,12 +26,8 @@
 
 import csv
 import os
-import re
-import time
 from pathlib import Path
-from urllib.parse import urlparse
 
-import requests
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
@@ -43,115 +39,7 @@ from app.models import (
     ParticipantGroupParticipantRelation,
     UserProfile,
 )
-
-
-VK_HOSTS = frozenset(
-    {
-        "vk.com",
-        "www.vk.com",
-        "m.vk.com",
-        "vk.ru",
-        "www.vk.ru",
-        "m.vk.ru",
-    }
-)
-VK_PATH_ID_RE = re.compile(r"^id(\d+)$", re.IGNORECASE)
-# Ник в пути: латиница, цифры, точка, подчёркивание (как в типичных коротких ссылках VK)
-VK_SCREEN_RE = re.compile(r"^[a-zA-Z0-9._-]+$")
-
-
-def _vk_path_screen_or_numeric(url: str) -> tuple[int | None, str | None]:
-    """
-    Из ссылки VK достаёт либо числовой id из сегмента id123…, либо ник из первого сегмента пути.
-    Возвращает (numeric_id, None) или (None, screen_name) или (None, None) если не распознано.
-    """
-    raw = (url or "").strip()
-    if not raw:
-        return None, None
-    if not raw.startswith(("http://", "https://")):
-        raw = "https://" + raw
-    parsed = urlparse(raw)
-    host = (parsed.netloc or "").lower().split(":")[0]
-    if host not in VK_HOSTS:
-        return None, None
-    path = (parsed.path or "").strip("/")
-    if not path:
-        return None, None
-    first = path.split("/")[0]
-    m = VK_PATH_ID_RE.match(first)
-    if m:
-        return int(m.group(1)), None
-    if VK_SCREEN_RE.match(first) and len(first) <= 64:
-        return None, first
-    return None, None
-
-
-def resolve_vk_numeric_id(
-    url: str,
-    *,
-    service_token: str,
-    screen_cache: dict[str, int],
-    vk_api_delay: float = 0.35,
-    vk_api_max_retries: int = 5,
-) -> tuple[int | None, str | None]:
-    """
-    Числовой vk id: из сегмента id… в URL или через users.get по нику (нужен токен).
-    Возвращает (id, None) или (None, текст ошибки для лога).
-    """
-    num_id, screen = _vk_path_screen_or_numeric(url)
-    if num_id is not None:
-        return num_id, None
-    if screen is None:
-        return None, "неподдерживаемый формат ссылки VK"
-    key = screen.lower()
-    if key in screen_cache:
-        return screen_cache[key], None
-    token = (service_token or "").strip()
-    if not token:
-        return (
-            None,
-            "для ссылки с ником нужен VK_SERVICE_ACCESS_TOKEN (сервисный ключ приложения VK)",
-        )
-
-    last_error_msg: str | None = None
-    for attempt in range(max(1, vk_api_max_retries)):
-        if vk_api_delay > 0:
-            time.sleep(vk_api_delay)
-        try:
-            r = requests.get(
-                "https://api.vk.com/method/users.get",
-                params={
-                    "user_ids": screen,
-                    "access_token": token,
-                    "v": "5.131",
-                },
-                timeout=30,
-            )
-            r.raise_for_status()
-            data = r.json()
-        except (requests.RequestException, ValueError) as e:
-            return None, f"VK API (ник «{screen}»): запрос не удался: {e}"
-
-        if "error" not in data:
-            break
-
-        err = data["error"]
-        msg = err.get("error_msg", str(err))
-        code = err.get("error_code", "")
-        last_error_msg = f"VK API (ник «{screen}»): {code} {msg}"
-        # 6 = Too many requests per second
-        if code == 6 and attempt < vk_api_max_retries - 1:
-            extra = 1.0 + 1.5 * attempt
-            time.sleep(extra)
-            continue
-        return None, last_error_msg
-
-    rows = data.get("response") or []
-    if not rows:
-        return None, f"VK API: пустой ответ для «{screen}»"
-    uid = int(rows[0]["id"])
-    screen_cache[key] = uid
-    return uid, None
+from app.vk_resolve import resolve_vk_numeric_id
 
 
 def normalize_group_name(raw: str) -> str:
@@ -270,7 +158,7 @@ class Command(BaseCommand):
                 group_name = normalize_group_name(row[1])
                 vk_url = (row[2] or "").strip()
 
-                vk_id, vk_resolve_err = resolve_vk_numeric_id(
+                vk_id, vk_resolve_err, _vk_row = resolve_vk_numeric_id(
                     vk_url,
                     service_token=service_token,
                     screen_cache=screen_cache,

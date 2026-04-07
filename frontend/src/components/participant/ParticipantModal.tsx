@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { IconX, IconUser, IconSearch, IconCheck, IconPencil, IconPlus } from "../icons";
-import type { Event, Participant, ParticipantGroup, User } from "../../types";
+import type { Event, Participant, ParticipantGroup, ResolveVkResponse, User } from "../../types";
 import { searchUsers } from "../../api/organizers";
 import { usersApi, groupsApi } from "../../api/eventumApi";
 import { createParticipant, updateParticipant } from "../../api/participant";
@@ -10,6 +10,16 @@ import { useAdminData } from "../../contexts/AdminDataContext";
 import { createEventumGroupGraphFromRaw } from "../../utils/eventumGroupGraphFromRaw";
 
 type ParticipantModalTab = "general" | "groups" | "events";
+
+/** Ссылка, числовой id (от 7 цифр) или сегмент id… — запускаем резолвинг на бэкенде */
+function looksLikeVkQuery(s: string): boolean {
+  const t = s.trim();
+  if (!t) return false;
+  if (/vk\.com|vk\.ru/i.test(t)) return true;
+  if (/^id\d+$/i.test(t)) return true;
+  if (/^\d{6,}$/.test(t)) return true;
+  return false;
+}
 
 function formatEventWhenShort(ev: Event) {
   try {
@@ -56,7 +66,9 @@ const ParticipantModal = ({
   const [searchResults, setSearchResults] = useState<User[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
-  const [showAddUserModal, setShowAddUserModal] = useState(false);
+  const [vkLinkResolve, setVkLinkResolve] = useState<ResolveVkResponse | null>(null);
+  const [vkResolveLoading, setVkResolveLoading] = useState(false);
+  const [vkResolveError, setVkResolveError] = useState<string | null>(null);
   const [currentParticipantGroups, setCurrentParticipantGroups] = useState<ParticipantGroup[]>([]);
   const [pendingSaves, setPendingSaves] = useState(0);
   const [addGroupSelectKey, setAddGroupSelectKey] = useState(0);
@@ -104,6 +116,8 @@ const ParticipantModal = ({
       setCurrentParticipantGroups([]);
       setIsEditingName(true);
     }
+    setVkLinkResolve(null);
+    setVkResolveError(null);
   }, [participant, participantGroups, isOpen]);
 
   useEffect(() => {
@@ -150,7 +164,7 @@ const ParticipantModal = ({
     };
   }, [isOpen, isEditingName, nameDraft, name]);
 
-  const handleUserSearch = async (query: string) => {
+  const handleUserSearch = useCallback(async (query: string) => {
     if (query.length < 2) {
       setSearchResults([]);
       return;
@@ -167,13 +181,37 @@ const ParticipantModal = ({
     } finally {
       setIsSearching(false);
     }
+  }, []);
+
+  const applyUserBinding = async (user: User) => {
+    if (!eventumSlug) return;
+    if (effectiveParticipant?.id) {
+      await updateParticipant(eventumSlug, effectiveParticipant.id, { user_id: user.id });
+    } else {
+      const participantName =
+        nameDraft.trim() || user.name || (user.vk_id != null ? `Участник VK ${user.vk_id}` : "Участник");
+      const created = await createParticipant(eventumSlug, {
+        name: participantName,
+        user_id: user.id,
+      });
+      setName(participantName);
+      setNameDraft(participantName);
+      setIsEditingName(false);
+      onParticipantCreated?.(created);
+    }
+    setSelectedUser(user);
+    setUserSearchQuery(user.name);
+    setVkLinkResolve(null);
+    setVkResolveError(null);
+    setShowUserDropdown(false);
+    setSearchResults([]);
   };
 
-  const persistUserId = async (userId: number | null) => {
-    if (!eventumSlug || !effectiveParticipant?.id) return;
+  const bindUserToParticipant = async (user: User) => {
+    if (!eventumSlug) return;
     beginSave();
     try {
-      await updateParticipant(eventumSlug, effectiveParticipant.id, { user_id: userId });
+      await applyUserBinding(user);
       await onAfterMutate();
     } catch (error) {
       console.error("Ошибка при привязке VK:", error);
@@ -182,21 +220,92 @@ const ParticipantModal = ({
     }
   };
 
+  const createVkUserAndBind = async (vkId: number, suggestedName: string | null) => {
+    if (!eventumSlug) return;
+    const nm = nameDraft.trim() || suggestedName || `Участник VK ${vkId}`;
+    beginSave();
+    try {
+      const res = await usersApi.create({ name: nm, vk_id: vkId });
+      await applyUserBinding(res.data);
+      await onAfterMutate();
+    } catch (error) {
+      console.error("Ошибка при создании пользователя VK:", error);
+    } finally {
+      endSave();
+    }
+  };
+
+  const persistUserUnbind = async () => {
+    if (!eventumSlug || !effectiveParticipant?.id) return;
+    beginSave();
+    try {
+      await updateParticipant(eventumSlug, effectiveParticipant.id, { user_id: null });
+      await onAfterMutate();
+    } catch (error) {
+      console.error("Ошибка при отвязке VK:", error);
+    } finally {
+      endSave();
+    }
+  };
+
   const handleUserSelect = async (user: User) => {
-    setSelectedUser(user);
-    setUserSearchQuery(user.name);
-    setShowUserDropdown(false);
-    setSearchResults([]);
-    await persistUserId(user.id);
+    await bindUserToParticipant(user);
   };
 
   const handleUserClear = async () => {
     setSelectedUser(null);
     setUserSearchQuery("");
+    setVkLinkResolve(null);
+    setVkResolveError(null);
     setShowUserDropdown(false);
     setSearchResults([]);
-    await persistUserId(null);
+    await persistUserUnbind();
   };
+
+  useEffect(() => {
+    const q = userSearchQuery.trim();
+    if (!q) {
+      setVkLinkResolve(null);
+      setVkResolveError(null);
+      setSearchResults([]);
+      setVkResolveLoading(false);
+      return;
+    }
+    if (looksLikeVkQuery(q)) {
+      const t = window.setTimeout(() => {
+        void (async () => {
+          setVkResolveLoading(true);
+          setVkResolveError(null);
+          setVkLinkResolve(null);
+          try {
+            const res = await usersApi.resolveVk(q);
+            setVkLinkResolve(res.data);
+            setShowUserDropdown(true);
+          } catch (err: unknown) {
+            setVkLinkResolve(null);
+            const ax = err as { response?: { data?: { detail?: unknown } } };
+            const detail = ax.response?.data?.detail;
+            const msg =
+              typeof detail === "string"
+                ? detail
+                : Array.isArray(detail) && typeof detail[0] === "string"
+                  ? detail[0]
+                  : "Не удалось распознать ссылку VK";
+            setVkResolveError(msg);
+            setShowUserDropdown(true);
+          } finally {
+            setVkResolveLoading(false);
+          }
+        })();
+      }, 400);
+      setSearchResults([]);
+      return () => window.clearTimeout(t);
+    }
+    setVkLinkResolve(null);
+    setVkResolveError(null);
+    const t = window.setTimeout(() => void handleUserSearch(q), 300);
+    return () => window.clearTimeout(t);
+  }, [userSearchQuery, handleUserSearch]);
 
   const saveName = async () => {
     const trimmed = nameDraft.trim();
@@ -375,16 +484,13 @@ const ParticipantModal = ({
     }
   };
 
-  const canUseVk = !!effectiveParticipant?.id;
-  const showCreateHint = !effectiveParticipant;
-
   if (!isOpen) return null;
 
   const displayName = name.trim() || "Новый участник";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="flex w-full max-w-lg max-h-[90vh] flex-col rounded-xl bg-white shadow-xl">
+      <div className="flex w-full max-w-lg max-h-[min(96vh,56rem)] flex-col overflow-visible rounded-xl bg-white shadow-xl">
         <div className="flex shrink-0 items-start gap-4 border-b border-gray-100 px-5 pt-5 pb-4">
           <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gray-100">
             {effectiveParticipant?.user?.avatar_url ? (
@@ -442,11 +548,6 @@ const ParticipantModal = ({
                 />
               </button>
             )}
-            {showCreateHint && (
-              <p className="mt-1 text-xs text-gray-500">
-                Укажите имя и нажмите галочку, чтобы создать участника.
-              </p>
-            )}
           </div>
           <button
             type="button"
@@ -499,28 +600,17 @@ const ParticipantModal = ({
           </nav>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 pt-4 pb-6">
+        <div className="min-h-0 flex-1 flex flex-col">
           {activeTab === "general" && (
+            <div className="flex-1 overflow-visible px-5 pt-4 pb-6">
             <div className="space-y-4">
-              {!canUseVk && (
-                <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                  Привязка VK будет доступна после сохранения имени участника.
+              <div className="relative user-search-container">
+                <label htmlFor="user-search" className="mb-1 block text-sm font-medium text-gray-700">
+                  VK
+                </label>
+                <p className="mb-2 text-xs text-gray-500">
+                  Ссылка или VK ID
                 </p>
-              )}
-              <div className={`relative user-search-container ${!canUseVk ? "pointer-events-none opacity-50" : ""}`}>
-                <div className="mb-1 flex items-center justify-between">
-                  <label htmlFor="user-search" className="block text-sm font-medium text-gray-700">
-                    VK
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setShowAddUserModal(true)}
-                    disabled={isBusy || !canUseVk}
-                    className="text-xs text-blue-600 hover:text-blue-800 disabled:opacity-50"
-                  >
-                    + Добавить VK пользователя
-                  </button>
-                </div>
                 <div className="relative">
                   <input
                     id="user-search"
@@ -538,26 +628,25 @@ const ParticipantModal = ({
                       if (selectedUser && value !== selectedUser.name) {
                         setSelectedUser(null);
                       }
-                      void handleUserSearch(value);
                     }}
-                    onFocus={() => canUseVk && setShowUserDropdown(true)}
-                    disabled={isBusy || !canUseVk}
+                    onFocus={() => setShowUserDropdown(true)}
+                    disabled={isBusy || !eventumSlug}
                     className={`w-full rounded-lg border px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 disabled:bg-gray-50 ${
                       selectedUser
                         ? "border-green-300 bg-green-50 focus:border-green-500 focus:ring-green-200"
                         : "border-gray-300 focus:border-blue-500 focus:ring-blue-200"
                     }`}
-                    placeholder="Поиск пользователя по имени..."
+                    placeholder="Имя, ссылка или id ВКонтакте…"
                   />
                   <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
-                    {isSearching ? (
+                    {isSearching || vkResolveLoading ? (
                       <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
                     ) : (
                       <IconSearch size={16} className="text-gray-400" />
                     )}
                   </div>
 
-                  {(selectedUser || userSearchQuery) && canUseVk && (
+                  {(selectedUser || userSearchQuery) && eventumSlug && (
                     <button
                       type="button"
                       onClick={() => void handleUserClear()}
@@ -568,83 +657,145 @@ const ParticipantModal = ({
                   )}
                 </div>
 
-                {showUserDropdown && canUseVk && (searchResults.length > 0 || selectedUser) && (
-                  <div className="absolute z-10 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border border-gray-300 bg-white shadow-lg">
-                    {selectedUser && (
-                      <button
-                        type="button"
-                        onClick={() => void handleUserClear()}
-                        className="flex w-full items-center gap-3 border-b border-gray-200 px-4 py-2 text-left text-sm text-gray-500 hover:bg-gray-100"
-                      >
-                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100">
-                          <IconX size={16} />
-                        </div>
-                        <div className="flex-1">
-                          <div className="font-medium">Очистить выбор</div>
-                          <div className="text-xs">Отвязать пользователя</div>
-                        </div>
-                      </button>
-                    )}
+                {showUserDropdown &&
+                  eventumSlug &&
+                  (vkResolveLoading ||
+                    vkResolveError != null ||
+                    vkLinkResolve != null ||
+                    searchResults.length > 0 ||
+                    selectedUser) && (
+                    <div className="absolute z-20 mt-1 max-h-[min(18rem,50vh)] w-full overflow-y-auto rounded-lg border border-gray-300 bg-white shadow-lg">
+                      {vkResolveLoading && (
+                        <div className="px-4 py-3 text-sm text-gray-600">Проверка ссылки…</div>
+                      )}
+                      {!vkResolveLoading && vkResolveError && (
+                        <div className="px-4 py-3 text-sm text-amber-800">{vkResolveError}</div>
+                      )}
+                      {!vkResolveLoading && vkLinkResolve?.user && (
+                        <button
+                          type="button"
+                          onClick={() => void handleUserSelect(vkLinkResolve.user!)}
+                          disabled={isBusy}
+                          className="flex w-full items-center gap-3 border-b border-gray-200 px-4 py-2 text-left text-sm hover:bg-gray-100 disabled:opacity-50"
+                        >
+                          <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-gray-200">
+                            {vkLinkResolve.user.avatar_url ? (
+                              <img
+                                src={vkLinkResolve.user.avatar_url}
+                                alt={vkLinkResolve.user.name}
+                                className="h-8 w-8 rounded-full object-cover"
+                              />
+                            ) : (
+                              <IconUser size={16} className="text-gray-500" />
+                            )}
+                          </div>
+                          <div className="flex-1">
+                            <div className="font-medium text-gray-900">Привязать «{vkLinkResolve.user.name}»</div>
+                            <div className="text-xs text-gray-500">VK ID: {vkLinkResolve.user.vk_id}</div>
+                          </div>
+                        </button>
+                      )}
+                      {!vkResolveLoading && vkLinkResolve && !vkLinkResolve.user && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void createVkUserAndBind(vkLinkResolve.vk_id, vkLinkResolve.suggested_name)
+                          }
+                          disabled={isBusy}
+                          className="flex w-full items-center gap-3 border-b border-gray-200 px-4 py-2 text-left text-sm hover:bg-blue-50 disabled:opacity-50"
+                        >
+                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100">
+                            <IconPlus size={16} className="text-blue-700" />
+                          </div>
+                          <div className="flex-1">
+                            <div className="font-medium text-gray-900">Добавить пользователя</div>
+                            <div className="text-xs text-gray-500">
+                              VK ID: {vkLinkResolve.vk_id}
+                              {vkLinkResolve.suggested_name
+                                ? ` · ${vkLinkResolve.suggested_name}`
+                                : ""}
+                            </div>
+                          </div>
+                        </button>
+                      )}
 
-                    {selectedUser && !searchResults.some((user) => user.id === selectedUser.id) && (
-                      <button
-                        type="button"
-                        onClick={() => void handleUserSelect(selectedUser)}
-                        className="flex w-full items-center gap-3 border-l-4 border-blue-500 bg-blue-50 px-4 py-2 text-left text-sm hover:bg-blue-100"
-                      >
-                        <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-gray-200">
-                          {selectedUser.avatar_url ? (
-                            <img
-                              src={selectedUser.avatar_url}
-                              alt={selectedUser.name}
-                              className="h-8 w-8 rounded-full object-cover"
-                            />
-                          ) : (
-                            <IconUser size={16} className="text-gray-500" />
-                          )}
-                        </div>
-                        <div className="flex-1">
-                          <div className="font-medium text-gray-900">{selectedUser.name}</div>
-                          <div className="text-xs text-gray-500">VK ID: {selectedUser.vk_id}</div>
-                        </div>
-                        <IconCheck size={16} className="text-blue-600" />
-                      </button>
-                    )}
+                      {selectedUser && (
+                        <button
+                          type="button"
+                          onClick={() => void handleUserClear()}
+                          className="flex w-full items-center gap-3 border-b border-gray-200 px-4 py-2 text-left text-sm text-gray-500 hover:bg-gray-100"
+                        >
+                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100">
+                            <IconX size={16} />
+                          </div>
+                          <div className="flex-1">
+                            <div className="font-medium">Очистить выбор</div>
+                            <div className="text-xs">Отвязать пользователя</div>
+                          </div>
+                        </button>
+                      )}
 
-                    {searchResults.map((user) => (
-                      <button
-                        key={user.id}
-                        type="button"
-                        onClick={() => void handleUserSelect(user)}
-                        className={`flex w-full items-center gap-3 px-4 py-2 text-left text-sm hover:bg-gray-100 ${
-                          selectedUser?.id === user.id ? "border-l-4 border-blue-500 bg-blue-50" : ""
-                        }`}
-                      >
-                        <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-gray-200">
-                          {user.avatar_url ? (
-                            <img
-                              src={user.avatar_url}
-                              alt={user.name}
-                              className="h-8 w-8 rounded-full object-cover"
-                            />
-                          ) : (
-                            <IconUser size={16} className="text-gray-500" />
-                          )}
-                        </div>
-                        <div className="flex-1">
-                          <div className="font-medium text-gray-900">{user.name}</div>
-                          <div className="text-xs text-gray-500">VK ID: {user.vk_id}</div>
-                        </div>
-                        {selectedUser?.id === user.id && <IconCheck size={16} className="text-blue-600" />}
-                      </button>
-                    ))}
-                  </div>
-                )}
+                      {selectedUser && !searchResults.some((user) => user.id === selectedUser.id) && (
+                        <button
+                          type="button"
+                          onClick={() => void handleUserSelect(selectedUser)}
+                          className="flex w-full items-center gap-3 border-l-4 border-blue-500 bg-blue-50 px-4 py-2 text-left text-sm hover:bg-blue-100"
+                        >
+                          <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-gray-200">
+                            {selectedUser.avatar_url ? (
+                              <img
+                                src={selectedUser.avatar_url}
+                                alt={selectedUser.name}
+                                className="h-8 w-8 rounded-full object-cover"
+                              />
+                            ) : (
+                              <IconUser size={16} className="text-gray-500" />
+                            )}
+                          </div>
+                          <div className="flex-1">
+                            <div className="font-medium text-gray-900">{selectedUser.name}</div>
+                            <div className="text-xs text-gray-500">VK ID: {selectedUser.vk_id}</div>
+                          </div>
+                          <IconCheck size={16} className="text-blue-600" />
+                        </button>
+                      )}
+
+                      {searchResults.map((user) => (
+                        <button
+                          key={user.id}
+                          type="button"
+                          onClick={() => void handleUserSelect(user)}
+                          className={`flex w-full items-center gap-3 px-4 py-2 text-left text-sm hover:bg-gray-100 ${
+                            selectedUser?.id === user.id ? "border-l-4 border-blue-500 bg-blue-50" : ""
+                          }`}
+                        >
+                          <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-gray-200">
+                            {user.avatar_url ? (
+                              <img
+                                src={user.avatar_url}
+                                alt={user.name}
+                                className="h-8 w-8 rounded-full object-cover"
+                              />
+                            ) : (
+                              <IconUser size={16} className="text-gray-500" />
+                            )}
+                          </div>
+                          <div className="flex-1">
+                            <div className="font-medium text-gray-900">{user.name}</div>
+                            <div className="text-xs text-gray-500">VK ID: {user.vk_id}</div>
+                          </div>
+                          {selectedUser?.id === user.id && <IconCheck size={16} className="text-blue-600" />}
+                        </button>
+                      ))}
+                    </div>
+                  )}
               </div>
+            </div>
             </div>
           )}
 
           {activeTab === "groups" && effectiveParticipant && (
+            <div className="min-h-0 flex-1 overflow-y-auto px-5 pt-4 pb-6">
             <div className="space-y-4">
               {groupsToAdd.length > 0 && (
                 <div>
@@ -708,9 +859,11 @@ const ParticipantModal = ({
                 )}
               </div>
             </div>
+            </div>
           )}
 
           {activeTab === "events" && effectiveParticipant && (
+            <div className="min-h-0 flex-1 overflow-y-auto px-5 pt-4 pb-6">
             <div className="space-y-4">
               {!groupStructureRaw && (
                 <p className="rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-600">
@@ -783,195 +936,9 @@ const ParticipantModal = ({
                 )}
               </div>
             </div>
+            </div>
           )}
         </div>
-      </div>
-
-      {showAddUserModal && (
-        <AddVKUserModal
-          isOpen={showAddUserModal}
-          onClose={() => setShowAddUserModal(false)}
-          onUserCreated={(user) => {
-            setShowAddUserModal(false);
-            void handleUserSelect(user);
-          }}
-        />
-      )}
-    </div>
-  );
-};
-
-interface AddVKUserModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onUserCreated: (user: User) => void;
-}
-
-const AddVKUserModal = ({ isOpen, onClose, onUserCreated }: AddVKUserModalProps) => {
-  const [userName, setUserName] = useState("");
-  const [vkId, setVkId] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [fieldErrors, setFieldErrors] = useState<{ name?: string; vk_id?: string }>({});
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!userName.trim() || !vkId.trim()) return;
-
-    setIsLoading(true);
-    setError("");
-    setFieldErrors({});
-
-    try {
-      const newUser = await usersApi.create({
-        name: userName.trim(),
-        vk_id: parseInt(vkId, 10),
-      });
-      onUserCreated(newUser.data);
-    } catch (error: unknown) {
-      console.error("Ошибка при создании пользователя:", error);
-      const err = error as {
-        response?: { data?: Record<string, unknown> };
-        message?: string;
-      };
-      if (err?.response?.data) {
-        const errorData = err.response.data as Record<string, string | string[]>;
-
-        if (errorData.vk_id) {
-          const vkIdError = Array.isArray(errorData.vk_id) ? errorData.vk_id[0] : errorData.vk_id;
-          if (typeof vkIdError === "string" && vkIdError.includes("already exists")) {
-            setFieldErrors({ vk_id: "Пользователь с таким VK ID уже существует" });
-          } else {
-            setFieldErrors({ vk_id: vkIdError });
-          }
-        }
-
-        if (errorData.name) {
-          const nameError = Array.isArray(errorData.name) ? errorData.name[0] : errorData.name;
-          setFieldErrors((prev) => ({ ...prev, name: nameError }));
-        }
-
-        if (errorData.detail) {
-          setError(String(errorData.detail));
-        } else if (errorData.non_field_errors) {
-          setError(
-            Array.isArray(errorData.non_field_errors)
-              ? errorData.non_field_errors.join(", ")
-              : String(errorData.non_field_errors)
-          );
-        } else if (!errorData.vk_id && !errorData.name) {
-          setError("Ошибка при создании пользователя");
-        }
-      } else if (err?.message) {
-        setError(err.message);
-      } else {
-        setError("Ошибка при создании пользователя");
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleClose = () => {
-    if (!isLoading) {
-      setUserName("");
-      setVkId("");
-      setError("");
-      setFieldErrors({});
-      onClose();
-    }
-  };
-
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
-        <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-gray-900">Добавить VK пользователя</h3>
-          <button
-            type="button"
-            onClick={handleClose}
-            disabled={isLoading}
-            className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 disabled:opacity-50"
-          >
-            <IconX size={20} />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label htmlFor="user-name" className="mb-1 block text-sm font-medium text-gray-700">
-              Имя пользователя *
-            </label>
-            <input
-              id="user-name"
-              type="text"
-              value={userName}
-              onChange={(e) => {
-                setUserName(e.target.value);
-                if (fieldErrors.name) {
-                  setFieldErrors((prev) => ({ ...prev, name: undefined }));
-                }
-              }}
-              required
-              disabled={isLoading}
-              className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 disabled:bg-gray-50 ${
-                fieldErrors.name
-                  ? "border-red-300 focus:border-red-500 focus:ring-red-200"
-                  : "border-gray-300 focus:border-blue-500 focus:ring-blue-200"
-              }`}
-              placeholder="Введите имя пользователя"
-            />
-            {fieldErrors.name && <p className="mt-1 text-sm text-red-600">{fieldErrors.name}</p>}
-          </div>
-
-          <div>
-            <label htmlFor="vk-id" className="mb-1 block text-sm font-medium text-gray-700">
-              VK ID *
-            </label>
-            <input
-              id="vk-id"
-              type="number"
-              value={vkId}
-              onChange={(e) => {
-                setVkId(e.target.value);
-                if (fieldErrors.vk_id) {
-                  setFieldErrors((prev) => ({ ...prev, vk_id: undefined }));
-                }
-              }}
-              required
-              disabled={isLoading}
-              className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 disabled:bg-gray-50 ${
-                fieldErrors.vk_id
-                  ? "border-red-300 focus:border-red-500 focus:ring-red-200"
-                  : "border-gray-300 focus:border-blue-500 focus:ring-blue-200"
-              }`}
-              placeholder="Введите VK ID"
-            />
-            {fieldErrors.vk_id && <p className="mt-1 text-sm text-red-600">{fieldErrors.vk_id}</p>}
-          </div>
-
-          {error && <div className="rounded-lg bg-red-50 p-3 text-sm text-red-600">{error}</div>}
-
-          <div className="flex justify-end gap-3 pt-4">
-            <button
-              type="button"
-              onClick={handleClose}
-              disabled={isLoading}
-              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-            >
-              Отмена
-            </button>
-            <button
-              type="submit"
-              disabled={isLoading || !userName.trim() || !vkId.trim()}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-            >
-              {isLoading ? "Создание…" : "Создать"}
-            </button>
-          </div>
-        </form>
       </div>
     </div>
   );

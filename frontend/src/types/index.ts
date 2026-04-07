@@ -19,6 +19,14 @@ export interface User {
   last_login: string;
 }
 
+/** Ответ GET /users/resolve-vk/ */
+export interface ResolveVkResponse {
+  vk_id: number;
+  user: User | null;
+  suggested_name: string | null;
+  suggested_avatar_url: string | null;
+}
+
 export interface Participant {
   id: number;
   name: string;

@@ -10,6 +10,7 @@ from django.shortcuts import get_object_or_404
 from django.http import Http404, HttpResponse
 from django.utils import timezone
 from django.conf import settings
+import os
 from django.db.models import Prefetch, Count
 from django.db import connection, reset_queries
 import requests
@@ -31,6 +32,11 @@ from .serializers import (
 from .permissions import IsEventumOrganizer, IsEventumParticipant, IsEventumOrganizerOrReadOnly, IsEventumOrganizerOrReadOnlyForList, IsEventumOrganizerOrPublicReadOnly
 from .utils import log_execution_time, csrf_exempt_class_api, get_group_participant_ids, EventumGroupGraph
 from .auth_utils import EventumMixin, require_authentication, require_eventum_role, get_eventum_from_request
+from .vk_resolve import (
+    fetch_vk_profile_row,
+    resolve_vk_numeric_id,
+    vk_row_suggested_name,
+)
 from .base_views import EventumScopedViewSet
 import logging
 import mimetypes
@@ -1808,6 +1814,61 @@ def search_users(request):
             {'error': f'Error searching users: {str(e)}'}, 
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def resolve_vk_user(request):
+    """
+    Разбор ссылки / id / ника VK → числовой vk_id; при отсутствии UserProfile в БД — подсказка имени из VK (если настроен сервисный токен).
+    """
+    q = request.GET.get('q', '').strip()
+    if not q:
+        return Response(
+            {'detail': 'Укажите непустой параметр q'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    token = (
+        os.environ.get('VK_SERVICE_ACCESS_TOKEN', '').strip()
+        or (getattr(settings, 'VK_SERVICE_ACCESS_TOKEN', None) or '').strip()
+    )
+    screen_cache: dict[str, int] = {}
+    vk_id, err, vk_row = resolve_vk_numeric_id(
+        q,
+        service_token=token,
+        screen_cache=screen_cache,
+        vk_api_delay=0.12,
+        vk_api_max_retries=5,
+    )
+    if vk_id is None:
+        return Response(
+            {'detail': err or 'Не удалось определить VK id'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    existing = UserProfile.objects.filter(vk_id=vk_id).first()
+    if existing:
+        return Response({
+            'vk_id': vk_id,
+            'user': UserProfileSerializer(existing).data,
+            'suggested_name': None,
+            'suggested_avatar_url': None,
+        })
+    suggested_name = None
+    suggested_avatar_url = None
+    if vk_row:
+        suggested_name = vk_row_suggested_name(vk_row)
+        suggested_avatar_url = vk_row.get('photo_200') or None
+    elif token:
+        row = fetch_vk_profile_row(vk_id, service_token=token, vk_api_delay=0.05)
+        if row:
+            suggested_name = vk_row_suggested_name(row)
+            suggested_avatar_url = row.get('photo_200') or None
+    return Response({
+        'vk_id': vk_id,
+        'user': None,
+        'suggested_name': suggested_name,
+        'suggested_avatar_url': suggested_avatar_url,
+    })
 
 
 @api_view(['GET'])

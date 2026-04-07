@@ -13,6 +13,7 @@ import type {
   Event, 
   UserRole, 
   User,
+  ResolveVkResponse,
   EventRegistration
 } from '../types';
 
@@ -230,6 +231,13 @@ export const usersApi = {
   search: (query: string) => 
     createApiRequest<User[]>('GET', `/users/search/?q=${encodeURIComponent(query)}`),
   
+  /** Ссылка VK, id… или числовой id → vk_id и опционально пользователь из БД / подсказка имени */
+  resolveVk: (query: string) =>
+    createApiRequest<ResolveVkResponse>(
+      'GET',
+      `/users/resolve-vk/?q=${encodeURIComponent(query)}`
+    ),
+
   // Создать пользователя
   create: (data: { name: string; vk_id: number }) => 
     createApiRequest<User>('POST', '/users/', undefined, data)
