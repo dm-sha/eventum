@@ -148,7 +148,7 @@ class ParticipantSerializer(serializers.ModelSerializer):
     class Meta:
         model = Participant
         fields = ['id', 'name', 'user', 'user_id', 'groups']
-    
+
     def get_user(self, obj):
         """Возвращает информацию о пользователе"""
         if obj.user:
@@ -162,7 +162,7 @@ class ParticipantSerializer(serializers.ModelSerializer):
                 'last_login': obj.user.last_login
             }
         return None
-    
+
     def get_groups(self, obj):
         """Возвращает группы участника"""
         # ИСПОЛЬЗУЕМ prefetch'нутые данные вместо запроса к БД
