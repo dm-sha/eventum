@@ -66,6 +66,8 @@ const ParticipantModal = ({
   const [searchResults, setSearchResults] = useState<User[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
+  /** Поиск VK / саджест только после фокуса или ввода в поле, не при префилле при открытии */
+  const [vkFieldEngaged, setVkFieldEngaged] = useState(false);
   const [vkLinkResolve, setVkLinkResolve] = useState<ResolveVkResponse | null>(null);
   const [vkResolveLoading, setVkResolveLoading] = useState(false);
   const [vkResolveError, setVkResolveError] = useState<string | null>(null);
@@ -99,6 +101,8 @@ const ParticipantModal = ({
       setAddingGroup(false);
       setAddingEvent(false);
       setRemovingGroupId(null);
+      setVkFieldEngaged(false);
+      setShowUserDropdown(false);
       return;
     }
     if (participant) {
@@ -119,6 +123,11 @@ const ParticipantModal = ({
     setVkLinkResolve(null);
     setVkResolveError(null);
   }, [participant, participantGroups, isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setVkFieldEngaged(false);
+  }, [isOpen, participant?.id]);
 
   useEffect(() => {
     if (!userSearchQuery.trim() && selectedUser) {
@@ -203,6 +212,7 @@ const ParticipantModal = ({
     setUserSearchQuery(user.name);
     setVkLinkResolve(null);
     setVkResolveError(null);
+    setVkFieldEngaged(false);
     setShowUserDropdown(false);
     setSearchResults([]);
   };
@@ -257,12 +267,16 @@ const ParticipantModal = ({
     setUserSearchQuery("");
     setVkLinkResolve(null);
     setVkResolveError(null);
+    setVkFieldEngaged(false);
     setShowUserDropdown(false);
     setSearchResults([]);
     await persistUserUnbind();
   };
 
   useEffect(() => {
+    if (!isOpen || !vkFieldEngaged) {
+      return;
+    }
     const q = userSearchQuery.trim();
     if (!q) {
       setVkLinkResolve(null);
@@ -305,7 +319,7 @@ const ParticipantModal = ({
     setVkResolveError(null);
     const t = window.setTimeout(() => void handleUserSearch(q), 300);
     return () => window.clearTimeout(t);
-  }, [userSearchQuery, handleUserSearch]);
+  }, [userSearchQuery, handleUserSearch, isOpen, vkFieldEngaged]);
 
   const saveName = async () => {
     const trimmed = nameDraft.trim();
@@ -615,6 +629,7 @@ const ParticipantModal = ({
                     value={userSearchQuery}
                     onChange={(e) => {
                       const value = e.target.value;
+                      setVkFieldEngaged(true);
                       setUserSearchQuery(value);
                       if (!value.trim()) {
                         setSelectedUser(null);
@@ -626,7 +641,10 @@ const ParticipantModal = ({
                         setSelectedUser(null);
                       }
                     }}
-                    onFocus={() => setShowUserDropdown(true)}
+                    onFocus={() => {
+                      setVkFieldEngaged(true);
+                      setShowUserDropdown(true);
+                    }}
                     disabled={isBusy || !eventumSlug}
                     className={`w-full rounded-lg border px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 disabled:bg-gray-50 ${
                       selectedUser
