@@ -1,7 +1,9 @@
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { AdminDataProvider } from "../contexts/AdminDataContext";
+import { useAuth } from "../contexts/AuthContext";
 import Header from "./Header";
+import VKAuth from "./VKAuth";
 import {
   IconCalendar,
   IconChevronLeft,
@@ -16,6 +18,20 @@ import {
 
 const AdminLayout = () => {
   const location = useLocation();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 text-gray-600">
+        Загрузка...
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <VKAuth />;
+  }
+
   const menu = [
     { to: ".", label: "Общие", icon: IconHome, end: true },
     { to: "locations", label: "Локации", icon: IconMapPin },
