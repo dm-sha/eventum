@@ -608,9 +608,6 @@ const ParticipantModal = ({
                 <label htmlFor="user-search" className="mb-1 block text-sm font-medium text-gray-700">
                   VK
                 </label>
-                <p className="mb-2 text-xs text-gray-500">
-                  Ссылка или VK ID
-                </p>
                 <div className="relative">
                   <input
                     id="user-search"
@@ -636,7 +633,7 @@ const ParticipantModal = ({
                         ? "border-green-300 bg-green-50 focus:border-green-500 focus:ring-green-200"
                         : "border-gray-300 focus:border-blue-500 focus:ring-blue-200"
                     }`}
-                    placeholder="Имя, ссылка или id ВКонтакте…"
+                    placeholder="Ссылка или VK ID"
                   />
                   <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
                     {isSearching || vkResolveLoading ? (
