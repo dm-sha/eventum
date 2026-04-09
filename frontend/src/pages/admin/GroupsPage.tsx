@@ -22,6 +22,7 @@ import {
 } from '../../components/icons';
 import { useEventumSlug } from '../../hooks/useEventumSlug';
 import ParticipantGroupEditor from '../../components/participantGroup/ParticipantGroupEditor';
+import LinkifiedText from '../../components/LinkifiedText';
 import ParticipantModal from '../../components/participant/ParticipantModal';
 import GroupsLoadingSkeleton from '../../components/admin/skeletons/GroupsLoadingSkeleton';
 
@@ -254,7 +255,7 @@ const AdminGroupsPage = () => {
                         <h3 className="truncate text-lg font-semibold text-gray-900">{group.name}</h3>
                         {descriptionTrimmed ? (
                           <p className="mt-1.5 text-sm leading-relaxed text-gray-600 whitespace-pre-wrap break-words">
-                            {descriptionTrimmed}
+                            <LinkifiedText text={descriptionTrimmed} />
                           </p>
                         ) : null}
                         <div className="mt-2 text-sm">
