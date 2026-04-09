@@ -284,6 +284,8 @@ const ParticipantsTab = ({
   // Простой обработчик изменений - просто обновляем состояние
   const handleEditorChange = (data: {
     name: string;
+    visible_to_participants: boolean;
+    description: string;
     participant_relations: { participant_id: number; relation_type: any }[];
     group_relations: { target_group_id: number; relation_type: any }[];
   }) => {
@@ -292,6 +294,8 @@ const ParticipantsTab = ({
       const updatedGroup: ParticipantGroup = {
         ...localGroupState,
         name: data.name,
+        visible_to_participants: data.visible_to_participants,
+        description: data.description,
         participant_relations: data.participant_relations.map((rel, idx) => ({
           id: localGroupState.participant_relations[idx]?.id || 0,
           relation_type: rel.relation_type,
@@ -312,6 +316,8 @@ const ParticipantsTab = ({
         id: 0,
         name: data.name,
         is_event_group: true,
+        visible_to_participants: data.visible_to_participants,
+        description: data.description,
         participant_relations: data.participant_relations.map(rel => ({
           id: 0,
           relation_type: rel.relation_type,
@@ -667,8 +673,19 @@ const EventEditModal = ({
         ];
         
         if (localRelations.length !== serverRelations.length) return false;
-        
-        return JSON.stringify(localRelations) === JSON.stringify(serverRelations);
+
+        if (JSON.stringify(localRelations) !== JSON.stringify(serverRelations)) return false;
+
+        const norm = (g: ParticipantGroup) => ({
+          name: (g.name || '').trim(),
+          visible_to_participants: Boolean(g.visible_to_participants),
+          description: (g.description || '').trim(),
+        });
+        const ln = norm(local);
+        const sn = norm(server);
+        return ln.name === sn.name &&
+          ln.visible_to_participants === sn.visible_to_participants &&
+          ln.description === sn.description;
       };
       
       // Проверяем, нужно ли сохранять группу
@@ -695,6 +712,8 @@ const EventEditModal = ({
             const payload: any = { 
               name: effectiveName,
               is_event_group: true,
+              visible_to_participants: localGroupState.visible_to_participants ?? false,
+              description: (localGroupState.description ?? '').trim(),
               participant_relations: participantRelations,
               group_relations: groupRelations
             };
@@ -727,6 +746,8 @@ const EventEditModal = ({
             const createPayload: any = { 
               name: effectiveName, 
               is_event_group: true,
+              visible_to_participants: localGroupState.visible_to_participants ?? false,
+              description: (localGroupState.description ?? '').trim(),
               participant_relations: participantRelations,
               group_relations: groupRelations
             };

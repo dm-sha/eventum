@@ -466,7 +466,15 @@ class ParticipantGroupSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = ParticipantGroup
-        fields = ['id', 'name', 'is_event_group', 'participant_relations', 'group_relations']
+        fields = [
+            'id',
+            'name',
+            'is_event_group',
+            'visible_to_participants',
+            'description',
+            'participant_relations',
+            'group_relations',
+        ]
     
     def create(self, validated_data):
         """Создание группы с обработкой вложенных связей"""

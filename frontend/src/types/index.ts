@@ -165,6 +165,8 @@ export interface ParticipantGroup {
   id: number;
   name: string;
   is_event_group: boolean;
+  visible_to_participants: boolean;
+  description: string;
   participant_relations: ParticipantGroupParticipantRelation[];
   group_relations: ParticipantGroupGroupRelation[];
 }
@@ -172,6 +174,8 @@ export interface ParticipantGroup {
 export interface CreateParticipantGroupData {
   name: string;
   is_event_group?: boolean;
+  visible_to_participants?: boolean;
+  description?: string;
   participant_relations?: {
     participant_id: number;
     relation_type: RelationType;
@@ -185,6 +189,8 @@ export interface CreateParticipantGroupData {
 export interface UpdateParticipantGroupData {
   name?: string;
   is_event_group?: boolean;
+  visible_to_participants?: boolean;
+  description?: string;
   participant_relations?: {
     participant_id: number;
     relation_type: RelationType;

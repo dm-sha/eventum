@@ -10,7 +10,13 @@ const slugOrThrow = (eventumSlug?: string): string => {
 /** Ответ GET .../raw/group-structure/ */
 export type RawGroupStructureResponse = {
   eventum_id: number;
-  groups: Array<{ id: number; name: string; is_event_group: boolean }>;
+  groups: Array<{
+    id: number;
+    name: string;
+    is_event_group: boolean;
+    visible_to_participants: boolean;
+    description: string;
+  }>;
   participant_relations: Array<{
     id: number;
     group_id: number;

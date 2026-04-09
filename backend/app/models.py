@@ -77,11 +77,17 @@ class ParticipantGroup(models.Model):
         default=False,
         help_text="Если True, группа используется для связи с событиями и не показывается в основном интерфейсе"
     )
-    
+    visible_to_participants = models.BooleanField(
+        default=False,
+        help_text="Если True, группа может отображаться участникам на странице события (при включении организатором)",
+    )
+    description = models.TextField(blank=True, default='')
+
     class Meta:
         indexes = [
             models.Index(fields=['eventum']),
             models.Index(fields=['is_event_group']),
+            models.Index(fields=['visible_to_participants']),
         ]
         verbose_name = 'Participant Group'
         verbose_name_plural = 'Participant Groups'

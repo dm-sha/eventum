@@ -18,6 +18,7 @@ import {
   IconInformationCircle,
   IconTrash,
   IconUser,
+  IconEye,
 } from '../../components/icons';
 import { useEventumSlug } from '../../hooks/useEventumSlug';
 import ParticipantGroupEditor from '../../components/participantGroup/ParticipantGroupEditor';
@@ -206,6 +207,7 @@ const AdminGroupsPage = () => {
                 onSave={handleSaveCreate}
                 onCancel={handleCancel}
                 isSaving={isSaving}
+                isModal
               />
             </div>
           )}
@@ -222,33 +224,39 @@ const AdminGroupsPage = () => {
               (a, b) => a.id - b.id
             );
             const directGroupRels = [...(group.group_relations ?? [])].sort((a, b) => a.id - b.id);
+            const descriptionTrimmed = (group.description ?? '').trim();
 
             return (
               <div key={group.id} className="relative rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
                 {isEditing ? (
-                  <>
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex-1"></div>
+                  <ParticipantGroupEditor
+                    group={group}
+                    availableGroups={groups.filter(g => g.id !== group.id)}
+                    onSave={handleSaveUpdate}
+                    onCancel={handleCancel}
+                    isUpdating={isUpdating}
+                    isModal
+                    nameRowExtra={
                       <button
+                        type="button"
                         onClick={() => handleDeleteGroup(group.id)}
                         className="rounded-lg p-1 text-red-400 hover:bg-red-100 hover:text-red-600"
+                        aria-label="Удалить группу"
                       >
                         <IconTrash size={16} />
                       </button>
-                    </div>
-                    <ParticipantGroupEditor
-                      group={group}
-                      availableGroups={groups.filter(g => g.id !== group.id)}
-                      onSave={handleSaveUpdate}
-                      onCancel={handleCancel}
-                      isUpdating={isUpdating}
-                    />
-                  </>
+                    }
+                  />
                 ) : (
                   <>
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex-1 min-w-0">
-                        <h3 className="text-lg font-semibold text-gray-900">{group.name}</h3>
+                    <div className="flex items-start justify-between gap-2 mb-3">
+                      <div className="min-w-0 flex-1">
+                        <h3 className="truncate text-lg font-semibold text-gray-900">{group.name}</h3>
+                        {descriptionTrimmed ? (
+                          <p className="mt-1.5 text-sm leading-relaxed text-gray-600 whitespace-pre-wrap break-words">
+                            {descriptionTrimmed}
+                          </p>
+                        ) : null}
                         <div className="mt-2 text-sm">
                           {participantsCount > 0 ? (
                             <button
@@ -277,12 +285,25 @@ const AdminGroupsPage = () => {
                           )}
                         </div>
                       </div>
-                      <button
-                        onClick={() => handleEditGroup(group)}
-                        className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
-                      >
-                        <IconPencil size={16} />
-                      </button>
+                      <div className="flex shrink-0 items-center gap-0.5">
+                        {group.visible_to_participants ? (
+                          <span
+                            className="rounded-lg p-1 text-emerald-600"
+                            title="Видна участникам на странице события"
+                            aria-label="Группа видна участникам"
+                          >
+                            <IconEye size={20} strokeWidth={2} aria-hidden />
+                          </span>
+                        ) : null}
+                        <button
+                          type="button"
+                          onClick={() => handleEditGroup(group)}
+                          className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                          aria-label="Редактировать группу"
+                        >
+                          <IconPencil size={16} />
+                        </button>
+                      </div>
                     </div>
 
                     <div className="space-y-3">

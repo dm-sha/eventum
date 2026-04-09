@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import type { 
   ParticipantGroup, 
   Participant, 
@@ -33,9 +33,13 @@ interface ParticipantGroupEditorProps {
   isUpdating?: boolean;
   nameOverride?: string;
   hideNameField?: boolean;
+  /** Элементы справа от строки с названием (например, удаление группы). */
+  nameRowExtra?: ReactNode;
   hideActions?: boolean;
   onChange?: (data: {
     name: string;
+    visible_to_participants: boolean;
+    description: string;
     participant_relations: { participant_id: number; relation_type: RelationType }[];
     group_relations: { target_group_id: number; relation_type: RelationType }[];
   }) => void;
@@ -52,6 +56,7 @@ const ParticipantGroupEditor: React.FC<ParticipantGroupEditorProps> = ({
   isUpdating = false,
   nameOverride,
   hideNameField = false,
+  nameRowExtra,
   hideActions = false,
   onChange
 }) => {
@@ -69,6 +74,8 @@ const ParticipantGroupEditor: React.FC<ParticipantGroupEditorProps> = ({
   const [isEditingName, setIsEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
   const nameEditRef = useRef<HTMLDivElement>(null);
+  const [visibleToParticipants, setVisibleToParticipants] = useState(false);
+  const [description, setDescription] = useState('');
 
   // Отдельный эффект для инициализации состояния группы
   // Используем useMemo для нормализации relations и сравнения только при реальных изменениях
@@ -83,8 +90,15 @@ const ParticipantGroupEditor: React.FC<ParticipantGroupEditorProps> = ({
       .map(r => `${r.target_group_id || r.target_group?.id || 0}-${r.relation_type}`)
       .sort()
       .join(',');
-    return `${group.id}-${participantKeys}-${groupKeys}-${nameOverride || ''}`;
-  }, [group?.id, group?.participant_relations, group?.group_relations, nameOverride]);
+    return `${group.id}-${participantKeys}-${groupKeys}-${nameOverride || ''}-${group.visible_to_participants}-${group.description ?? ''}`;
+  }, [
+    group?.id,
+    group?.participant_relations,
+    group?.group_relations,
+    group?.visible_to_participants,
+    group?.description,
+    nameOverride,
+  ]);
 
   useEffect(() => {
     // Флаг для предотвращения вызова onChange при первой инициализации
@@ -112,7 +126,9 @@ const ParticipantGroupEditor: React.FC<ParticipantGroupEditorProps> = ({
         relation_type: rel.relation_type
       })).filter(rel => rel.target_group_id > 0); // Фильтруем некорректные данные
       setGroupRelations(groupRels);
-      
+      setVisibleToParticipants(group?.visible_to_participants ?? false);
+      setDescription(group?.description ?? '');
+
       // Если группа загружена и есть relations, даем больше времени на инициализацию
       const hasRelations = participantRels.length > 0 || groupRels.length > 0;
       const delay = hasRelations ? 200 : 100;
@@ -122,6 +138,8 @@ const ParticipantGroupEditor: React.FC<ParticipantGroupEditorProps> = ({
       }, delay);
     } else {
       setNameDraft('');
+      setVisibleToParticipants(false);
+      setDescription('');
       // Если нет группы, сбрасываем флаг быстрее
       setTimeout(() => {
         setIsInitializing(false);
@@ -237,6 +255,8 @@ const ParticipantGroupEditor: React.FC<ParticipantGroupEditorProps> = ({
 
     const data: CreateParticipantGroupData | UpdateParticipantGroupData = {
       name: effectiveName,
+      visible_to_participants: visibleToParticipants,
+      description: description.trim(),
       participant_relations: participantRelations.map(rel => ({
         participant_id: rel.participant_id,
         relation_type: rel.relation_type
@@ -257,60 +277,74 @@ const ParticipantGroupEditor: React.FC<ParticipantGroupEditorProps> = ({
     const effectiveName = (nameOverride ?? name).trim();
     onChange({
       name: effectiveName,
+      visible_to_participants: visibleToParticipants,
+      description,
       participant_relations: participantRelations.map(r => ({ participant_id: r.participant_id, relation_type: r.relation_type })),
       group_relations: groupRelations.map(r => ({ target_group_id: r.target_group_id, relation_type: r.relation_type }))
     });
-  }, [name, nameOverride, participantRelations, groupRelations, onChange, isInitializing]);
+  }, [
+    name,
+    nameOverride,
+    visibleToParticipants,
+    description,
+    participantRelations,
+    groupRelations,
+    onChange,
+    isInitializing,
+  ]);
 
   return (
     <div className={isModal ? '' : 'rounded-2xl border border-gray-200 bg-white p-4 shadow-sm'}>
       <div className="space-y-4">
         {/* Название группы */}
         {!hideNameField && group ? (
-          <div className="min-w-0">
-            {isEditingName ? (
-              <div ref={nameEditRef} className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={nameDraft}
-                  onChange={(e) => setNameDraft(e.target.value)}
-                  autoFocus
-                  disabled={isSaving || isUpdating}
-                  className="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-1.5 text-lg font-semibold text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 disabled:bg-gray-50"
-                  placeholder="Название группы"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') commitNameDraft();
-                    if (e.key === 'Escape') {
-                      setNameDraft(name);
-                      setIsEditingName(false);
-                    }
-                  }}
-                />
+          <div className="flex min-w-0 items-center gap-2">
+            <div className="min-w-0 flex-1">
+              {isEditingName ? (
+                <div ref={nameEditRef} className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={nameDraft}
+                    onChange={(e) => setNameDraft(e.target.value)}
+                    autoFocus
+                    disabled={isSaving || isUpdating}
+                    className="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-1.5 text-lg font-semibold text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 disabled:bg-gray-50"
+                    placeholder="Название группы"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') commitNameDraft();
+                      if (e.key === 'Escape') {
+                        setNameDraft(name);
+                        setIsEditingName(false);
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={commitNameDraft}
+                    disabled={isSaving || isUpdating || !nameDraft.trim()}
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                    title="Применить название"
+                  >
+                    <IconCheck size={18} />
+                  </button>
+                </div>
+              ) : (
                 <button
                   type="button"
-                  onClick={commitNameDraft}
-                  disabled={isSaving || isUpdating || !nameDraft.trim()}
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
-                  title="Применить название"
+                  onClick={startEditName}
+                  className="group flex w-full min-w-0 items-center gap-2 text-left"
                 >
-                  <IconCheck size={18} />
+                  <h3 className="truncate text-lg font-semibold text-gray-900 group-hover:text-blue-700">
+                    {(nameOverride ?? name).trim() || 'Без названия'}
+                  </h3>
+                  <IconPencil
+                    size={16}
+                    className="shrink-0 text-gray-400 opacity-0 transition group-hover:opacity-100"
+                  />
                 </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={startEditName}
-                className="group flex w-full items-center gap-2 text-left"
-              >
-                <h3 className="truncate text-lg font-semibold text-gray-900 group-hover:text-blue-700">
-                  {(nameOverride ?? name).trim() || 'Без названия'}
-                </h3>
-                <IconPencil
-                  size={16}
-                  className="shrink-0 text-gray-400 opacity-0 transition group-hover:opacity-100"
-                />
-              </button>
-            )}
+              )}
+            </div>
+            {nameRowExtra ? <div className="flex shrink-0 items-center">{nameRowExtra}</div> : null}
           </div>
         ) : null}
         {!hideNameField && !group ? (
@@ -327,6 +361,34 @@ const ParticipantGroupEditor: React.FC<ParticipantGroupEditorProps> = ({
             />
           </div>
         ) : null}
+
+        <div className="flex items-start gap-2 rounded-lg border border-gray-100 bg-gray-50/80 px-3 py-2">
+          <input
+            id="participant-group-visible"
+            type="checkbox"
+            checked={visibleToParticipants}
+            onChange={(e) => setVisibleToParticipants(e.target.checked)}
+            disabled={isSaving || isUpdating}
+            className="mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+          />
+          <label htmlFor="participant-group-visible" className="text-sm text-gray-700 cursor-pointer select-none">
+            <span className="font-medium text-gray-900">Видна участникам</span>
+          </label>
+        </div>
+
+        <div>
+          <label htmlFor="participant-group-description" className="block text-sm font-medium text-gray-700 mb-1">
+            Описание
+          </label>
+          <textarea
+            id="participant-group-description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            disabled={isSaving || isUpdating}
+            rows={3}
+            className="w-full resize-y rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-50"
+          />
+        </div>
 
         {/* Добавление участников */}
         <div>

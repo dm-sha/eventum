@@ -46,6 +46,8 @@ export function participantGroupsFromRawStructure(
       id: g.id,
       name: g.name,
       is_event_group: g.is_event_group,
+      visible_to_participants: g.visible_to_participants ?? false,
+      description: g.description ?? '',
       participant_relations: [],
       group_relations: [],
     });

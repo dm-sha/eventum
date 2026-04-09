@@ -35,7 +35,7 @@ def build_eventum_raw_group_structure(eventum):
         'groups': list(
             ParticipantGroup.objects.filter(eventum=eventum)
             .order_by('id')
-            .values('id', 'name', 'is_event_group')
+            .values('id', 'name', 'is_event_group', 'visible_to_participants', 'description')
         ),
         'participant_relations': list(
             ParticipantGroupParticipantRelation.objects.filter(group__eventum=eventum)
@@ -186,7 +186,9 @@ class EventumRawGroupsView(APIView):
         qs = ParticipantGroup.objects.filter(eventum=eventum).order_by('id')
         if request.query_params.get('include_event_groups', 'false').lower() != 'true':
             qs = qs.filter(is_event_group=False)
-        return Response({'groups': list(qs.values('id', 'name', 'is_event_group'))})
+        return Response(
+            {'groups': list(qs.values('id', 'name', 'is_event_group', 'visible_to_participants', 'description'))}
+        )
 
 
 class EventumRawGroupParticipantRelationsView(APIView):

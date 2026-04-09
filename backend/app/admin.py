@@ -231,9 +231,9 @@ class UserRoleAdmin(admin.ModelAdmin):
 # --- ParticipantGroupAdmin ---
 @admin.register(ParticipantGroup)
 class ParticipantGroupAdmin(admin.ModelAdmin):
-    list_display = ('name', 'eventum', 'is_event_group')
-    list_filter = ('eventum', 'is_event_group')
-    search_fields = ('name', 'eventum__name')
+    list_display = ('name', 'eventum', 'is_event_group', 'visible_to_participants')
+    list_filter = ('eventum', 'is_event_group', 'visible_to_participants')
+    search_fields = ('name', 'description', 'eventum__name')
     autocomplete_fields = ('eventum',)
 
 
