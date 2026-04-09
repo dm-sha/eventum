@@ -23,6 +23,10 @@ class Eventum(models.Model):
         default=True,
         help_text="Отображать ли вкладку расписания участникам"
     )
+    public_page = models.BooleanField(
+        default=False,
+        help_text="Показывать страницу события (вкладка «Общее») без входа в аккаунт",
+    )
 
     def save(self, *args, **kwargs):
         # Если slug не предоставлен, генерируем его из названия

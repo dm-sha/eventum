@@ -57,3 +57,8 @@ export const updateEventumScheduleVisible = async (slug: string, schedule_visibl
     const response = await eventumApi.update(slug, { schedule_visible });
     return response.data;
 };
+
+export const updateEventumPublicPage = async (slug: string, public_page: boolean): Promise<Eventum> => {
+    const response = await eventumApi.update(slug, { public_page });
+    return response.data;
+};

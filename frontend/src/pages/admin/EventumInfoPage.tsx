@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useEventumSlug } from "../../hooks/useEventumSlug";
 import { useAdminData } from "../../contexts/AdminDataContext";
-import { updateEventumName, updateEventumDescription, updateEventumScheduleVisible } from "../../api/eventum";
+import { updateEventumName, updateEventumDescription, updateEventumScheduleVisible, updateEventumPublicPage } from "../../api/eventum";
 import { addEventumOrganizer, removeEventumOrganizer, searchUsers } from "../../api/organizers";
 import { useAuth } from "../../contexts/AuthContext";
 import type { User } from "../../types";
@@ -32,6 +32,7 @@ const EventumInfoPage = () => {
   const [isSavingName, setIsSavingName] = useState(false);
   const [isSavingDescription, setIsSavingDescription] = useState(false);
   const [isTogglingSchedule, setIsTogglingSchedule] = useState(false);
+  const [isTogglingPublicPage, setIsTogglingPublicPage] = useState(false);
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   
@@ -125,6 +126,21 @@ const EventumInfoPage = () => {
       alert('Не удалось изменить настройку видимости расписания');
     } finally {
       setIsTogglingSchedule(false);
+    }
+  };
+
+  const handleTogglePublicPage = async () => {
+    if (!eventumSlug || !eventum) return;
+    const newValue = !eventum.public_page;
+    setIsTogglingPublicPage(true);
+    try {
+      const updated = await updateEventumPublicPage(eventumSlug, newValue);
+      patchEventumDetails({ ...eventum, public_page: updated.public_page });
+    } catch (error) {
+      console.error('Ошибка изменения публичной страницы:', error);
+      alert('Не удалось изменить настройку публичной страницы');
+    } finally {
+      setIsTogglingPublicPage(false);
     }
   };
 
@@ -404,6 +420,29 @@ const EventumInfoPage = () => {
             >
               <span
                 className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${eventum.schedule_visible ? 'translate-x-5' : 'translate-x-1'}`}
+              />
+            </button>
+          </div>
+        </div>
+
+        {/* Карточка: публичная страница без входа */}
+        <div className="bg-white border border-gray-200 rounded-lg p-4">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h3 className="text-md font-medium text-gray-900">Публичный просмотр</h3>
+              <p className="text-sm text-gray-500">
+                Если включено, информация о событии будет доступна любому пользователю, без авторизации.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleTogglePublicPage}
+              disabled={isTogglingPublicPage}
+              className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${eventum.public_page ? 'bg-blue-600' : 'bg-gray-300'} disabled:opacity-50`}
+              title={eventum.public_page ? 'Отключить публичный просмотр' : 'Разрешить просмотр без входа'}
+            >
+              <span
+                className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${eventum.public_page ? 'translate-x-5' : 'translate-x-1'}`}
               />
             </button>
           </div>

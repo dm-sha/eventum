@@ -6,6 +6,8 @@ export interface Eventum {
     image_url?: string;
     registration_open: boolean;
     schedule_visible: boolean;
+    /** Показывать вкладку «Общее» без входа в аккаунт */
+    public_page: boolean;
     // password_hash мы не получаем на фронтенде, поэтому его здесь нет
 }
 

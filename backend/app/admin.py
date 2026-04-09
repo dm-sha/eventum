@@ -119,7 +119,16 @@ class EventumAdmin(admin.ModelAdmin):
     prepopulated_fields = {'slug': ('name',)}
     # Убираем inlines для избежания таймаутов
     search_fields = ('name', 'slug')
-    fields = ('name', 'slug', 'description', 'image_url', 'image_preview')
+    fields = (
+        'name',
+        'slug',
+        'description',
+        'image_url',
+        'registration_open',
+        'schedule_visible',
+        'public_page',
+        'image_preview',
+    )
     readonly_fields = ('image_preview', 'participants_count', 'events_count')
     
     def has_image(self, obj):

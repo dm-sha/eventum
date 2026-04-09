@@ -51,7 +51,7 @@ export const AppRouter = () => {
   );
 
   const homeElement = subdomainSlug
-    ? (isAuthenticated ? <EventumPage /> : <VKAuth />)
+    ? <Navigate to="general" replace />
     : (isAuthenticated ? <Navigate to="/dashboard" replace /> : <HomePage />);
 
   return (
@@ -73,13 +73,12 @@ export const AppRouter = () => {
       <Route path="/" element={<Layout />}>
         <Route index element={homeElement} />
         {subdomainSlug ? (
-          // При использовании поддомена не включаем slug в путь
+          // Поддомен: страница события доступна без входа (ограничения — в EventumPage по public_page)
           <>
-            <Route index element={<Navigate to="general" replace />} />
-            <Route path="general" element={isAuthenticated ? <EventumPage /> : <VKAuth />} />
-            <Route path="registration" element={isAuthenticated ? <EventumPage /> : <VKAuth />} />
-            <Route path="distribution" element={isAuthenticated ? <EventumPage /> : <VKAuth />} />
-            <Route path="schedule" element={isAuthenticated ? <EventumPage /> : <VKAuth />} />
+            <Route path="general" element={<EventumPage />} />
+            <Route path="registration" element={<EventumPage />} />
+            <Route path="distribution" element={<EventumPage />} />
+            <Route path="schedule" element={<EventumPage />} />
           </>
         ) : (
           // При использовании основного домена включаем slug в путь

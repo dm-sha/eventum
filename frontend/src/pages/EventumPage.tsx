@@ -21,6 +21,29 @@ import LoadingSpinner from "../components/LoadingSpinner";
 import EventCalendar from "../components/EventCalendar";
 import { useEventumSlug } from "../hooks/useEventumSlug";
 import { getEventumScopedPath } from "../utils/eventumSlug";
+import { useAuth } from "../contexts/AuthContext";
+
+/** Экран «нужен вход» для вкладок, недоступных без авторизации */
+const AuthRequiredPanel: React.FC<{ returnTo: { pathname: string; search: string } }> = ({ returnTo }) => (
+  <div className="text-center py-10 px-4">
+    <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-blue-50">
+      <svg className="h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+      </svg>
+    </div>
+    <h3 className="mt-4 text-lg font-semibold text-gray-900">Вход в аккаунт</h3>
+    <p className="mt-2 text-gray-600 max-w-md mx-auto">
+      Чтобы открыть регистрацию, расписание и другие разделы, войдите через ВКонтакте.
+    </p>
+    <Link
+      to="/login"
+      state={{ from: returnTo }}
+      className="mt-6 inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+    >
+      Войти
+    </Link>
+  </div>
+);
 
 // Компонент для раскрывающегося текста
 const ExpandableText: React.FC<{ text: string; maxLength?: number; className?: string }> = ({ 
@@ -57,6 +80,7 @@ const EventumPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
   const [eventum, setEventum] = useState<Eventum | null>(null);
   const [eventWaves, setEventWaves] = useState<EventWave[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
@@ -85,49 +109,74 @@ const EventumPage = () => {
 
   useEffect(() => {
     const fetchData = async () => {
-      if (!eventumSlug) return;
-      
+      if (!eventumSlug || authLoading) return;
+
+      if (!isAuthenticated) {
+        try {
+          setLoading(true);
+          setError(null);
+          const eventumData = await getEventumBySlug(eventumSlug);
+          setEventum(eventumData);
+          setUserRoles([]);
+          setEventWaves([]);
+          setEvents([]);
+          setCurrentParticipant(null);
+          setMyRegistrations([]);
+        } catch (err) {
+          console.error("Ошибка загрузки события (гость):", err);
+          const httpErr = err as { response?: { status?: number } };
+          if (httpErr?.response?.status === 403) {
+            setError(
+              "У вас нет доступа к этому событию. Вы должны быть участником или организатором, чтобы просматривать информацию о событии."
+            );
+          } else {
+            setError("Не удалось загрузить информацию о событии");
+          }
+        } finally {
+          setLoading(false);
+        }
+        return;
+      }
+
       try {
         setLoading(true);
         setError(null);
-        
-        // Сначала загружаем роли, чтобы знать, является ли пользователь организатором
+
         const rolesData = await authApi.getRoles();
         setUserRoles(rolesData.data);
-        
-        // Загружаем eventum
+
         let eventumData: Eventum;
         try {
           eventumData = await getEventumBySlug(eventumSlug);
         } catch (err) {
           const error = err as { response?: { status?: number } };
           if (error?.response?.status === 403) {
-            // Если 403, проверяем, является ли пользователь организатором любого eventum
-            // Если да, то продолжаем (возможно, это ошибка API при просмотре от лица другого участника)
-            const hasAnyOrganizerRole = rolesData.data.some(role => role.role === 'organizer');
+            const hasAnyOrganizerRole = rolesData.data.some((role) => role.role === "organizer");
             if (!hasAnyOrganizerRole) {
-              setError('У вас нет доступа к этому событию. Вы должны быть участником или организатором, чтобы просматривать информацию о событии.');
+              setError(
+                "У вас нет доступа к этому событию. Вы должны быть участником или организатором, чтобы просматривать информацию о событии."
+              );
               return;
             }
-            // Если пользователь организатор, но получили 403, пробуем продолжить
-            // Возможно, нужно загрузить eventum по-другому или просто показать ошибку
-            setError('У вас нет доступа к этому событию. Вы должны быть участником или организатором, чтобы просматривать информацию о событии.');
+            setError(
+              "У вас нет доступа к этому событию. Вы должны быть участником или организатором, чтобы просматривать информацию о событии."
+            );
             return;
           } else {
             throw err;
           }
         }
-        
+
         setEventum(eventumData);
-        
-        // Проверяем, является ли пользователь организатором этого eventum
-        const isOrganizer = rolesData.data.some(role => {
-          const roleEventumId = typeof role.eventum === 'object' && role.eventum !== null 
-            ? (role.eventum as { id: number }).id 
-            : role.eventum;
-          return roleEventumId === eventumData.id && role.role === 'organizer';
+
+        const isOrganizer = rolesData.data.some((role) => {
+          const roleEventumId =
+            typeof role.eventum === "object" && role.eventum !== null
+              ? (role.eventum as { id: number }).id
+              : role.eventum;
+          return roleEventumId === eventumData.id && role.role === "organizer";
         });
-        
+
         let wavesData: EventWave[] = [];
         let eventsData: Event[] = [];
         let participantData: Participant | null = null;
@@ -144,10 +193,7 @@ const EventumPage = () => {
               p = await getParticipantById(eventumSlug, parseInt(participantId, 10));
               if (p) {
                 try {
-                  regs = await getParticipantRegistrations(
-                    eventumSlug,
-                    parseInt(participantId, 10)
-                  );
+                  regs = await getParticipantRegistrations(eventumSlug, parseInt(participantId, 10));
                 } catch (registrationsErr: unknown) {
                   console.error("Ошибка загрузки заявок участника:", registrationsErr);
                 }
@@ -202,18 +248,23 @@ const EventumPage = () => {
           return true;
         };
 
+        const participantBundle = await loadParticipantAndRegs();
+        participantData = participantBundle.participantData;
+        registrationsData = participantBundle.registrationsData;
+
+        const loadParticipantContent = isOrganizer || participantData !== null;
+
+        if (!loadParticipantContent) {
+          setEventWaves([]);
+          setEvents([]);
+          setCurrentParticipant(null);
+          setMyRegistrations([]);
+          return;
+        }
+
         if (isOrganizer) {
           try {
-            const [
-              rawEv,
-              rawTags,
-              rawLoc,
-              rawRegs,
-              rawWaves,
-              structure,
-              rawParticipants,
-              participantBundle,
-            ] = await Promise.all([
+            const [rawEv, rawTags, rawLoc, rawRegs, rawWaves, structure, rawParticipants] = await Promise.all([
               fetchRawEvents(eventumSlug),
               fetchRawEventTags(eventumSlug),
               fetchRawLocations(eventumSlug),
@@ -221,7 +272,6 @@ const EventumPage = () => {
               fetchRawEventWaves(eventumSlug),
               fetchRawGroupStructure(eventumSlug),
               fetchRawParticipants(eventumSlug),
-              loadParticipantAndRegs(),
             ]);
             const viewingPid = participantId
               ? parseInt(participantId, 10)
@@ -239,11 +289,9 @@ const EventumPage = () => {
             );
             wavesData = built.eventWaves;
             eventsData = built.events;
-            participantData = participantBundle.participantData;
-            registrationsData = participantBundle.registrationsData;
           } catch (rawErr) {
             console.warn("EventumPage: raw не удалось, fallback на ViewSet", rawErr);
-            const [wavesResult, eventsResult, participantBundle] = await Promise.allSettled([
+            const [wavesResult, eventsResult] = await Promise.allSettled([
               listEventWaves(
                 eventumSlug,
                 participantId ? { participant: parseInt(participantId, 10) } : undefined
@@ -252,18 +300,13 @@ const EventumPage = () => {
                 eventumSlug,
                 participantId ? { participant: parseInt(participantId, 10) } : undefined
               ),
-              loadParticipantAndRegs(),
             ]);
             if (!applyWavesEventsFailure(wavesResult, eventsResult)) {
               return;
             }
-            if (participantBundle.status === "fulfilled") {
-              participantData = participantBundle.value.participantData;
-              registrationsData = participantBundle.value.registrationsData;
-            }
           }
         } else {
-          const [wavesResult, eventsResult, participantBundle] = await Promise.allSettled([
+          const [wavesResult, eventsResult] = await Promise.allSettled([
             listEventWaves(
               eventumSlug,
               participantId ? { participant: parseInt(participantId, 10) } : undefined
@@ -272,14 +315,9 @@ const EventumPage = () => {
               eventumSlug,
               participantId ? { participant: parseInt(participantId, 10) } : undefined
             ),
-            loadParticipantAndRegs(),
           ]);
           if (!applyWavesEventsFailure(wavesResult, eventsResult)) {
             return;
-          }
-          if (participantBundle.status === "fulfilled") {
-            participantData = participantBundle.value.participantData;
-            registrationsData = participantBundle.value.registrationsData;
           }
         }
 
@@ -288,13 +326,14 @@ const EventumPage = () => {
         setCurrentParticipant(participantData);
         setMyRegistrations(registrationsData);
       } catch (err) {
-        console.error('Ошибка загрузки данных:', err);
+        console.error("Ошибка загрузки данных:", err);
         const error = err as { response?: { status?: number } };
-        // Проверяем, является ли ошибка 403 (доступ запрещен)
         if (error?.response?.status === 403) {
-          setError('У вас нет доступа к этому событию. Вы должны быть участником или организатором, чтобы просматривать информацию о событии.');
+          setError(
+            "У вас нет доступа к этому событию. Вы должны быть участником или организатором, чтобы просматривать информацию о событии."
+          );
         } else {
-          setError('Не удалось загрузить информацию о событии');
+          setError("Не удалось загрузить информацию о событии");
         }
       } finally {
         setLoading(false);
@@ -302,7 +341,7 @@ const EventumPage = () => {
     };
 
     fetchData();
-  }, [eventumSlug, participantId]);
+  }, [eventumSlug, participantId, isAuthenticated, authLoading]);
 
   const handleTabChange = (tab: string) => {
     if (!eventumSlug) return;
@@ -341,7 +380,7 @@ const EventumPage = () => {
     }));
   }, []);
 
-  if (loading) {
+  if (authLoading || loading) {
     return (
       <main className="min-h-screen bg-gray-50 px-4 py-6 sm:px-6 lg:px-8 lg:py-10">
         <div className="mx-auto flex w-full max-w-5xl items-center justify-center">
@@ -413,17 +452,19 @@ const EventumPage = () => {
             >
               Общее
             </button>
-            <button
-              onClick={() => handleTabChange('registration')}
-              className={`py-2 px-1 border-b-2 font-medium text-sm whitespace-nowrap flex-shrink-0 ${
-                currentTab === 'registration'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              Регистрация на мероприятия
-            </button>
-            {currentParticipant && (
+            {isAuthenticated && (
+              <button
+                onClick={() => handleTabChange('registration')}
+                className={`py-2 px-1 border-b-2 font-medium text-sm whitespace-nowrap flex-shrink-0 ${
+                  currentTab === 'registration'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Регистрация на мероприятия
+              </button>
+            )}
+            {isAuthenticated && currentParticipant && (
               <button
                 onClick={() => handleTabChange('distribution')}
                 className={`py-2 px-1 border-b-2 font-medium text-sm whitespace-nowrap flex-shrink-0 ${
@@ -435,7 +476,9 @@ const EventumPage = () => {
                 Распределение
               </button>
             )}
-            {eventum && (eventum.schedule_visible || (isUserOrganizer(eventum.id) && participantId)) && (
+            {isAuthenticated &&
+              eventum &&
+              (eventum.schedule_visible || (isUserOrganizer(eventum.id) && participantId)) && (
               <button
                 onClick={() => handleTabChange('schedule')}
                 className={`py-2 px-1 border-b-2 font-medium text-sm whitespace-nowrap flex-shrink-0 ${
@@ -456,25 +499,37 @@ const EventumPage = () => {
             <GeneralTab eventum={eventum} />
           )}
           {currentTab === 'registration' && eventumSlug && (
-            <RegistrationTab 
-              eventWaves={eventWaves} 
-              events={events} 
-              currentParticipant={currentParticipant} 
-              eventumSlug={eventumSlug} 
-              eventum={eventum} 
-              myRegistrations={myRegistrations} 
-              participantId={participantId}
-              onEventRegistrationChange={handleEventRegistrationChangeGlobal}
-            />
+            isAuthenticated ? (
+              <RegistrationTab 
+                eventWaves={eventWaves} 
+                events={events} 
+                currentParticipant={currentParticipant} 
+                eventumSlug={eventumSlug} 
+                eventum={eventum} 
+                myRegistrations={myRegistrations} 
+                participantId={participantId}
+                onEventRegistrationChange={handleEventRegistrationChangeGlobal}
+              />
+            ) : (
+              <AuthRequiredPanel returnTo={{ pathname: location.pathname, search: location.search }} />
+            )
           )}
           {currentTab === 'distribution' && eventumSlug && (
-            <DistributionTab 
-              myRegistrations={myRegistrations}
-              currentParticipant={currentParticipant}
-            />
+            isAuthenticated ? (
+              <DistributionTab 
+                myRegistrations={myRegistrations}
+                currentParticipant={currentParticipant}
+              />
+            ) : (
+              <AuthRequiredPanel returnTo={{ pathname: location.pathname, search: location.search }} />
+            )
           )}
           {currentTab === 'schedule' && eventumSlug && eventum && (eventum.schedule_visible || (isUserOrganizer(eventum.id) && participantId)) && (
-            <ScheduleTab events={events} currentParticipant={currentParticipant} participantId={participantId} />
+            isAuthenticated ? (
+              <ScheduleTab events={events} currentParticipant={currentParticipant} participantId={participantId} />
+            ) : (
+              <AuthRequiredPanel returnTo={{ pathname: location.pathname, search: location.search }} />
+            )
           )}
         </div>
       </div>

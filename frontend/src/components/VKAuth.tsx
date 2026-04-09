@@ -5,8 +5,15 @@ import LoadingSpinner from './LoadingSpinner';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { getSubdomainSlug } from '../utils/eventumSlug';
 
-function postLoginNavigatePath(pathname: string, search: string): string {
+function postLoginNavigatePath(
+  pathname: string,
+  search: string,
+  from?: { pathname?: string; search?: string }
+): string {
   const subdomainSlug = getSubdomainSlug();
+  if (pathname === '/login' && from?.pathname && from.pathname !== '/login') {
+    return `${from.pathname}${from.search ?? ''}`;
+  }
   if (pathname === '/login') {
     return subdomainSlug ? '/' : '/dashboard';
   }
@@ -44,8 +51,9 @@ const VKAuth: React.FC = () => {
       console.log('VK Auth API response:', response);
       login(response, response.user);
 
-      const { pathname, search } = locationRef.current;
-      navigate(postLoginNavigatePath(pathname, search), { replace: true });
+      const { pathname, search, state } = locationRef.current;
+      const from = (state as { from?: { pathname?: string; search?: string } } | null)?.from;
+      navigate(postLoginNavigatePath(pathname, search, from), { replace: true });
 
     } catch (err: any) {
       console.error('VK Auth error:', err);
