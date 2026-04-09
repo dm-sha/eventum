@@ -27,6 +27,10 @@ class Eventum(models.Model):
         default=False,
         help_text="Показывать страницу события (вкладка «Общее») без входа в аккаунт",
     )
+    groups_tab_visible = models.BooleanField(
+        default=False,
+        help_text="Показывать ли вкладку «Группы участников» на странице события для участников",
+    )
 
     def save(self, *args, **kwargs):
         # Если slug не предоставлен, генерируем его из названия

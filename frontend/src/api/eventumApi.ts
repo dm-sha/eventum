@@ -14,7 +14,8 @@ import type {
   UserRole, 
   User,
   ResolveVkResponse,
-  EventRegistration
+  EventRegistration,
+  ParticipantGroupDirectoryEntry
 } from '../types';
 
 // Базовая функция для определения eventumSlug
@@ -101,6 +102,22 @@ export const eventumApi = {
       '/upload-image/',
       slug,
       form
+    );
+  },
+
+  /** Каталог групп для вкладки на странице события (участник / публичный просмотр) */
+  getParticipantGroupsDirectory: (slug: string) => {
+    const subdomainSlug = getSubdomainSlug();
+    if (subdomainSlug) {
+      return createApiRequest<ParticipantGroupDirectoryEntry[]>(
+        'GET',
+        '/participant-groups-directory/',
+        subdomainSlug
+      );
+    }
+    return createApiRequest<ParticipantGroupDirectoryEntry[]>(
+      'GET',
+      `/eventums/${slug}/participant-groups-directory/`
     );
   }
 };

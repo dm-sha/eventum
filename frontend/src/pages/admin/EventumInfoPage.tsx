@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useEventumSlug } from "../../hooks/useEventumSlug";
 import { useAdminData } from "../../contexts/AdminDataContext";
-import { updateEventumName, updateEventumDescription, updateEventumScheduleVisible, updateEventumPublicPage } from "../../api/eventum";
+import { updateEventumName, updateEventumDescription, updateEventumScheduleVisible, updateEventumPublicPage, updateEventumGroupsTabVisible } from "../../api/eventum";
 import { addEventumOrganizer, removeEventumOrganizer, searchUsers } from "../../api/organizers";
 import { useAuth } from "../../contexts/AuthContext";
 import type { User } from "../../types";
@@ -33,6 +33,7 @@ const EventumInfoPage = () => {
   const [isSavingDescription, setIsSavingDescription] = useState(false);
   const [isTogglingSchedule, setIsTogglingSchedule] = useState(false);
   const [isTogglingPublicPage, setIsTogglingPublicPage] = useState(false);
+  const [isTogglingGroupsTab, setIsTogglingGroupsTab] = useState(false);
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   
@@ -141,6 +142,21 @@ const EventumInfoPage = () => {
       alert('Не удалось изменить настройку публичной страницы');
     } finally {
       setIsTogglingPublicPage(false);
+    }
+  };
+
+  const handleToggleGroupsTabVisible = async () => {
+    if (!eventumSlug || !eventum) return;
+    const newValue = !(eventum.groups_tab_visible ?? false);
+    setIsTogglingGroupsTab(true);
+    try {
+      const updated = await updateEventumGroupsTabVisible(eventumSlug, newValue);
+      patchEventumDetails({ ...eventum, groups_tab_visible: updated.groups_tab_visible });
+    } catch (error) {
+      console.error('Ошибка изменения вкладки групп:', error);
+      alert('Не удалось изменить настройку вкладки групп');
+    } finally {
+      setIsTogglingGroupsTab(false);
     }
   };
 
@@ -420,6 +436,29 @@ const EventumInfoPage = () => {
             >
               <span
                 className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${eventum.schedule_visible ? 'translate-x-5' : 'translate-x-1'}`}
+              />
+            </button>
+          </div>
+        </div>
+
+        {/* Карточка: вкладка «Группы участников» */}
+        <div className="bg-white border border-gray-200 rounded-lg p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-md font-medium text-gray-900">Вкладка «Группы участников»</h3>
+              <p className="text-sm text-gray-500">
+                Показывать каталог групп (с составом) на странице события. В каталог попадают только группы с отметкой «видна участникам» в редакторе групп.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleToggleGroupsTabVisible}
+              disabled={isTogglingGroupsTab}
+              className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${(eventum.groups_tab_visible ?? false) ? 'bg-blue-600' : 'bg-gray-300'} disabled:opacity-50`}
+              title={(eventum.groups_tab_visible ?? false) ? 'Скрыть вкладку' : 'Показать вкладку'}
+            >
+              <span
+                className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${(eventum.groups_tab_visible ?? false) ? 'translate-x-5' : 'translate-x-1'}`}
               />
             </button>
           </div>

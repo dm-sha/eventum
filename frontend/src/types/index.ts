@@ -8,6 +8,8 @@ export interface Eventum {
     schedule_visible: boolean;
     /** Показывать вкладку «Общее» без входа в аккаунт */
     public_page: boolean;
+    /** Вкладка «Группы участников» на странице события */
+    groups_tab_visible: boolean;
     // password_hash мы не получаем на фронтенде, поэтому его здесь нет
 }
 
@@ -186,6 +188,14 @@ export interface CreateParticipantGroupData {
     target_group_id: number;
     relation_type: RelationType;
   }[];
+}
+
+/** Элемент каталога групп (страница участника / публичный просмотр) */
+export interface ParticipantGroupDirectoryEntry {
+  id: number;
+  name: string;
+  description: string;
+  participants: { id: number; name: string }[];
 }
 
 export interface UpdateParticipantGroupData {

@@ -1,4 +1,4 @@
-import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useSearchParams, Navigate } from "react-router-dom";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { getEventumBySlug } from "../api/eventum";
 import { listEventWaves } from "../api/eventWave";
@@ -18,6 +18,7 @@ import { buildEventumPageDataFromRaw } from "../utils/eventumPageFromRaw";
 import type { Eventum, Event, Participant, UserRole, EventRegistration } from "../types";
 import type { EventWave } from "../api/eventWave";
 import LoadingSpinner from "../components/LoadingSpinner";
+import ParticipantGroupsTab from "../components/ParticipantGroupsTab";
 import EventCalendar from "../components/EventCalendar";
 import { useEventumSlug } from "../hooks/useEventumSlug";
 import { getEventumScopedPath } from "../utils/eventumSlug";
@@ -390,6 +391,12 @@ const EventumPage = () => {
     );
   }
 
+  const showParticipantGroupsTab =
+    !!eventum?.groups_tab_visible &&
+    ((!isAuthenticated && !!eventum?.public_page) ||
+      (isAuthenticated &&
+        (currentParticipant !== null || (eventum ? isUserOrganizer(eventum.id) : false))));
+
   if (error || !eventum) {
     return (
       <main className="min-h-screen bg-gray-50 px-4 py-6 sm:px-6 lg:px-8 lg:py-10">
@@ -476,6 +483,18 @@ const EventumPage = () => {
                 Распределение
               </button>
             )}
+            {showParticipantGroupsTab && (
+              <button
+                onClick={() => handleTabChange('groups')}
+                className={`py-2 px-1 border-b-2 font-medium text-sm whitespace-nowrap flex-shrink-0 ${
+                  currentTab === 'groups'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Группы
+              </button>
+            )}
             {isAuthenticated &&
               eventum &&
               (eventum.schedule_visible || (isUserOrganizer(eventum.id) && participantId)) && (
@@ -522,6 +541,18 @@ const EventumPage = () => {
               />
             ) : (
               <AuthRequiredPanel returnTo={{ pathname: location.pathname, search: location.search }} />
+            )
+          )}
+          {currentTab === 'groups' && eventumSlug && (
+            showParticipantGroupsTab ? (
+              <ParticipantGroupsTab
+                eventumSlug={eventumSlug}
+                currentParticipantId={
+                  isAuthenticated && currentParticipant ? currentParticipant.id : null
+                }
+              />
+            ) : (
+              <Navigate to={getEventumScopedPath(eventumSlug, "/general")} replace />
             )
           )}
           {currentTab === 'schedule' && eventumSlug && eventum && (eventum.schedule_visible || (isUserOrganizer(eventum.id) && participantId)) && (

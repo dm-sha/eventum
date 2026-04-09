@@ -87,6 +87,8 @@ class EventumViewSet(EventumMixin, viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action == 'retrieve':
             return [AllowAny()]
+        if self.action == 'participant_groups_directory':
+            return [AllowAny()]
         return super().get_permissions()
     
     def get_object(self):
@@ -110,7 +112,74 @@ class EventumViewSet(EventumMixin, viewsets.ModelViewSet):
             )
 
         return super().retrieve(request, *args, **kwargs)
-    
+
+    @action(
+        detail=True,
+        methods=['get'],
+        url_path='participant-groups-directory',
+        permission_classes=[AllowAny],
+    )
+    def participant_groups_directory(self, request, slug=None):
+        """
+        Список групп для публичной/участнической вкладки: только visible_to_participants,
+        с составом участников (имена). Доступ: при groups_tab_visible — гости с public_page
+        или участник/организатор eventum.
+        """
+        eventum = self.get_object()
+        if not eventum.groups_tab_visible:
+            return Response(
+                {'error': 'Группы недоступны для этого события.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        from .auth_utils import get_user_role_in_eventum
+
+        user_role = (
+            get_user_role_in_eventum(request.user, eventum)
+            if request.user.is_authenticated
+            else None
+        )
+        if request.user.is_authenticated:
+            if user_role not in ('organizer', 'participant'):
+                return Response(
+                    {'error': 'Нет доступа к списку групп.'},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+        else:
+            if not eventum.public_page:
+                return Response(
+                    {'error': 'Требуется публичный доступ к событию.'},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+        groups_qs = ParticipantGroup.objects.filter(
+            eventum=eventum,
+            visible_to_participants=True,
+            is_event_group=False,
+        ).order_by('name')
+
+        graph = EventumGroupGraph(eventum)
+        participants_map = graph.participants_map
+
+        payload = []
+        for g in groups_qs:
+            pids = graph.get_participant_ids(g.id)
+            members = []
+            for pid in sorted(pids, key=lambda i: participants_map[i].name.lower() if i in participants_map else ''):
+                if pid in participants_map:
+                    p = participants_map[pid]
+                    members.append({'id': p.id, 'name': p.name})
+            payload.append(
+                {
+                    'id': g.id,
+                    'name': g.name,
+                    'description': g.description or '',
+                    'participants': members,
+                }
+            )
+
+        return Response(payload)
+
     @action(detail=True, methods=['post'], permission_classes=[IsEventumOrganizer])
     def toggle_registration(self, request, slug=None):
         """Переключить состояние регистрации"""

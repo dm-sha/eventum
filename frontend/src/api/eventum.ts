@@ -3,7 +3,7 @@
  * Этот файл оставлен для обратной совместимости
  */
 import { eventumApi } from './eventumApi';
-import type { Eventum, EventumDetails } from '../types';
+import type { Eventum, EventumDetails, ParticipantGroupDirectoryEntry } from '../types';
 
 // Функция для получения списка всех Eventum
 export const getAllEventums = async (): Promise<Eventum[]> => {
@@ -60,5 +60,15 @@ export const updateEventumScheduleVisible = async (slug: string, schedule_visibl
 
 export const updateEventumPublicPage = async (slug: string, public_page: boolean): Promise<Eventum> => {
     const response = await eventumApi.update(slug, { public_page });
+    return response.data;
+};
+
+export const updateEventumGroupsTabVisible = async (slug: string, groups_tab_visible: boolean): Promise<Eventum> => {
+    const response = await eventumApi.update(slug, { groups_tab_visible });
+    return response.data;
+};
+
+export const getParticipantGroupsDirectory = async (slug: string): Promise<ParticipantGroupDirectoryEntry[]> => {
+    const response = await eventumApi.getParticipantGroupsDirectory(slug);
     return response.data;
 };

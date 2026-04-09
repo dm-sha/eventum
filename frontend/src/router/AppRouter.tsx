@@ -78,6 +78,7 @@ export const AppRouter = () => {
             <Route path="general" element={<EventumPage />} />
             <Route path="registration" element={<EventumPage />} />
             <Route path="distribution" element={<EventumPage />} />
+            <Route path="groups" element={<EventumPage />} />
             <Route path="schedule" element={<EventumPage />} />
           </>
         ) : (
@@ -87,6 +88,7 @@ export const AppRouter = () => {
             <Route path="general" element={<EventumPage />} />
             <Route path="registration" element={<EventumPage />} />
             <Route path="distribution" element={<EventumPage />} />
+            <Route path="groups" element={<EventumPage />} />
             <Route path="schedule" element={<EventumPage />} />
           </Route>
         )}
