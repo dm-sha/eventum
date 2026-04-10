@@ -394,11 +394,15 @@ const EventumPage = () => {
   const showParticipantGroupsTab =
     !!eventum?.groups_tab_visible &&
     ((!isAuthenticated && !!eventum?.public_page) ||
-      (isAuthenticated &&
-        (currentParticipant !== null || (eventum ? isUserOrganizer(eventum.id) : false))));
+      (isAuthenticated && currentParticipant !== null));
 
   const showRegistrationTab =
     isAuthenticated && (!!eventum?.registration_open || !!participantId);
+
+  const showDistributionTab =
+    isAuthenticated &&
+    currentParticipant !== null &&
+    (!!eventum?.registration_open || !!participantId);
 
   if (error || !eventum) {
     return (
@@ -485,7 +489,7 @@ const EventumPage = () => {
                 Регистрация на мероприятия
               </button>
             )}
-            {isAuthenticated && currentParticipant && (
+            {showDistributionTab && (
               <button
                 onClick={() => handleTabChange('distribution')}
                 className={`py-2 px-1 border-b-2 font-medium text-sm whitespace-nowrap flex-shrink-0 ${
@@ -550,13 +554,15 @@ const EventumPage = () => {
             )
           )}
           {currentTab === 'distribution' && eventumSlug && (
-            isAuthenticated ? (
+            !isAuthenticated ? (
+              <AuthRequiredPanel returnTo={{ pathname: location.pathname, search: location.search }} />
+            ) : showDistributionTab ? (
               <DistributionTab 
                 myRegistrations={myRegistrations}
                 currentParticipant={currentParticipant}
               />
             ) : (
-              <AuthRequiredPanel returnTo={{ pathname: location.pathname, search: location.search }} />
+              <Navigate to={getEventumScopedPath(eventumSlug, "/general")} replace />
             )
           )}
           {currentTab === 'groups' && eventumSlug && (
