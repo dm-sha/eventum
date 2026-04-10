@@ -46,6 +46,38 @@ const AuthRequiredPanel: React.FC<{ returnTo: { pathname: string; search: string
   </div>
 );
 
+/** Компактный призыв войти для гостей на вкладках без полноэкранного AuthRequiredPanel */
+const GuestAuthBanner: React.FC<{ returnTo: { pathname: string; search: string } }> = ({ returnTo }) => (
+  <div
+    className="rounded-xl border border-blue-100 bg-blue-50/90 px-4 py-3 sm:px-5 sm:py-4 shadow-sm"
+    role="region"
+    aria-label="Вход в аккаунт"
+  >
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex gap-3 min-w-0">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white shadow-sm">
+          <svg className="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" aria-hidden>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+          </svg>
+        </div>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-gray-900">Войдите в аккаунт</p>
+          <p className="mt-0.5 text-sm text-gray-600">
+            Чтобы записываться на мероприятия, смотреть расписание и пользоваться всеми разделами события, войдите через ВКонтакте.
+          </p>
+        </div>
+      </div>
+      <Link
+        to="/login"
+        state={{ from: returnTo }}
+        className="inline-flex shrink-0 items-center justify-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 sm:py-2"
+      >
+        Войти через ВКонтакте
+      </Link>
+    </div>
+  </div>
+);
+
 // Компонент для раскрывающегося текста
 const ExpandableText: React.FC<{ text: string; maxLength?: number; className?: string }> = ({ 
   text, 
@@ -436,14 +468,25 @@ const EventumPage = () => {
               </div>
             )}
           </div>
-          {isUserOrganizer(eventum.id) && (
-            <Link
-              to={eventumSlug ? getEventumScopedPath(eventumSlug, "/admin") : "/"}
-              className="inline-flex items-center justify-center rounded-lg border border-blue-200 px-4 py-2 text-sm font-semibold text-blue-700 transition-colors hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-            >
-              Админка
-            </Link>
-          )}
+          <div className="flex flex-shrink-0 flex-wrap items-center justify-start gap-2 sm:justify-end">
+            {!isAuthenticated && (
+              <Link
+                to="/login"
+                state={{ from: { pathname: location.pathname, search: location.search } }}
+                className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              >
+                Войти
+              </Link>
+            )}
+            {isUserOrganizer(eventum.id) && (
+              <Link
+                to={eventumSlug ? getEventumScopedPath(eventumSlug, "/admin") : "/"}
+                className="inline-flex items-center justify-center rounded-lg border border-blue-200 px-4 py-2 text-sm font-semibold text-blue-700 transition-colors hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              >
+                Админка
+              </Link>
+            )}
+          </div>
         </div>
 
         {/* Вкладки */}
@@ -511,6 +554,10 @@ const EventumPage = () => {
             )}
           </nav>
         </div>
+
+        {!isAuthenticated && (currentTab === "general" || currentTab === "groups") && (
+          <GuestAuthBanner returnTo={{ pathname: location.pathname, search: location.search }} />
+        )}
 
         {/* Контент вкладок */}
         <div>
