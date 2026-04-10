@@ -1,4 +1,4 @@
-import { Route, Routes, Navigate } from "react-router-dom";
+import { Route, Routes, Navigate, useLocation } from "react-router-dom";
 import Layout from "../components/Layout";
 import EventumPage from "../pages/EventumPage";
 import NotFoundPage from "../pages/NotFoundPage";
@@ -15,6 +15,25 @@ import DashboardPage from "../pages/DashboardPage";
 import HomePage from "../pages/HomePage";
 import { useAuth } from "../contexts/AuthContext";
 import { getSubdomainSlug } from "../utils/eventumSlug";
+import { postLoginNavigatePath } from "../utils/postLoginNavigatePath";
+
+/** /login: не подменять на Navigate в dashboard до завершения VKAuth — учитывать state.from */
+const LoginRoute: React.FC = () => {
+  const { isAuthenticated, isLoading } = useAuth();
+  const location = useLocation();
+
+  if (isLoading) {
+    return <div>Загрузка...</div>;
+  }
+
+  if (isAuthenticated) {
+    const from = (location.state as { from?: { pathname?: string; search?: string } } | null)?.from;
+    const to = postLoginNavigatePath(location.pathname, location.search, from);
+    return <Navigate to={to} replace />;
+  }
+
+  return <VKAuth />;
+};
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, isLoading } = useAuth();
@@ -57,7 +76,7 @@ export const AppRouter = () => {
   return (
     <Routes>
       {/* Auth routes */}
-      <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <VKAuth />} />
+      <Route path="/login" element={<LoginRoute />} />
 
       {/* Dashboard route */}
       <Route 

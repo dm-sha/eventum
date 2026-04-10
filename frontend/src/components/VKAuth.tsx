@@ -3,26 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { authApi } from '../api/auth';
 import LoadingSpinner from './LoadingSpinner';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { getSubdomainSlug } from '../utils/eventumSlug';
-
-function postLoginNavigatePath(
-  pathname: string,
-  search: string,
-  from?: { pathname?: string; search?: string }
-): string {
-  const subdomainSlug = getSubdomainSlug();
-  if (pathname === '/login' && from?.pathname && from.pathname !== '/login') {
-    return `${from.pathname}${from.search ?? ''}`;
-  }
-  if (pathname === '/login') {
-    return subdomainSlug ? '/' : '/dashboard';
-  }
-  const path = `${pathname}${search}`;
-  if (path === '/' || path === '') {
-    return subdomainSlug ? '/' : '/dashboard';
-  }
-  return path;
-}
+import { postLoginNavigatePath } from '../utils/postLoginNavigatePath';
 
 declare global {
   interface Window {
