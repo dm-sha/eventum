@@ -46,38 +46,6 @@ const AuthRequiredPanel: React.FC<{ returnTo: { pathname: string; search: string
   </div>
 );
 
-/** Компактный призыв войти для гостей на вкладках без полноэкранного AuthRequiredPanel */
-const GuestAuthBanner: React.FC<{ returnTo: { pathname: string; search: string } }> = ({ returnTo }) => (
-  <div
-    className="rounded-xl border border-blue-100 bg-blue-50/90 px-4 py-3 sm:px-5 sm:py-4 shadow-sm"
-    role="region"
-    aria-label="Вход в аккаунт"
-  >
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex gap-3 min-w-0">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white shadow-sm">
-          <svg className="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" aria-hidden>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
-          </svg>
-        </div>
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-gray-900">Войдите в аккаунт</p>
-          <p className="mt-0.5 text-sm text-gray-600">
-            Чтобы записываться на мероприятия, смотреть расписание и пользоваться всеми разделами события, войдите через ВКонтакте.
-          </p>
-        </div>
-      </div>
-      <Link
-        to="/login"
-        state={{ from: returnTo }}
-        className="inline-flex shrink-0 items-center justify-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 sm:py-2"
-      >
-        Войти через ВКонтакте
-      </Link>
-    </div>
-  </div>
-);
-
 // Компонент для раскрывающегося текста
 const ExpandableText: React.FC<{ text: string; maxLength?: number; className?: string }> = ({ 
   text, 
@@ -555,10 +523,6 @@ const EventumPage = () => {
           </nav>
         </div>
 
-        {!isAuthenticated && (currentTab === "general" || currentTab === "groups") && (
-          <GuestAuthBanner returnTo={{ pathname: location.pathname, search: location.search }} />
-        )}
-
         {/* Контент вкладок */}
         <div>
           {currentTab === 'general' && (
@@ -894,6 +858,7 @@ const DistributionTab: React.FC<{ myRegistrations: EventRegistration[]; currentP
 
 // Компонент для вкладки "Подача заявок на мероприятия"
 const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; currentParticipant: Participant | null; eventumSlug: string; eventum: Eventum; myRegistrations: EventRegistration[]; participantId: string | null; onEventRegistrationChange?: (eventId: number, isRegistered: boolean) => void }> = ({ eventWaves, events, currentParticipant, eventumSlug, eventum, myRegistrations, participantId, onEventRegistrationChange }) => {
+  const location = useLocation();
   const [expandedWaves, setExpandedWaves] = useState<Set<number>>(new Set());
   // Локальное отслеживание регистраций для быстрого обновления UI
   const [eventRegistrations, setEventRegistrations] = useState<Map<number, boolean>>(() => {
@@ -1044,30 +1009,16 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
     );
   }
 
-  // Если пользователь не является участником
   if (!currentParticipant) {
     return (
-      <div className="text-center py-8">
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-amber-100">
-          <svg
-            className="h-8 w-8 text-amber-600"
-            fill="none"
-            viewBox="0 0 24 24"
-            strokeWidth="1.5"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"
-            />
-          </svg>
-        </div>
-        <h3 className="mt-4 text-lg font-semibold text-gray-900">Вы не являетесь участником</h3>
-        <p className="mt-2 text-gray-600">
-          Чтобы записываться на мероприятия, вам нужно стать участником этого события. 
-          Обратитесь к организаторам для получения доступа.
-        </p>
+      <div className="flex justify-center py-8">
+        <Link
+          to="/login"
+          state={{ from: { pathname: location.pathname, search: location.search } }}
+          className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+        >
+          Войти
+        </Link>
       </div>
     );
   }
