@@ -397,6 +397,9 @@ const EventumPage = () => {
       (isAuthenticated &&
         (currentParticipant !== null || (eventum ? isUserOrganizer(eventum.id) : false))));
 
+  const showRegistrationTab =
+    isAuthenticated && (!!eventum?.registration_open || !!participantId);
+
   if (error || !eventum) {
     return (
       <main className="min-h-screen bg-gray-50 px-4 py-6 sm:px-6 lg:px-8 lg:py-10">
@@ -470,7 +473,7 @@ const EventumPage = () => {
             >
               Общее
             </button>
-            {isAuthenticated && (
+            {showRegistrationTab && (
               <button
                 onClick={() => handleTabChange('registration')}
                 className={`py-2 px-1 border-b-2 font-medium text-sm whitespace-nowrap flex-shrink-0 ${
@@ -529,7 +532,9 @@ const EventumPage = () => {
             <GeneralTab eventum={eventum} />
           )}
           {currentTab === 'registration' && eventumSlug && (
-            isAuthenticated ? (
+            !isAuthenticated ? (
+              <AuthRequiredPanel returnTo={{ pathname: location.pathname, search: location.search }} />
+            ) : showRegistrationTab ? (
               <RegistrationTab 
                 eventWaves={eventWaves} 
                 events={events} 
@@ -541,7 +546,7 @@ const EventumPage = () => {
                 onEventRegistrationChange={handleEventRegistrationChangeGlobal}
               />
             ) : (
-              <AuthRequiredPanel returnTo={{ pathname: location.pathname, search: location.search }} />
+              <Navigate to={getEventumScopedPath(eventumSlug, "/general")} replace />
             )
           )}
           {currentTab === 'distribution' && eventumSlug && (
