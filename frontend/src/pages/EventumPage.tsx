@@ -393,8 +393,7 @@ const EventumPage = () => {
 
   const showParticipantGroupsTab =
     !!eventum?.groups_tab_visible &&
-    ((!isAuthenticated && !!eventum?.public_page) ||
-      (isAuthenticated && currentParticipant !== null));
+    ((!isAuthenticated && !!eventum?.public_page) || isAuthenticated);
 
   const showRegistrationTab =
     isAuthenticated && (!!eventum?.registration_open || !!participantId);
