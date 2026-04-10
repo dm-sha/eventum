@@ -122,8 +122,8 @@ class EventumViewSet(EventumMixin, viewsets.ModelViewSet):
     def participant_groups_directory(self, request, slug=None):
         """
         Список групп для публичной/участнической вкладки: только visible_to_participants,
-        с составом участников (имена). Доступ: при groups_tab_visible — гости с public_page
-        или участник/организатор eventum.
+        с составом участников (имена). Доступ: при groups_tab_visible — участник/организатор
+        или любой пользователь (в т.ч. авторизованный без роли), если включён public_page.
         """
         eventum = self.get_object()
         if not eventum.groups_tab_visible:
@@ -140,7 +140,7 @@ class EventumViewSet(EventumMixin, viewsets.ModelViewSet):
             else None
         )
         if request.user.is_authenticated:
-            if user_role not in ('organizer', 'participant'):
+            if user_role not in ('organizer', 'participant') and not eventum.public_page:
                 return Response(
                     {'error': 'Нет доступа к списку групп.'},
                     status=status.HTTP_403_FORBIDDEN,
