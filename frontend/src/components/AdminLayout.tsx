@@ -89,6 +89,30 @@ const AdminLayout = () => {
     };
   }, [isAuthenticated, authLoading, eventumSlug]);
 
+  const [collapsed, setCollapsed] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem("adminSidebarCollapsed");
+      if (saved !== null) return JSON.parse(saved);
+    } catch {
+      // ignore
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("adminSidebarCollapsed", JSON.stringify(collapsed));
+    } catch {
+      // ignore
+    }
+  }, [collapsed]);
+
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [location.pathname]);
+
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 text-gray-600">
@@ -158,39 +182,8 @@ const AdminLayout = () => {
     { to: "registration", label: "Регистрация на мероприятия", icon: IconClipboardDocumentList },
     { to: "event-tags", label: "Теги мероприятий", icon: IconEventTag },
     { to: "participants", label: "Участники", icon: IconUsersCircle },
-    // { to: "groups", label: "Группы участников", icon: IconParticipantGroup },
     { to: "groups", label: "Группы участников", icon: IconParticipantGroup },
-    // { to: "group-tags", label: "Теги групп", icon: IconGroupTag },
   ];
-
-  // Sidebar collapsed state with persistence
-  const [collapsed, setCollapsed] = useState<boolean>(() => {
-    try {
-      const saved = localStorage.getItem("adminSidebarCollapsed");
-      if (saved !== null) return JSON.parse(saved);
-    } catch {
-      // ignore
-    }
-    return false; // По умолчанию развернута
-  });
-
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(
-        "adminSidebarCollapsed",
-        JSON.stringify(collapsed)
-      );
-    } catch {
-      // ignore
-    }
-  }, [collapsed]);
-
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
-  useEffect(() => {
-    setIsMobileMenuOpen(false);
-  }, [location.pathname]);
 
   const AsideToggleIcon = collapsed ? IconChevronRight : IconChevronLeft;
 
