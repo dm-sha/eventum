@@ -954,7 +954,7 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
     .filter(wave => isWaveAccessible(wave).accessible)
     .filter(wave => !shouldHideWave(wave))
     .filter(wave => getEventsForWave(wave).length > 0)
-    .sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+    .sort((a, b) => a.id - b.id);
 
   if (accessibleWaves.length === 0) {
     return (
