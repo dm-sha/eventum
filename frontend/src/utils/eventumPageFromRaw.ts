@@ -39,7 +39,7 @@ function computeIsParticipant(
     if (!g) return false;
     return resolveParticipantGroupIds(g, resolveOpts).has(viewingParticipantId);
   }
-  return true;
+  return false;
 }
 
 function computeIsRegistered(
@@ -65,8 +65,8 @@ function computeIsRegistered(
 }
 
 /**
- * Сборка событий и волн для публичной страницы eventum из raw (доступно организаторам).
- * Дублирует ключевую логику сериализаторов Event / EventWave для просмотра от лица участника.
+ * Сборка событий и волн для публичной страницы eventum из raw API.
+ * Логика доступности и счётчиков совпадает с сериализаторами Event / EventWave (просмотр от лица участника).
  */
 export function buildEventumPageDataFromRaw(
   eventumId: number,

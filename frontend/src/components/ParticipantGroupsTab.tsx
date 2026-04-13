@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { getParticipantGroupsDirectory } from "../api/eventum";
+import { fetchRawGroupStructure, fetchRawParticipants } from "../api/rawEventumAdmin";
+import { buildParticipantGroupsDirectoryFromRaw } from "../utils/participantGroupsDirectoryFromRaw";
+import { useAuth } from "../contexts/AuthContext";
 import type { ParticipantGroupDirectoryEntry } from "../types";
 import LoadingSpinner from "./LoadingSpinner";
 import LinkifiedText from "./LinkifiedText";
@@ -35,6 +38,7 @@ type Props = {
 };
 
 const ParticipantGroupsTab: React.FC<Props> = ({ eventumSlug, currentParticipantId }) => {
+  const { isAuthenticated } = useAuth();
   const [groups, setGroups] = useState<ParticipantGroupDirectoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -46,8 +50,18 @@ const ParticipantGroupsTab: React.FC<Props> = ({ eventumSlug, currentParticipant
       setLoading(true);
       setError(null);
       try {
-        const data = await getParticipantGroupsDirectory(eventumSlug);
-        if (!cancelled) setGroups(data);
+        if (isAuthenticated) {
+          const [structure, rawParticipants] = await Promise.all([
+            fetchRawGroupStructure(eventumSlug),
+            fetchRawParticipants(eventumSlug),
+          ]);
+          if (!cancelled) {
+            setGroups(buildParticipantGroupsDirectoryFromRaw(structure, rawParticipants));
+          }
+        } else {
+          const data = await getParticipantGroupsDirectory(eventumSlug);
+          if (!cancelled) setGroups(data);
+        }
       } catch {
         if (!cancelled) setError("Не удалось загрузить группы.");
       } finally {
@@ -57,7 +71,7 @@ const ParticipantGroupsTab: React.FC<Props> = ({ eventumSlug, currentParticipant
     return () => {
       cancelled = true;
     };
-  }, [eventumSlug]);
+  }, [eventumSlug, isAuthenticated]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();

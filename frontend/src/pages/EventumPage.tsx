@@ -1,9 +1,7 @@
 import { Link, useLocation, useNavigate, useSearchParams, Navigate } from "react-router-dom";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { getEventumBySlug } from "../api/eventum";
-import { listEventWaves } from "../api/eventWave";
-import { getEventsForEventum, registerForEvent, unregisterFromEvent } from "../api/event";
-import { getCurrentParticipant, getMyRegistrations, getParticipantById, getParticipantRegistrations } from "../api/participant";
+import { registerForEvent, unregisterFromEvent } from "../api/event";
 import { authApi } from "../api/eventumApi";
 import {
   fetchRawEvents,
@@ -15,7 +13,8 @@ import {
   fetchRawParticipants,
 } from "../api/rawEventumAdmin";
 import { buildEventumPageDataFromRaw } from "../utils/eventumPageFromRaw";
-import type { Eventum, Event, Participant, UserRole, EventRegistration } from "../types";
+import { participantsFromRawRows } from "../utils/participantDataFromRaw";
+import type { Eventum, Event, Participant, UserRole } from "../types";
 import type { EventWave } from "../api/eventWave";
 import LoadingSpinner from "../components/LoadingSpinner";
 import ParticipantGroupsTab from "../components/ParticipantGroupsTab";
@@ -81,13 +80,12 @@ const EventumPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, user } = useAuth();
   const [eventum, setEventum] = useState<Eventum | null>(null);
   const [eventWaves, setEventWaves] = useState<EventWave[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
   const [currentParticipant, setCurrentParticipant] = useState<Participant | null>(null);
   const [userRoles, setUserRoles] = useState<UserRole[]>([]);
-  const [myRegistrations, setMyRegistrations] = useState<EventRegistration[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -122,7 +120,6 @@ const EventumPage = () => {
           setEventWaves([]);
           setEvents([]);
           setCurrentParticipant(null);
-          setMyRegistrations([]);
         } catch (err) {
           console.error("Ошибка загрузки события (гость):", err);
           const httpErr = err as { response?: { status?: number } };
@@ -181,151 +178,75 @@ const EventumPage = () => {
         let wavesData: EventWave[] = [];
         let eventsData: Event[] = [];
         let participantData: Participant | null = null;
-        let registrationsData: EventRegistration[] = [];
 
-        const loadParticipantAndRegs = async (): Promise<{
-          participantData: Participant | null;
-          registrationsData: EventRegistration[];
-        }> => {
-          let p: Participant | null = null;
-          let regs: EventRegistration[] = [];
-          try {
-            if (participantId) {
-              p = await getParticipantById(eventumSlug, parseInt(participantId, 10));
-              if (p) {
-                try {
-                  regs = await getParticipantRegistrations(eventumSlug, parseInt(participantId, 10));
-                } catch (registrationsErr: unknown) {
-                  console.error("Ошибка загрузки заявок участника:", registrationsErr);
-                }
-              }
-            } else {
-              p = await getCurrentParticipant(eventumSlug);
-              if (p) {
-                try {
-                  regs = await getMyRegistrations(eventumSlug);
-                } catch (registrationsErr: unknown) {
-                  console.error("Ошибка загрузки заявок участника:", registrationsErr);
-                }
-              }
-            }
-          } catch (participantErr: unknown) {
-            const pErr = participantErr as { response?: { status?: number } };
-            if (pErr?.response?.status !== 404) {
-              console.error("Ошибка загрузки данных участника:", participantErr);
-            }
-          }
-          return { participantData: p, registrationsData: regs };
-        };
+        const parsedParticipantParam = participantId ? parseInt(participantId, 10) : NaN;
 
-        const applyWavesEventsFailure = (
-          wavesResult: PromiseSettledResult<EventWave[]>,
-          eventsResult: PromiseSettledResult<Event[]>
-        ): boolean => {
-          if (wavesResult.status === "fulfilled") {
-            wavesData = wavesResult.value;
-          } else {
-            const wErr = wavesResult.reason as { response?: { status?: number } };
-            if (wErr?.response?.status === 403 && !isOrganizer) {
-              setError(
-                "У вас нет доступа к этому событию. Вы должны быть участником или организатором, чтобы просматривать информацию о событии."
-              );
-              return false;
-            }
-            console.error("Ошибка загрузки волн мероприятий:", wavesResult.reason);
-          }
-          if (eventsResult.status === "fulfilled") {
-            eventsData = eventsResult.value;
-          } else {
-            const eErr = eventsResult.reason as { response?: { status?: number } };
-            if (eErr?.response?.status === 403 && !isOrganizer) {
-              setError(
-                "У вас нет доступа к этому событию. Вы должны быть участником или организатором, чтобы просматривать информацию о событии."
-              );
-              return false;
-            }
-            console.error("Ошибка загрузки мероприятий:", eventsResult.reason);
-          }
-          return true;
-        };
-
-        const participantBundle = await loadParticipantAndRegs();
-        participantData = participantBundle.participantData;
-        registrationsData = participantBundle.registrationsData;
-
-        const loadParticipantContent = isOrganizer || participantData !== null;
-
-        if (!loadParticipantContent) {
-          setEventWaves([]);
-          setEvents([]);
-          setCurrentParticipant(null);
-          setMyRegistrations([]);
-          return;
-        }
-
-        if (isOrganizer) {
-          try {
-            const [rawEv, rawTags, rawLoc, rawRegs, rawWaves, structure, rawParticipants] = await Promise.all([
-              fetchRawEvents(eventumSlug),
-              fetchRawEventTags(eventumSlug),
-              fetchRawLocations(eventumSlug),
-              fetchRawEventRegistrations(eventumSlug),
-              fetchRawEventWaves(eventumSlug),
-              fetchRawGroupStructure(eventumSlug),
-              fetchRawParticipants(eventumSlug),
-            ]);
-            const viewingPid = participantId
-              ? parseInt(participantId, 10)
-              : participantBundle.participantData?.id ?? null;
-            const built = buildEventumPageDataFromRaw(
-              eventumData.id,
-              rawEv,
-              rawTags,
-              rawLoc,
-              rawRegs,
-              rawWaves,
-              structure,
-              rawParticipants,
-              Number.isFinite(viewingPid) ? viewingPid : null
-            );
-            wavesData = built.eventWaves;
-            eventsData = built.events;
-          } catch (rawErr) {
-            console.warn("EventumPage: raw не удалось, fallback на ViewSet", rawErr);
-            const [wavesResult, eventsResult] = await Promise.allSettled([
-              listEventWaves(
-                eventumSlug,
-                participantId ? { participant: parseInt(participantId, 10) } : undefined
-              ),
-              getEventsForEventum(
-                eventumSlug,
-                participantId ? { participant: parseInt(participantId, 10) } : undefined
-              ),
-            ]);
-            if (!applyWavesEventsFailure(wavesResult, eventsResult)) {
-              return;
-            }
-          }
-        } else {
-          const [wavesResult, eventsResult] = await Promise.allSettled([
-            listEventWaves(
-              eventumSlug,
-              participantId ? { participant: parseInt(participantId, 10) } : undefined
-            ),
-            getEventsForEventum(
-              eventumSlug,
-              participantId ? { participant: parseInt(participantId, 10) } : undefined
-            ),
+        try {
+          const [rawEv, rawTags, rawLoc, rawRegs, rawWaves, structure, rawParticipants] = await Promise.all([
+            fetchRawEvents(eventumSlug),
+            fetchRawEventTags(eventumSlug),
+            fetchRawLocations(eventumSlug),
+            fetchRawEventRegistrations(eventumSlug),
+            fetchRawEventWaves(eventumSlug),
+            fetchRawGroupStructure(eventumSlug),
+            fetchRawParticipants(eventumSlug),
           ]);
-          if (!applyWavesEventsFailure(wavesResult, eventsResult)) {
+
+          const organizerViewingParticipant =
+            Number.isFinite(parsedParticipantParam) &&
+            isOrganizer &&
+            rawParticipants.some((r) => r.id === parsedParticipantParam);
+
+          if (organizerViewingParticipant) {
+            const row = rawParticipants.find((r) => r.id === parsedParticipantParam)!;
+            participantData = participantsFromRawRows([row])[0];
+          } else if (user) {
+            const row = rawParticipants.find((r) => r.user_id === user.id);
+            if (row) participantData = participantsFromRawRows([row])[0];
+          }
+
+          const loadParticipantContent = isOrganizer || participantData !== null;
+
+          if (!loadParticipantContent) {
+            setEventWaves([]);
+            setEvents([]);
+            setCurrentParticipant(null);
             return;
           }
+
+          const viewingPid = organizerViewingParticipant
+            ? parsedParticipantParam
+            : participantData?.id ?? null;
+
+          const built = buildEventumPageDataFromRaw(
+            eventumData.id,
+            rawEv,
+            rawTags,
+            rawLoc,
+            rawRegs,
+            rawWaves,
+            structure,
+            rawParticipants,
+            Number.isFinite(viewingPid) ? viewingPid : null
+          );
+          wavesData = built.eventWaves;
+          eventsData = built.events;
+        } catch (rawErr: unknown) {
+          console.error("EventumPage: ошибка загрузки raw данных:", rawErr);
+          const httpErr = rawErr as { response?: { status?: number } };
+          if (httpErr?.response?.status === 403) {
+            setError(
+              "У вас нет доступа к этому событию. Вы должны быть участником или организатором, чтобы просматривать информацию о событии."
+            );
+            return;
+          }
+          setError("Не удалось загрузить данные мероприятий и волн");
+          return;
         }
 
         setEventWaves(wavesData);
         setEvents(eventsData);
         setCurrentParticipant(participantData);
-        setMyRegistrations(registrationsData);
       } catch (err) {
         console.error("Ошибка загрузки данных:", err);
         const error = err as { response?: { status?: number } };
@@ -342,7 +263,7 @@ const EventumPage = () => {
     };
 
     fetchData();
-  }, [eventumSlug, participantId, isAuthenticated, authLoading]);
+  }, [eventumSlug, participantId, isAuthenticated, authLoading, user?.id]);
 
   const handleTabChange = (tab: string) => {
     if (!eventumSlug) return;
@@ -545,7 +466,6 @@ const EventumPage = () => {
                 currentParticipant={currentParticipant} 
                 eventumSlug={eventumSlug} 
                 eventum={eventum} 
-                myRegistrations={myRegistrations} 
                 participantId={participantId}
                 onEventRegistrationChange={handleEventRegistrationChangeGlobal}
               />
@@ -558,7 +478,7 @@ const EventumPage = () => {
               <AuthRequiredPanel returnTo={{ pathname: location.pathname, search: location.search }} />
             ) : showDistributionTab ? (
               <DistributionTab 
-                myRegistrations={myRegistrations}
+                events={events}
                 currentParticipant={currentParticipant}
               />
             ) : (
@@ -619,7 +539,7 @@ const GeneralTab: React.FC<{ eventum: Eventum }> = ({ eventum }) => {
 };
 
 // Компонент для вкладки "Распределение на мероприятия"
-const DistributionTab: React.FC<{ myRegistrations: EventRegistration[]; currentParticipant: Participant | null }> = ({ myRegistrations, currentParticipant }) => {
+const DistributionTab: React.FC<{ events: Event[]; currentParticipant: Participant | null }> = ({ events, currentParticipant }) => {
   // Если пользователь не является участником
   if (!currentParticipant) {
     return (
@@ -648,21 +568,17 @@ const DistributionTab: React.FC<{ myRegistrations: EventRegistration[]; currentP
     );
   }
 
+  const registrationRelatedEvents = events.filter((e) => e.is_registered || e.is_participant);
+
   return (
     <div className="space-y-6">
-      {myRegistrations.length > 0 ? (
+      {registrationRelatedEvents.length > 0 ? (
         <div className="space-y-6">
           {/* Мероприятия, в которых участник участвует */}
           {(() => {
-            // myRegistrations - это массив Event объектов (не EventRegistration), у которых есть поле is_participant
-            // которое правильно вычисляется на бэкенде с учетом групп и других способов участия
-            // Участвует только если is_participant строго равно true (участник в event_group или назначен вручную)
-            const participatingEvents = myRegistrations
-              .filter((event: any) => 
-                event && 
-                event.is_participant === true
-              )
-              .sort((a: any, b: any) => {
+            const participatingEvents = registrationRelatedEvents
+              .filter((event) => event && event.is_participant === true)
+              .sort((a, b) => {
                 if (!a?.start_time || !b?.start_time) return 0;
                 return new Date(a.start_time).getTime() - new Date(b.start_time).getTime();
               });
@@ -672,7 +588,7 @@ const DistributionTab: React.FC<{ myRegistrations: EventRegistration[]; currentP
                 <h4 className="text-lg font-semibold text-gray-900 mb-4">Мероприятия, в которых вы участвуете</h4>
                 {participatingEvents.length > 0 ? (
                   <div className="space-y-3">
-                    {participatingEvents.map((event: any) => (
+                    {participatingEvents.map((event) => (
                       <div key={event.id} className="bg-green-50 rounded-lg border border-green-200 p-4 overflow-hidden">
                         <div className="flex items-start gap-2">
                           <div className="flex-1 min-w-0 overflow-hidden">
@@ -752,14 +668,9 @@ const DistributionTab: React.FC<{ myRegistrations: EventRegistration[]; currentP
 
           {/* Мероприятия, на которые подавал заявку, но не участвует */}
           {(() => {
-            // Мероприятия, на которые подали заявку (есть в myRegistrations), но не участвуете
-            // (is_participant !== true, т.е. заявка есть, но участник не участвует)
-            const appliedEvents = myRegistrations
-              .filter((event: any) => 
-                event && 
-                event.is_participant !== true
-              )
-              .sort((a: any, b: any) => {
+            const appliedEvents = registrationRelatedEvents
+              .filter((event) => event && event.is_participant !== true)
+              .sort((a, b) => {
                 if (!a?.start_time || !b?.start_time) return 0;
                 return new Date(a.start_time).getTime() - new Date(b.start_time).getTime();
               });
@@ -768,7 +679,7 @@ const DistributionTab: React.FC<{ myRegistrations: EventRegistration[]; currentP
               <div>
                 <h4 className="text-lg font-semibold text-gray-900 mb-4">Мероприятия, на которые была подана заявка</h4>
                 <div className="space-y-3">
-                  {appliedEvents.map((event: any) => (
+                  {appliedEvents.map((event) => (
                     <div key={event.id} className="bg-white rounded-lg border border-gray-200 p-4 overflow-hidden">
                       <div className="flex items-start gap-2">
                         <div className="flex-1 min-w-0 overflow-hidden">
@@ -868,7 +779,7 @@ const DistributionTab: React.FC<{ myRegistrations: EventRegistration[]; currentP
 };
 
 // Компонент для вкладки "Подача заявок на мероприятия"
-const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; currentParticipant: Participant | null; eventumSlug: string; eventum: Eventum; myRegistrations: EventRegistration[]; participantId: string | null; onEventRegistrationChange?: (eventId: number, isRegistered: boolean) => void }> = ({ eventWaves, events, currentParticipant, eventumSlug, eventum, myRegistrations, participantId, onEventRegistrationChange }) => {
+const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; currentParticipant: Participant | null; eventumSlug: string; eventum: Eventum; participantId: string | null; onEventRegistrationChange?: (eventId: number, isRegistered: boolean) => void }> = ({ eventWaves, events, currentParticipant, eventumSlug, eventum, participantId, onEventRegistrationChange }) => {
   const location = useLocation();
   const [expandedWaves, setExpandedWaves] = useState<Set<number>>(new Set());
   // Локальное отслеживание регистраций для быстрого обновления UI
@@ -900,7 +811,7 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
       newMap.set(event.id, event.is_registered);
     });
     setEventRegistrations(newMap);
-  }, [events, myRegistrations, participantId]);
+  }, [events, participantId]);
 
   const getEventsForWave = useCallback((wave: EventWave) => {
     // Получаем актуальные события из массива events по ID из волны
@@ -920,11 +831,14 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
         if (event.is_participant === true) {
           return true;
         }
-        // Скрываем мероприятия без свободных мест
-        // Если registration_max_participants задан и participants_count >= registration_max_participants, то скрываем
-        if (event.registration_max_participants != null && 
-            event.participants_count != null &&
-            event.participants_count >= event.registration_max_participants) {
+        // Скрываем, когда слоты по группе мероприятия заняты (участники уже в event_group).
+        // Число заявок при application может быть больше max — распределение позже; смотрим только состав группы.
+        const max = event.registration_max_participants;
+        if (
+          max != null &&
+          max > 0 &&
+          (event.participants_count ?? 0) >= max
+        ) {
           return false;
         }
         return true;
@@ -1125,13 +1039,7 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
                   ) : (
                     waveEvents.map((event) => {
                       const reg = (wave.registrations || []).find((r: any) => r && r.event && typeof r.event.id === 'number' && r.event.id === event.id);
-                      // Для просмотра от лица другого участника: myRegistrations содержит Event[], поэтому проверяем по event.id напрямую
-                      const initialIsRegistered = participantId 
-                        ? myRegistrations.some((r: any) => {
-                            const eventId = r.event?.id ?? r.id;
-                            return eventId && typeof eventId === 'number' && eventId === event.id && (r.is_registered !== undefined ? r.is_registered : true);
-                          })
-                        : undefined;
+                      const initialIsRegistered = participantId ? event.is_registered : undefined;
                       const hasButtonEventRegistered = isButtonEventRegisteredInWave(wave);
                       const isThisEventButtonRegistered = event.registration_type === 'button' && eventRegistrations.get(event.id) === true;
                       // Кнопка неактивна только для мероприятий с типом 'button', если записан на другое button-мероприятие в этой волне
@@ -1303,7 +1211,9 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string; isViewingAsOtherP
           return `Заявок/мест: ${localRegistrationsCount}/${max}`;
         }
       }
-      return `Заявок: ${localRegistrationsCount}`;
+      return event.registration_type === "button"
+        ? `Участников: ${localRegistrationsCount}`
+        : `Заявок: ${localRegistrationsCount}`;
     } else if (event.event_group) {
       // Если есть event_group, это регистрация
       return 'По записи';
