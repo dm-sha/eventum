@@ -1,6 +1,6 @@
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.core.exceptions import ValidationError
-from django.db import models
+from django.db import models, transaction
 from django.db.models.signals import post_save, m2m_changed, post_delete
 from django.dispatch import receiver
 from django.utils import timezone
@@ -856,6 +856,21 @@ class EventRegistration(models.Model):
                 )
     
     def save(self, *args, **kwargs):
+        # Для записи по кнопке участники попадают в event_group; если группы ещё нет — создаём пустую
+        if self.event_id and self.registration_type == self.RegistrationType.BUTTON:
+            event = self.event
+            if not event.event_group_id:
+                max_len = ParticipantGroup._meta.get_field('name').max_length
+                base_name = f"Участники: {event.name}"
+                with transaction.atomic():
+                    group = ParticipantGroup.objects.create(
+                        eventum=event.eventum,
+                        name=base_name[:max_len],
+                        is_event_group=True,
+                    )
+                    event.event_group = group
+                    event.save(update_fields=['event_group'])
+
         self.full_clean()
         super().save(*args, **kwargs)
     
