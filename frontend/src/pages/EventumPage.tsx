@@ -398,10 +398,11 @@ const EventumPage = () => {
   const showRegistrationTab =
     isAuthenticated && (!!eventum?.registration_open || !!participantId);
 
-  const showDistributionTab =
-    isAuthenticated &&
-    currentParticipant !== null &&
-    (!!eventum?.registration_open || !!participantId);
+  // todo: enable after refactoring
+  const showDistributionTab = false;
+    // isAuthenticated &&
+    // currentParticipant !== null &&
+    // (!!eventum?.registration_open || !!participantId);
 
   if (error || !eventum) {
     return (
