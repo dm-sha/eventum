@@ -1,9 +1,14 @@
-import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { AdminDataProvider } from "../contexts/AdminDataContext";
 import { useAuth } from "../contexts/AuthContext";
 import Header from "./Header";
 import VKAuth from "./VKAuth";
+import { authApi } from "../api/eventumApi";
+import { getEventumBySlug } from "../api/eventum";
+import { useEventumSlug } from "../hooks/useEventumSlug";
+import { getEventumScopedPath } from "../utils/eventumSlug";
+import type { UserRole } from "../types";
 import {
   IconCalendar,
   IconChevronLeft,
@@ -16,9 +21,73 @@ import {
   IconClipboardDocumentList,
 } from "./icons";
 
+const isOrganizerForEventum = (roles: UserRole[], eventumId: number): boolean =>
+  roles.some((role) => {
+    const roleEventumId =
+      typeof role.eventum === "object" && role.eventum !== null
+        ? (role.eventum as { id: number }).id
+        : role.eventum;
+    return roleEventumId === eventumId && role.role === "organizer";
+  });
+
 const AdminLayout = () => {
   const location = useLocation();
+  const eventumSlug = useEventumSlug();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const [accessLoading, setAccessLoading] = useState(isAuthenticated);
+  const [accessDenied, setAccessDenied] = useState(false);
+  const [accessError, setAccessError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isAuthenticated || authLoading) {
+      setAccessLoading(false);
+      setAccessDenied(false);
+      setAccessError(null);
+      return;
+    }
+
+    if (!eventumSlug) {
+      setAccessLoading(false);
+      setAccessDenied(true);
+      setAccessError(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    const run = async () => {
+      setAccessLoading(true);
+      setAccessDenied(false);
+      setAccessError(null);
+      try {
+        const [rolesRes, eventum] = await Promise.all([
+          authApi.getRoles(),
+          getEventumBySlug(eventumSlug),
+        ]);
+        if (cancelled) return;
+        if (!isOrganizerForEventum(rolesRes.data, eventum.id)) {
+          setAccessDenied(true);
+        }
+      } catch (err: unknown) {
+        if (cancelled) return;
+        const status = (err as { response?: { status?: number } })?.response?.status;
+        if (status === 403 || status === 404) {
+          setAccessDenied(true);
+        } else {
+          setAccessError("Не удалось проверить доступ к админке. Попробуйте обновить страницу.");
+        }
+      } finally {
+        if (!cancelled) {
+          setAccessLoading(false);
+        }
+      }
+    };
+
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, authLoading, eventumSlug]);
 
   if (authLoading) {
     return (
@@ -30,6 +99,56 @@ const AdminLayout = () => {
 
   if (!isAuthenticated) {
     return <VKAuth />;
+  }
+
+  if (accessLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 text-gray-600">
+        Загрузка...
+      </div>
+    );
+  }
+
+  if (accessError) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 px-4 text-center">
+        <p className="text-gray-700">{accessError}</p>
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+        >
+          Обновить страницу
+        </button>
+      </div>
+    );
+  }
+
+  if (accessDenied || !eventumSlug) {
+    const backTo = eventumSlug ? getEventumScopedPath(eventumSlug, "/general") : "/";
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 px-4 text-center">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-amber-50">
+          <svg className="h-8 w-8 text-amber-600" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"
+            />
+          </svg>
+        </div>
+        <h1 className="mt-4 text-lg font-semibold text-gray-900">Админка недоступна</h1>
+        <p className="mt-2 max-w-md text-gray-600">
+          Раздел администрирования события доступен только организаторам этого события.
+        </p>
+        <Link
+          to={backTo}
+          className="mt-6 inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+        >
+          На страницу события
+        </Link>
+      </div>
+    );
   }
 
   const menu = [

@@ -33,7 +33,7 @@ const AuthRequiredPanel: React.FC<{ returnTo: { pathname: string; search: string
     </div>
     <h3 className="mt-4 text-lg font-semibold text-gray-900">Вход в аккаунт</h3>
     <p className="mt-2 text-gray-600 max-w-md mx-auto">
-      Чтобы открыть регистрацию, расписание и другие разделы, войдите через ВКонтакте.
+      Чтобы открыть регистрацию, расписание и другие разделы, войдите через VK.
     </p>
     <Link
       to="/login"
