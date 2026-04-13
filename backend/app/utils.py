@@ -239,20 +239,8 @@ class EventumGroupGraph:
         has_inclusive_participants = bool(group_data['inclusive_participants'])
         has_inclusive_groups = bool(group_data['inclusive_groups'])
         
-        # Нет inclusive: группа мероприятия — весь eventum минус exclusive; обычная — пусто
         if not has_inclusive_participants and not has_inclusive_groups:
-            group_obj = group_data.get('group_obj')
-            if not group_obj or not group_obj.is_event_group:
-                result = set()
-            else:
-                excluded_participant_ids = set(group_data['exclusive_participants'])
-
-                for target_group_id in group_data['exclusive_groups']:
-                    excluded_participant_ids.update(
-                        self.get_participant_ids(target_group_id, visited_groups.copy())
-                    )
-
-                result = self.all_participant_ids - excluded_participant_ids
+            result = set()
         else:
             # Стандартная логика включений/исключений
             included_participant_ids = set(group_data['inclusive_participants'])
@@ -349,7 +337,7 @@ def get_group_participant_ids(
     
     Args:
         group: Группа участников (ParticipantGroup) или group_id
-        all_participant_ids: Множество всех ID участников eventum (для случая, когда нет inclusive связей)
+        all_participant_ids: Множество всех ID участников eventum (для рекурсии по вложенным группам)
         visited_groups: Множество ID уже посещенных групп (для предотвращения циклов)
         prefetch_nested_groups: Если True, загружает связи для вложенных групп, если они не prefetch'нуты
         group_graph: Экземпляр EventumGroupGraph для использования (опционально)
@@ -427,38 +415,8 @@ def get_group_participant_ids(
         for rel in group_relations
     )
     
-    # Нет inclusive: группа мероприятия — весь eventum минус exclusive; обычная — пусто
     if not has_inclusive_participants and not has_inclusive_groups:
-        if not getattr(group, 'is_event_group', False):
-            return set()
-
-        all_participant_ids = all_participant_ids or set()
-
-        excluded_participant_ids = set()
-        for rel in participant_relations:
-            if rel.relation_type == ParticipantGroupParticipantRelation.RelationType.EXCLUSIVE:
-                excluded_participant_ids.add(rel.participant_id)
-        
-        # Исключаем участников из excluded групп (рекурсивно)
-        for group_rel in group_relations:
-            if group_rel.relation_type == ParticipantGroupGroupRelation.RelationType.EXCLUSIVE:
-                target_group = group_rel.target_group
-                if not target_group and group_rel.target_group_id:
-                    # Если объекта нет, но есть ID, создаем минимальный объект для работы
-                    # target_group должен быть из того же eventum
-                    target_group = ParticipantGroup(id=group_rel.target_group_id, eventum_id=group.eventum_id)
-                if target_group:
-                    excluded_participant_ids.update(
-                        get_group_participant_ids(
-                            target_group, 
-                            all_participant_ids=all_participant_ids,
-                            visited_groups=visited_groups.copy(), 
-                            prefetch_nested_groups=prefetch_nested_groups
-                        )
-                    )
-        
-        result = all_participant_ids - excluded_participant_ids
-        return result
+        return set()
     else:
         # Стандартная логика включений/исключений
         included_participant_ids = set()

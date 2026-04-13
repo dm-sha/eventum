@@ -2,12 +2,14 @@ import type { RawGroupStructureResponse } from "../api/rawEventumAdmin";
 
 /**
  * Состав групп по сырым связям из raw group-structure — та же логика, что EventumGroupGraph.get_participant_ids
- * в backend/app/utils.py (без inclusive: для группы мероприятия — все участники минус exclusive, иначе пусто).
+ * в backend/app/utils.py (без inclusive-связей состав группы пустой).
  */
 export function createEventumGroupGraphFromRaw(
   structure: RawGroupStructureResponse,
-  allParticipantIds: Set<number>
+  /** Раньше использовалось для «все минус exclusive» без inclusive; оставлено для совместимости вызовов. */
+  _allParticipantIds: Set<number>
 ) {
+  void _allParticipantIds;
   type GroupData = {
     is_event_group: boolean;
     inclusive_participants: number[];
@@ -72,20 +74,7 @@ export function createEventumGroupGraphFromRaw(
     let result: Set<number>;
 
     if (!hasInclusiveP && !hasInclusiveG) {
-      if (!groupData.is_event_group) {
-        result = new Set();
-      } else {
-        const excluded = new Set(groupData.exclusive_participants);
-        for (const tid of groupData.exclusive_groups) {
-          for (const pid of getParticipantIds(tid, new Set(nextVisited))) {
-            excluded.add(pid);
-          }
-        }
-        result = new Set();
-        for (const pid of allParticipantIds) {
-          if (!excluded.has(pid)) result.add(pid);
-        }
-      }
+      result = new Set();
     } else {
       const included = new Set(groupData.inclusive_participants);
       const excluded = new Set(groupData.exclusive_participants);

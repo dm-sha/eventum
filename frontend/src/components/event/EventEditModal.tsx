@@ -13,6 +13,15 @@ import {
   type ParticipantGroupResolveOptions,
 } from "../../utils/resolveParticipantGroup";
 import { MultiLocationSelector } from "../location/MultiLocationSelector";
+import RegistrationCard, {
+  type RegistrationCardGroup,
+  type RegistrationCardSavePayload,
+} from "./RegistrationCard";
+import {
+  updateEventRegistration,
+  deleteEventRegistration,
+  type EventRegistration as ApiEventRegistration,
+} from "../../api/eventRegistration";
 
 // Компонент для вкладки "Общее"
 const GeneralTab = ({ 
@@ -270,6 +279,15 @@ const ParticipantsTab = ({
   availableGroups,
   isLoadingGroup,
   participants,
+  forEveryone,
+  onForEveryoneChange,
+  apiRegistration,
+  registrationGroups,
+  editingRegistrationId,
+  onRegistrationStartEdit,
+  onRegistrationCancel,
+  onRegistrationSave,
+  onRegistrationDelete,
 }: {
   eventForm: any;
   localGroupState: ParticipantGroup | null;
@@ -277,6 +295,15 @@ const ParticipantsTab = ({
   availableGroups: ParticipantGroup[];
   isLoadingGroup: boolean;
   participants: Participant[];
+  forEveryone: boolean;
+  onForEveryoneChange: (value: boolean) => void;
+  apiRegistration: ApiEventRegistration | null;
+  registrationGroups: RegistrationCardGroup[];
+  editingRegistrationId: number | null;
+  onRegistrationStartEdit: () => void;
+  onRegistrationCancel: () => void;
+  onRegistrationSave: (data: RegistrationCardSavePayload) => void;
+  onRegistrationDelete: () => void;
 }) => {
   // Показываем загрузку ТОЛЬКО когда реально идет загрузка
   const showLoading = isLoadingGroup;
@@ -294,7 +321,7 @@ const ParticipantsTab = ({
       const updatedGroup: ParticipantGroup = {
         ...localGroupState,
         name: data.name,
-        visible_to_participants: data.visible_to_participants,
+        visible_to_participants: false,
         description: data.description,
         participant_relations: data.participant_relations.map((rel, idx) => ({
           id: localGroupState.participant_relations[idx]?.id || 0,
@@ -316,7 +343,7 @@ const ParticipantsTab = ({
         id: 0,
         name: data.name,
         is_event_group: true,
-        visible_to_participants: data.visible_to_participants,
+        visible_to_participants: false,
         description: data.description,
         participant_relations: data.participant_relations.map(rel => ({
           id: 0,
@@ -337,35 +364,65 @@ const ParticipantsTab = ({
   
   return (
     <div className="space-y-4">
-      {showLoading ? (
-        <div className="flex items-center justify-center py-12">
-          <div className="flex flex-col items-center gap-3">
-            <div className="relative">
-              <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
-            </div>
-            <p className="text-sm text-gray-600">Загрузка данных участников...</p>
-          </div>
+      {apiRegistration ? (
+        <div className="space-y-2">
+          <h4 className="text-sm font-medium text-gray-800">Регистрация</h4>
+          <RegistrationCard
+            registration={apiRegistration}
+            mode={editingRegistrationId === apiRegistration.id ? "edit" : "view"}
+            onStartEdit={onRegistrationStartEdit}
+            onDelete={onRegistrationDelete}
+            onSave={onRegistrationSave}
+            onCancel={onRegistrationCancel}
+            groups={registrationGroups}
+            displayEventName={eventForm.name}
+          />
         </div>
-      ) : (
+      ) : null}
+
+      {!apiRegistration ? (
         <>
-          {/* Информация о количестве участников (оценка): если нет включающих связей — участвуют все */}
-          {/* Рендерим сам редактор групп без собственных кнопок */}
-          <div className="rounded-lg border border-gray-200 p-3">
-            <ParticipantGroupEditor
-              group={localGroupState}
-              participants={participants}
-              nameOverride={eventForm.name ? `Участники \"${eventForm.name}\"` : ''}
-              hideNameField
-              hideActions
-              onChange={handleEditorChange}
-              onSave={async () => { /* сохранение выполняется кнопкой "Сохранить" модалки */ }}
-              onCancel={() => { /* no-op */ }}
-              isModal
-              availableGroups={availableGroups}
+          <div className="flex items-start gap-2 rounded-lg border border-gray-100 bg-gray-50/80 px-3 py-2">
+            <input
+              id="event-participants-for-everyone"
+              type="checkbox"
+              checked={forEveryone}
+              onChange={(e) => onForEveryoneChange(e.target.checked)}
+              className="mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
             />
+            <label htmlFor="event-participants-for-everyone" className="text-sm text-gray-700 cursor-pointer select-none">
+              <span className="font-medium text-gray-900">Для всех</span>
+            </label>
           </div>
+
+          {forEveryone ? null : showLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="flex flex-col items-center gap-3">
+                <div className="relative">
+                  <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+                </div>
+                <p className="text-sm text-gray-600">Загрузка данных участников...</p>
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-lg border border-gray-200 p-3">
+              <ParticipantGroupEditor
+                group={localGroupState}
+                participants={participants}
+                nameOverride={eventForm.name ? `Участники \"${eventForm.name}\"` : ''}
+                hideNameField
+                hideVisibleToParticipants
+                hideActions
+                onChange={handleEditorChange}
+                onSave={async () => { /* сохранение выполняется кнопкой "Сохранить" модалки */ }}
+                onCancel={() => { /* no-op */ }}
+                isModal
+                availableGroups={availableGroups}
+              />
+            </div>
+          )}
         </>
-      )}
+      ) : null}
     </div>
   );
 };
@@ -384,6 +441,7 @@ interface EventEditModalProps {
     tag_ids?: number[];
     location_ids?: number[];
     event_group_id?: number | null;
+    event_group_id_write?: number | null;
   }) => Promise<void>;
   event?: EventModel | null;
   eventTags: EventTag[];
@@ -403,7 +461,12 @@ const EventEditModal = ({
   title 
 }: EventEditModalProps) => {
   const eventumSlug = useEventumSlug();
-  const { participantGroups, refetch: refetchAdmin } = useAdminData();
+  const {
+    participantGroups,
+    eventRegistrations,
+    setEventRegistrations,
+    refetch,
+  } = useAdminData();
   const [activeTab, setActiveTab] = useState<'general' | 'participants'>('general');
   const [eventForm, setEventForm] = useState({
     name: "",
@@ -426,7 +489,20 @@ const EventEditModal = ({
   // Состояние группы на сервере - источник истины
   const [serverGroupState, setServerGroupState] = useState<ParticipantGroup | null>(null);
   const [isLoadingGroup, setIsLoadingGroup] = useState(false);
+  /** true — мероприятие без привязки к группе (все участники eventum). */
+  const [forEveryone, setForEveryone] = useState(true);
+  const [editingRegistrationId, setEditingRegistrationId] = useState<number | null>(null);
   const tagInputRef = useRef<HTMLDivElement>(null);
+
+  const apiRegistration = useMemo((): ApiEventRegistration | null => {
+    if (!event) return null;
+    return eventRegistrations.find((r) => r.event.id === event.id) ?? null;
+  }, [event, eventRegistrations]);
+
+  const registrationGroups = useMemo<RegistrationCardGroup[]>(
+    () => participantGroups.map((g) => ({ id: g.id, name: g.name })),
+    [participantGroups]
+  );
   
 
 
@@ -450,13 +526,17 @@ const EventEditModal = ({
   // Инициализация формы при открытии
   useEffect(() => {
     if (!isOpen) return;
-    
-    // Сбрасываем состояние
+
+    setEditingRegistrationId(null);
     setIsLoadingGroup(false);
     setLocalGroupState(null);
     setServerGroupState(null);
-    
+
     if (event) {
+      const evAny: any = event as any;
+      const hasEventGroup = Boolean(evAny.event_group?.id);
+      setForEveryone(!hasEventGroup);
+
       // Извлекаем ID из объектов
       const tagIds = event.tags.map(tag => tag.id);
       const participantIds = (event.participants ?? []).map((p: any) => typeof p === 'number' ? p : p.id);
@@ -474,7 +554,6 @@ const EventEditModal = ({
       });
       
       // Загружаем группу, если она есть
-      const evAny: any = event as any;
       if (evAny.event_group?.id && eventumSlug) {
         setIsLoadingGroup(true);
         const found = participantGroups.find((g) => g.id === evAny.event_group.id);
@@ -508,6 +587,8 @@ const EventEditModal = ({
             }
           }
         } catch {}
+
+        setForEveryone(true);
 
         setEventForm({
           name: "",
@@ -616,7 +697,31 @@ const EventEditModal = ({
     }
   }, [eventumSlug]);
 
-  
+  const handlePersistRegistration = useCallback(
+    async (payload: RegistrationCardSavePayload) => {
+      if (!eventumSlug || !apiRegistration) return;
+      try {
+        const updated = await updateEventRegistration(eventumSlug, apiRegistration.id, payload);
+        setEventRegistrations((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+        setEditingRegistrationId(null);
+      } catch (e) {
+        console.error("Ошибка сохранения регистрации:", e);
+      }
+    },
+    [eventumSlug, apiRegistration, setEventRegistrations]
+  );
+
+  const handleRemoveRegistration = useCallback(async () => {
+    if (!eventumSlug || !apiRegistration) return;
+    if (!confirm("Вы уверены, что хотите удалить эту регистрацию?")) return;
+    try {
+      await deleteEventRegistration(eventumSlug, apiRegistration.id);
+      setEditingRegistrationId(null);
+      await refetch(["registrations", "waves", "events"]);
+    } catch (e) {
+      console.error("Ошибка удаления регистрации:", e);
+    }
+  }, [eventumSlug, apiRegistration, refetch]);
 
   // Функции для работы с участниками (удалены неиспользуемые хелперы)
 
@@ -692,7 +797,7 @@ const EventEditModal = ({
       const hasLocalState = localGroupState !== null;
       const hasChanges = hasLocalState && !areGroupsEqual(localGroupState, serverGroupState);
       
-      if (hasLocalState && (hasChanges || !serverGroupState)) {
+      if (!apiRegistration && !forEveryone && hasLocalState && (hasChanges || !serverGroupState)) {
         const effectiveName = ((event as any) ? `Участники \"${(event as any).name}\"` : (eventForm.name ? `Участники \"${eventForm.name}\"` : '')).trim();
         
         if (effectiveName) {
@@ -712,7 +817,7 @@ const EventEditModal = ({
             const payload: any = { 
               name: effectiveName,
               is_event_group: true,
-              visible_to_participants: localGroupState.visible_to_participants ?? false,
+              visible_to_participants: false,
               description: (localGroupState.description ?? '').trim(),
               participant_relations: participantRelations,
               group_relations: groupRelations
@@ -725,7 +830,7 @@ const EventEditModal = ({
               // Обновляем оба состояния после успешного сохранения
               // Перезагружаем для получения полных данных с relations
               try {
-                await refetchAdmin(["groups"]);
+                await refetch(["groups"]);
                 const structure = await fetchRawGroupStructure(eventumSlug || undefined);
                 const reloadGroups = participantGroupsFromRawStructure(structure);
                 const reloaded =
@@ -746,7 +851,7 @@ const EventEditModal = ({
             const createPayload: any = { 
               name: effectiveName, 
               is_event_group: true,
-              visible_to_participants: localGroupState.visible_to_participants ?? false,
+              visible_to_participants: false,
               description: (localGroupState.description ?? '').trim(),
               participant_relations: participantRelations,
               group_relations: groupRelations
@@ -758,7 +863,7 @@ const EventEditModal = ({
               
               // Обновляем оба состояния после успешного создания
               try {
-                await refetchAdmin(["groups"]);
+                await refetch(["groups"]);
                 const structure = await fetchRawGroupStructure(eventumSlug || undefined);
                 const reloadGroups = participantGroupsFromRawStructure(structure);
                 const reloaded =
@@ -789,7 +894,14 @@ const EventEditModal = ({
         tag_ids: eventForm.tags,
         // Если выбрана/создана группа — передаем её ID для привязки
         // Используем ensuredEventGroupId (получен после сохранения группы) или serverGroupState.id (если группа уже существовала и не изменялась)
-        event_group_id_write: ensuredEventGroupId || (serverGroupState?.id && serverGroupState.id > 0 ? serverGroupState.id : null)
+        event_group_id_write: apiRegistration
+          ? ensuredEventGroupId ||
+            (serverGroupState?.id && serverGroupState.id > 0 ? serverGroupState.id : null) ||
+            ((event as any)?.event_group?.id ?? null)
+          : forEveryone
+            ? null
+            : ensuredEventGroupId ||
+              (serverGroupState?.id && serverGroupState.id > 0 ? serverGroupState.id : null)
       };
       await onSave(eventData);
 
@@ -867,11 +979,14 @@ const EventEditModal = ({
   );
 
   const participantsCount = useMemo(() => {
-    if (!localGroupState) {
+    if (forEveryone) {
       return participants.length;
     }
+    if (!localGroupState) {
+      return 0;
+    }
     return resolveParticipantGroupIds(localGroupState, groupResolveOptions).size;
-  }, [localGroupState, groupResolveOptions, participants.length]);
+  }, [forEveryone, localGroupState, groupResolveOptions, participants.length]);
 
 
 
@@ -913,7 +1028,7 @@ const EventEditModal = ({
               </nav>
             </div>
           </div>
-          {activeTab === 'participants' && (
+          {activeTab === 'participants' && !apiRegistration && (
             <div className="text-sm text-gray-600 mb-2">Участников: {participantsCount}</div>
           )}
         </div>
@@ -949,6 +1064,17 @@ const EventEditModal = ({
               availableGroups={participantGroups}
               isLoadingGroup={isLoadingGroup}
               participants={participants}
+              forEveryone={forEveryone}
+              onForEveryoneChange={setForEveryone}
+              apiRegistration={apiRegistration}
+              registrationGroups={registrationGroups}
+              editingRegistrationId={editingRegistrationId}
+              onRegistrationStartEdit={() => {
+                if (apiRegistration) setEditingRegistrationId(apiRegistration.id);
+              }}
+              onRegistrationCancel={() => setEditingRegistrationId(null)}
+              onRegistrationSave={handlePersistRegistration}
+              onRegistrationDelete={handleRemoveRegistration}
             />
           )}
           

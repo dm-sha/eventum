@@ -110,13 +110,12 @@ class ParticipantGroup(models.Model):
         Иначе использует запросы к БД и кеширование.
         
         Логика:
-        - Если нет inclusive связей и группа мероприятия (is_event_group): все участники eventum минус exclusive
-        - Если нет inclusive связей и обычная группа: никого
-        - Если есть inclusive связи: логика включений/исключений
+        - Если нет ни одной inclusive-связи (с участником или группой): никого
+        - Если есть inclusive-связи: включения и исключения (exclusive)
         
         Args:
             visited_groups: set ID групп, которые уже обработаны (для предотвращения циклов)
-            all_participant_ids: set всех ID участников eventum (для случая, когда нет inclusive связей)
+            all_participant_ids: set всех ID участников eventum (для рекурсии во вложенных группах)
         """
         if visited_groups is None:
             visited_groups = set()
@@ -149,36 +148,8 @@ class ParticipantGroup(models.Model):
             relation_type=ParticipantGroupGroupRelation.RelationType.INCLUSIVE
         ).exists()
         
-        # Нет inclusive: для группы мероприятия — весь eventum минус exclusive; иначе пусто
         if not has_inclusive_participants and not has_inclusive_groups:
-            if not self.is_event_group:
-                return Participant.objects.none()
-
-            all_participants = Participant.objects.filter(eventum=self.eventum)
-
-            # Применяем исключения (exclusive), если они есть
-            excluded_participant_ids = set()
-            
-            # Исключенные участники из прямых связей
-            excluded_relations = self.participant_relations.filter(
-                relation_type=ParticipantGroupParticipantRelation.RelationType.EXCLUSIVE
-            )
-            excluded_participant_ids.update(
-                rel.participant_id for rel in excluded_relations
-            )
-            
-            # Исключенные участники из групп
-            for group_rel in self.group_relations.filter(
-                relation_type=ParticipantGroupGroupRelation.RelationType.EXCLUSIVE
-            ):
-                excluded_participant_ids.update(
-                    group_rel.target_group.get_participants(visited_groups.copy(), all_participant_ids).values_list('id', flat=True)
-                )
-            
-            if excluded_participant_ids:
-                result = all_participants.exclude(id__in=excluded_participant_ids)
-            else:
-                result = all_participants
+            return Participant.objects.none()
         else:
             # Иначе применяем стандартную логику включений/исключений
             included_participant_ids = set()
@@ -242,31 +213,8 @@ class ParticipantGroup(models.Model):
             for rel in group_relations
         )
         
-        # Нет inclusive: для группы мероприятия — весь eventum минус exclusive; иначе пусто
         if not has_inclusive_participants and not has_inclusive_groups:
-            if not self.is_event_group:
-                return set()
-
-            if all_participant_ids is not None:
-                included_ids = set(all_participant_ids)
-            else:
-                # Fallback: загружаем всех участников eventum
-                included_ids = set(Participant.objects.filter(eventum=self.eventum).values_list('id', flat=True))
-            
-            # Применяем исключения из прямых связей
-            excluded_ids = {
-                rel.participant_id
-                for rel in participant_relations
-                if rel.relation_type == ParticipantGroupParticipantRelation.RelationType.EXCLUSIVE
-            }
-            
-            # Применяем исключения из групп (рекурсивно)
-            for group_rel in group_relations:
-                if group_rel.relation_type == ParticipantGroupGroupRelation.RelationType.EXCLUSIVE:
-                    target_ids = self._get_participant_ids_from_group(group_rel.target_group, all_participant_ids, visited_groups.copy())
-                    excluded_ids.update(target_ids)
-            
-            return included_ids - excluded_ids
+            return set()
         else:
             # Применяем логику включений/исключений
             included_ids = set()
@@ -348,26 +296,7 @@ class ParticipantGroup(models.Model):
         )
         
         if not has_inclusive_participants and not has_inclusive_groups:
-            if not group.is_event_group:
-                return set()
-
-            # Все участники eventum минус исключения
-            if all_participant_ids is not None:
-                included_ids = set(all_participant_ids)
-            else:
-                included_ids = set(Participant.objects.filter(eventum=group.eventum).values_list('id', flat=True))
-            
-            excluded_ids = {
-                rel.participant_id
-                for rel in participant_relations
-                if rel.relation_type == ParticipantGroupParticipantRelation.RelationType.EXCLUSIVE
-            }
-            
-            for group_rel in group_relations:
-                if group_rel.relation_type == ParticipantGroupGroupRelation.RelationType.EXCLUSIVE:
-                    excluded_ids.update(self._get_participant_ids_from_group(group_rel.target_group, all_participant_ids, visited_groups.copy()))
-            
-            return included_ids - excluded_ids
+            return set()
         else:
             # Логика включений/исключений
             included_ids = {

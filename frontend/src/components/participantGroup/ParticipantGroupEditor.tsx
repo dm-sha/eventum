@@ -33,6 +33,8 @@ interface ParticipantGroupEditorProps {
   isUpdating?: boolean;
   nameOverride?: string;
   hideNameField?: boolean;
+  /** Скрыть настройку «Видна участникам» (например, группа мероприятия всегда непубличная). */
+  hideVisibleToParticipants?: boolean;
   /** Элементы справа от строки с названием (например, удаление группы). */
   nameRowExtra?: ReactNode;
   hideActions?: boolean;
@@ -56,6 +58,7 @@ const ParticipantGroupEditor: React.FC<ParticipantGroupEditorProps> = ({
   isUpdating = false,
   nameOverride,
   hideNameField = false,
+  hideVisibleToParticipants = false,
   nameRowExtra,
   hideActions = false,
   onChange
@@ -126,7 +129,9 @@ const ParticipantGroupEditor: React.FC<ParticipantGroupEditorProps> = ({
         relation_type: rel.relation_type
       })).filter(rel => rel.target_group_id > 0); // Фильтруем некорректные данные
       setGroupRelations(groupRels);
-      setVisibleToParticipants(group?.visible_to_participants ?? false);
+      setVisibleToParticipants(
+        hideVisibleToParticipants ? false : (group?.visible_to_participants ?? false)
+      );
       setDescription(group?.description ?? '');
 
       // Если группа загружена и есть relations, даем больше времени на инициализацию
@@ -145,7 +150,7 @@ const ParticipantGroupEditor: React.FC<ParticipantGroupEditorProps> = ({
         setIsInitializing(false);
       }, 50);
     }
-  }, [normalizedGroupKey]); // Используем нормализованный ключ для сравнения
+  }, [normalizedGroupKey, hideVisibleToParticipants]); // Используем нормализованный ключ для сравнения
 
   useEffect(() => {
     if (!group || hideNameField || !isEditingName) return;
@@ -255,7 +260,7 @@ const ParticipantGroupEditor: React.FC<ParticipantGroupEditorProps> = ({
 
     const data: CreateParticipantGroupData | UpdateParticipantGroupData = {
       name: effectiveName,
-      visible_to_participants: visibleToParticipants,
+      visible_to_participants: hideVisibleToParticipants ? false : visibleToParticipants,
       description: description.trim(),
       participant_relations: participantRelations.map(rel => ({
         participant_id: rel.participant_id,
@@ -277,7 +282,7 @@ const ParticipantGroupEditor: React.FC<ParticipantGroupEditorProps> = ({
     const effectiveName = (nameOverride ?? name).trim();
     onChange({
       name: effectiveName,
-      visible_to_participants: visibleToParticipants,
+      visible_to_participants: hideVisibleToParticipants ? false : visibleToParticipants,
       description,
       participant_relations: participantRelations.map(r => ({ participant_id: r.participant_id, relation_type: r.relation_type })),
       group_relations: groupRelations.map(r => ({ target_group_id: r.target_group_id, relation_type: r.relation_type }))
@@ -291,6 +296,7 @@ const ParticipantGroupEditor: React.FC<ParticipantGroupEditorProps> = ({
     groupRelations,
     onChange,
     isInitializing,
+    hideVisibleToParticipants,
   ]);
 
   return (
@@ -362,19 +368,21 @@ const ParticipantGroupEditor: React.FC<ParticipantGroupEditorProps> = ({
           </div>
         ) : null}
 
-        <div className="flex items-start gap-2 rounded-lg border border-gray-100 bg-gray-50/80 px-3 py-2">
-          <input
-            id="participant-group-visible"
-            type="checkbox"
-            checked={visibleToParticipants}
-            onChange={(e) => setVisibleToParticipants(e.target.checked)}
-            disabled={isSaving || isUpdating}
-            className="mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-          />
-          <label htmlFor="participant-group-visible" className="text-sm text-gray-700 cursor-pointer select-none">
-            <span className="font-medium text-gray-900">Видна участникам</span>
-          </label>
-        </div>
+        {!hideVisibleToParticipants ? (
+          <div className="flex items-start gap-2 rounded-lg border border-gray-100 bg-gray-50/80 px-3 py-2">
+            <input
+              id="participant-group-visible"
+              type="checkbox"
+              checked={visibleToParticipants}
+              onChange={(e) => setVisibleToParticipants(e.target.checked)}
+              disabled={isSaving || isUpdating}
+              className="mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            />
+            <label htmlFor="participant-group-visible" className="text-sm text-gray-700 cursor-pointer select-none">
+              <span className="font-medium text-gray-900">Видна участникам</span>
+            </label>
+          </div>
+        ) : null}
 
         <div>
           <label htmlFor="participant-group-description" className="block text-sm font-medium text-gray-700 mb-1">

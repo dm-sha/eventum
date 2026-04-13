@@ -24,7 +24,7 @@ function targetGroupIdFromRelation(rel: {
 export type ParticipantGroupResolveOptions = {
   /** Получить группу по id (в т.ч. черновик с временным id при редактировании). */
   resolveGroup: (groupId: number) => ParticipantGroup | null | undefined;
-  /** Все участники eventum — только для групп мероприятия: «нет inclusive → весь eventum минус exclusive». */
+  /** Все участники eventum (для согласованности API; без inclusive-связей состав группы пустой). */
   allParticipantIds: ReadonlySet<number>;
 };
 
@@ -62,33 +62,7 @@ export function resolveParticipantGroupIds(
   };
 
   if (!hasInclusiveParticipants && !hasInclusiveGroups) {
-    if (!group.is_event_group) {
-      return new Set();
-    }
-    const includedIds = new Set(options.allParticipantIds);
-    const excludedIds = new Set<number>();
-
-    for (const rel of participantRelations) {
-      if (rel.relation_type === EXCLUSIVE) {
-        const pid = participantIdFromRelation(rel);
-        if (pid > 0) {
-          excludedIds.add(pid);
-        }
-      }
-    }
-    for (const rel of groupRelations) {
-      if (rel.relation_type === EXCLUSIVE) {
-        const gid = targetGroupIdFromRelation(rel);
-        const sub = resolveNested(gid, new Set(visitedGroups));
-        for (const x of sub) {
-          excludedIds.add(x);
-        }
-      }
-    }
-    for (const x of excludedIds) {
-      includedIds.delete(x);
-    }
-    return includedIds;
+    return new Set();
   }
 
   const includedIds = new Set<number>();

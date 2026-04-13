@@ -82,8 +82,7 @@ class EventumScopedViewSet(EventumMixin, viewsets.ModelViewSet):
         if participant_id:
             context['participant_id'] = participant_id
         
-        # Также загружаем всех участников eventum для вычисления групп
-        # (если event_group не имеет inclusive связей, возвращаются все участники)
+        # Также загружаем всех участников eventum для вычисления состава групп в памяти
         if self.action in ['list', 'retrieve']:
             from .models import Participant
             all_participants = Participant.objects.filter(eventum=eventum).values_list('id', flat=True)

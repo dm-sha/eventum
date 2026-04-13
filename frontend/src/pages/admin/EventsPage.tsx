@@ -140,6 +140,7 @@ const AdminEventsPage = () => {
     location_ids?: number[];
     // Привязка к группе: если указано — мероприятие для конкретных участников, если null — для всех
     event_group_id?: number | null;
+    event_group_id_write?: number | null;
   }) => {
     if (!eventumSlug) return;
     
