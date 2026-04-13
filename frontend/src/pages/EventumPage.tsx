@@ -1102,8 +1102,14 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string; isViewingAsOtherP
     }
   }, [initialIsRegistered, event.is_registered, event.registrations_count, isRegistering, isUnregistering]);
 
+  // Запись по кнопке ставит участника в event_group → is_participant и is_registered совпадают,
+  // но раньше UI сначала проверял is_participant и показывал только неактивную «Записан» без отписки.
+  const isButtonRegisteredAsParticipant =
+    event.registration_type === 'button' && event.is_participant === true;
+  const showUnregisterControl = localIsRegistered || isButtonRegisteredAsParticipant;
+
   const handleRegister = async () => {
-    if (isRegistering || isUnregistering || localIsRegistered) return;
+    if (isRegistering || isUnregistering || localIsRegistered || isButtonRegisteredAsParticipant) return;
     
     // Очищаем предыдущую ошибку при новой попытке
     setRegistrationError(null);
@@ -1152,7 +1158,7 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string; isViewingAsOtherP
   };
 
   const handleUnregister = async () => {
-    if (isRegistering || isUnregistering || !localIsRegistered) return;
+    if (isRegistering || isUnregistering || !showUnregisterControl) return;
     
     setIsUnregistering(true);
     // Оптимистично обновляем только счётчик, статус регистрации обновим после успеха
@@ -1325,23 +1331,23 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string; isViewingAsOtherP
       {/* Кнопка подачи заявки для мероприятий с регистрацией (button или application) */}
       {(event.registration_type === 'button' || event.registration_type === 'application') && !isViewingAsOtherParticipant && (
         <div className="mt-4 pt-4 border-t border-gray-100">
-          {event.is_participant === true ? (
-            <div className="flex items-center gap-4">
-              <button
-                disabled
-                className="px-4 py-2 text-sm bg-gray-200 text-gray-600 rounded-md cursor-not-allowed"
-              >
-                Записан
-              </button>
-            </div>
-          ) : localIsRegistered ? (
+          {showUnregisterControl ? (
             <div className="flex items-center gap-4">
               <button
                 onClick={handleUnregister}
                 disabled={isRegistering || isUnregistering}
                 className="px-3 py-1 text-sm text-gray-600 hover:text-gray-700 hover:bg-gray-50 border border-gray-300 rounded-md transition-colors disabled:opacity-50"
               >
-                {isUnregistering ? 'Отмена...' : event.registration_type === 'button' ? 'Отписаться' : 'Отменить заявку'}
+                {isUnregistering ? 'Отмена...' : event.registration_type === 'button' ? 'Отменить запись' : 'Отменить заявку'}
+              </button>
+            </div>
+          ) : event.is_participant === true ? (
+            <div className="flex items-center gap-4">
+              <button
+                disabled
+                className="px-4 py-2 text-sm bg-gray-200 text-gray-600 rounded-md cursor-not-allowed"
+              >
+                Записан
               </button>
             </div>
           ) : (
