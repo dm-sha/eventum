@@ -764,7 +764,11 @@ class EventWave(models.Model):
         blank=True,
         help_text="Регистрации на мероприятия, входящие в эту волну"
     )
-    
+    allow_multiple_button_registrations = models.BooleanField(
+        default=False,
+        help_text="Если включено, участник может записаться по кнопке на несколько мероприятий в этой волне одновременно. Иначе — не более одного мероприятия с типом «Запись по кнопке» в волне.",
+    )
+
     class Meta:
         unique_together = ('eventum', 'name')
         verbose_name = 'Event Wave'

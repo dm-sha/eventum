@@ -979,7 +979,27 @@ class EventViewSet(EventumScopedViewSet, viewsets.ModelViewSet):
                     # Проверяем, не зарегистрирован ли уже
                     if event.event_group.has_participant(participant.id):
                         return Response({'error': 'Already registered for this event'}, status=status.HTTP_400_BAD_REQUEST)
-                    
+
+                    # В волне по умолчанию — не более одной записи по кнопке; флаг волны снимает ограничение
+                    for wave in EventWave.objects.filter(
+                        eventum=eventum, registrations=registration
+                    ).prefetch_related('registrations__event__event_group'):
+                        if wave.allow_multiple_button_registrations:
+                            continue
+                        for other_reg in wave.registrations.all():
+                            if other_reg.id == registration.id:
+                                continue
+                            if other_reg.registration_type != EventRegistration.RegistrationType.BUTTON:
+                                continue
+                            other_group = other_reg.event.event_group
+                            if other_group and other_group.has_participant(participant.id):
+                                return Response(
+                                    {
+                                        'error': 'Already registered for another event in this wave',
+                                    },
+                                    status=status.HTTP_400_BAD_REQUEST,
+                                )
+
                     # Добавляем участника в группу через ParticipantGroupParticipantRelation
                     ParticipantGroupParticipantRelation.objects.get_or_create(
                         group=event.event_group,

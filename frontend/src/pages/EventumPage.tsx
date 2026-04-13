@@ -989,7 +989,7 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
     <div className="space-y-2 sm:space-y-4">
       <h2 className="text-xl font-semibold text-gray-900 mb-2 sm:mb-6">Волны мероприятий</h2>
       <p className="text-gray-600 mb-1 sm:mb-4">
-        В одной волне проходит несколько событий одновременно, попасть можно максимум на одно. Выберите все интересные варианты – после окончания регистрации система распределит вас случайным образом на одно мероприятие из каждой волны, на которое вы подали заявку. Обратите внимание, что количество мест ограничено, при большом количестве желающих есть вероятность никуда не попасть.
+        Волна объединяет несколько мероприятий. По умолчанию по кнопке можно записаться только на одно мероприятие в волне; на остальные кнопки в этой волне запись тогда недоступна. Если организатор включил для волны режим «несколько записей по кнопке», по кнопке можно записаться на любое число мероприятий волны в пределах свободных мест. На мероприятия «по заявкам» по-прежнему можно подать заявки на несколько вариантов; после закрытия регистрации вы попадёте максимум на одно из них. Места ограничены, при большом числе желающих есть риск не попасть ни на одно.
       </p>
       {accessibleWaves.map((wave) => {
         const waveEvents = getEventsForWave(wave);
@@ -1042,8 +1042,13 @@ const RegistrationTab: React.FC<{ eventWaves: EventWave[]; events: Event[]; curr
                       const initialIsRegistered = participantId ? event.is_registered : undefined;
                       const hasButtonEventRegistered = isButtonEventRegisteredInWave(wave);
                       const isThisEventButtonRegistered = event.registration_type === 'button' && eventRegistrations.get(event.id) === true;
-                      // Кнопка неактивна только для мероприятий с типом 'button', если записан на другое button-мероприятие в этой волне
-                      const isRegisterButtonDisabled = event.registration_type === 'button' && hasButtonEventRegistered && !isThisEventButtonRegistered;
+                      const allowMultiButton = wave.allow_multiple_button_registrations === true;
+                      // Кнопка неактивна для button, если в волне уже есть другая запись по кнопке и волна не разрешает несколько
+                      const isRegisterButtonDisabled =
+                        event.registration_type === 'button' &&
+                        !allowMultiButton &&
+                        hasButtonEventRegistered &&
+                        !isThisEventButtonRegistered;
                       return (
                         <EventCard 
                           key={`${event.id}-${event.is_registered}-${event.registrations_count}`} 
@@ -1135,6 +1140,8 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string; isViewingAsOtherP
       } else if (error?.response?.data?.error === 'Event registration is full') {
         // Обрабатываем ошибку о том, что места закончились
         setRegistrationError('Места на это мероприятие уже закончились');
+      } else if (error?.response?.data?.error === 'Already registered for another event in this wave') {
+        setRegistrationError('В этой волне вы уже записаны по кнопке на другое мероприятие');
       } else {
         // Для других ошибок показываем общее сообщение
         setRegistrationError('Не удалось зарегистрироваться на мероприятие. Попробуйте позже.');

@@ -185,6 +185,7 @@ export function eventWavesFromRaw(
       id: w.id,
       name: w.name,
       eventum: w.eventum_id,
+      allow_multiple_button_registrations: w.allow_multiple_button_registrations ?? false,
       registrations: regs,
       events: waveEvents,
     };

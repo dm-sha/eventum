@@ -121,6 +121,8 @@ export type RawEventWaveRow = {
   id: number;
   eventum_id: number;
   name: string;
+  /** С бэкенда с 0040; для старых снимков — считаем false */
+  allow_multiple_button_registrations?: boolean;
   registration_ids: number[];
 };
 

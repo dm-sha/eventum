@@ -893,7 +893,13 @@ class EventWaveSerializer(serializers.ModelSerializer):
     class Meta:
         model = EventWave
         fields = [
-            'id', 'name', 'eventum', 'registrations', 'registration_ids', 'events'
+            'id',
+            'name',
+            'eventum',
+            'allow_multiple_button_registrations',
+            'registrations',
+            'registration_ids',
+            'events',
         ]
         read_only_fields = ['id', 'eventum', 'events']
 

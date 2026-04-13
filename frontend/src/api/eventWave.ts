@@ -19,6 +19,8 @@ export interface EventWave {
   id: number;
   name: string;
   eventum: number;
+  /** Если true, по кнопке можно записаться на несколько мероприятий волны одновременно */
+  allow_multiple_button_registrations?: boolean;
   registrations: any[]; // EventRegistration[]
   events: Event[]; // Full Event objects from the serializer
 }
@@ -26,11 +28,13 @@ export interface EventWave {
 export interface CreateEventWaveDto {
   name: string;
   registration_ids?: number[];
+  allow_multiple_button_registrations?: boolean;
 }
 
 export interface UpdateEventWaveDto {
   name?: string;
   registration_ids?: number[];
+  allow_multiple_button_registrations?: boolean;
 }
 
 export async function listEventWaves(

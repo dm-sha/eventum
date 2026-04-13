@@ -164,6 +164,7 @@ def raw_event_waves_list(eventum):
                 'id': w.id,
                 'eventum_id': w.eventum_id,
                 'name': w.name,
+                'allow_multiple_button_registrations': w.allow_multiple_button_registrations,
                 'registration_ids': sorted(reg.id for reg in w.registrations.all()),
             }
         )

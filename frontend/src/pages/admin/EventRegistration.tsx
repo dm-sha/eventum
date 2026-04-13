@@ -464,7 +464,11 @@ interface WaveCardProps {
   mode: Mode;
   onStartEdit: () => void;
   onDelete: () => void;
-  onSave: (data: { name: string; registration_ids?: number[] }) => void;
+  onSave: (data: {
+    name: string;
+    registration_ids?: number[];
+    allow_multiple_button_registrations: boolean;
+  }) => void;
   onCancel: () => void;
   registrations: EventRegistration[];
   events: Event[];
@@ -508,10 +512,14 @@ const WaveCard: React.FC<WaveCardProps> = ({
   const [localRegistrations, setLocalRegistrations] = useState<EventRegistration[]>(registrations);
   const [isCreatingRegistration, setIsCreatingRegistration] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(true);
+  const [allowMultipleButton, setAllowMultipleButton] = useState(
+    wave.allow_multiple_button_registrations ?? false
+  );
 
   useEffect(() => {
     setName(wave.name);
     setSelectedRegistrationIds(wave.registrations?.map((r: any) => r.id) || []);
+    setAllowMultipleButton(wave.allow_multiple_button_registrations ?? false);
   }, [wave]);
 
   useEffect(() => {
@@ -585,6 +593,22 @@ const WaveCard: React.FC<WaveCardProps> = ({
                 onChange={setSelectedRegistrationIds}
                 placeholder="Выберите регистрации..."
               />
+              <label className="mt-3 flex cursor-pointer items-start gap-2 rounded-lg border border-gray-200 bg-gray-50/80 p-3">
+                <input
+                  type="checkbox"
+                  checked={allowMultipleButton}
+                  onChange={(e) => setAllowMultipleButton(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span>
+                  <span className="text-sm font-medium text-gray-900">
+                    Разрешить несколько записей по кнопке в этой волне
+                  </span>
+                  <span className="mt-0.5 block text-xs text-gray-600">
+                    Если включено, участник может нажать «Записаться» на любое число мероприятий волны с типом «Запись по кнопке» (в пределах свободных мест). Иначе — не более одного такого мероприятия в волне.
+                  </span>
+                </span>
+              </label>
               {/* Форма создания регистрации */}
               {showCreateRegistration && (
                 <div className="mt-3">
@@ -615,6 +639,11 @@ const WaveCard: React.FC<WaveCardProps> = ({
                 <h4 className="text-base font-semibold text-gray-900">{wave.name}</h4>
                 <p className="text-sm text-gray-500">
                   Мероприятий: {wave.events?.length || 0}
+                  {wave.allow_multiple_button_registrations ? (
+                    <span className="mt-0.5 block text-emerald-700">
+                      Несколько записей по кнопке разрешены
+                    </span>
+                  ) : null}
                 </p>
               </div>
             </div>
@@ -673,7 +702,8 @@ const WaveCard: React.FC<WaveCardProps> = ({
                 onClick={() => {
                   onSave({
                     name: name.trim(),
-                    registration_ids: selectedRegistrationIds
+                    registration_ids: selectedRegistrationIds,
+                    allow_multiple_button_registrations: allowMultipleButton,
                   });
                 }}
                 className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
@@ -698,7 +728,11 @@ const WaveCard: React.FC<WaveCardProps> = ({
 
 // Форма создания волны
 const CreateWaveForm: React.FC<{ 
-  onCreate: (name: string, registrationIds: number[]) => void;
+  onCreate: (payload: {
+    name: string;
+    registration_ids: number[];
+    allow_multiple_button_registrations: boolean;
+  }) => void;
   onCancel: () => void;
   registrations: EventRegistration[];
   events: Event[];
@@ -706,6 +740,7 @@ const CreateWaveForm: React.FC<{
   eventumSlug: string;
 }> = ({ onCreate, onCancel, registrations, events, groups, eventumSlug }) => {
   const [name, setName] = useState('');
+  const [allowMultipleButton, setAllowMultipleButton] = useState(false);
   const [selectedRegistrationIds, setSelectedRegistrationIds] = useState<number[]>([]);
   const [localRegistrations, setLocalRegistrations] = useState<EventRegistration[]>(registrations);
   const [showCreateRegistration, setShowCreateRegistration] = useState(false);
@@ -744,8 +779,13 @@ const CreateWaveForm: React.FC<{
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!canSave) return;
-    onCreate(name.trim(), selectedRegistrationIds);
+    onCreate({
+      name: name.trim(),
+      registration_ids: selectedRegistrationIds,
+      allow_multiple_button_registrations: allowMultipleButton,
+    });
     setName('');
+    setAllowMultipleButton(false);
     setSelectedRegistrationIds([]);
     setLocalRegistrations(registrations);
   };
@@ -790,6 +830,22 @@ const CreateWaveForm: React.FC<{
             placeholder="Выберите регистрации..."
           />
         </div>
+        <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-gray-200 bg-gray-50/80 p-3">
+          <input
+            type="checkbox"
+            checked={allowMultipleButton}
+            onChange={(e) => setAllowMultipleButton(e.target.checked)}
+            className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+          />
+          <span>
+            <span className="text-sm font-medium text-gray-900">
+              Разрешить несколько записей по кнопке в этой волне
+            </span>
+            <span className="mt-0.5 block text-xs text-gray-600">
+              Если включено, участник может нажать «Записаться» на любое число мероприятий волны с типом «Запись по кнопке» (в пределах свободных мест).
+            </span>
+          </span>
+        </label>
         <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
           <button
             type="submit"
@@ -892,14 +948,29 @@ const EventRegistrationPage: React.FC = () => {
     await refetch(['registrations', 'waves', 'events']);
   };
 
-  const handleCreateWave = async (name: string, registrationIds: number[]) => {
+  const handleCreateWave = async (payload: {
+    name: string;
+    registration_ids: number[];
+    allow_multiple_button_registrations: boolean;
+  }) => {
     if (!eventumSlug) return;
-    await createEventWave(eventumSlug, { name, registration_ids: registrationIds });
+    await createEventWave(eventumSlug, {
+      name: payload.name,
+      registration_ids: payload.registration_ids,
+      allow_multiple_button_registrations: payload.allow_multiple_button_registrations,
+    });
     setShowCreateWave(false);
     await refetch(['waves', 'registrations']);
   };
 
-  const handleUpdateWave = async (id: number, data: { name: string; registration_ids?: number[] }) => {
+  const handleUpdateWave = async (
+    id: number,
+    data: {
+      name: string;
+      registration_ids?: number[];
+      allow_multiple_button_registrations: boolean;
+    }
+  ) => {
     if (!eventumSlug) return;
     await updateEventWave(eventumSlug, id, data);
     setEditingWaveId(null);
