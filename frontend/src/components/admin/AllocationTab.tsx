@@ -145,6 +145,7 @@ const AddParticipantCombobox: React.FC<AddParticipantComboboxProps> = ({
 interface EventAllocationCardProps {
   assignment: EventAssignment;
   participantById: Map<number, Participant>;
+  allParticipants: Participant[];
   assignedInWave: Set<number>;
   /** pid → название мероприятия, в которое участник распределён */
   participantEventMap: Map<number, string>;
@@ -155,6 +156,7 @@ interface EventAllocationCardProps {
 const EventAllocationCard: React.FC<EventAllocationCardProps> = ({
   assignment,
   participantById,
+  allParticipants,
   assignedInWave,
   participantEventMap,
   onRemoveParticipant,
@@ -167,14 +169,15 @@ const EventAllocationCard: React.FC<EventAllocationCardProps> = ({
 
   const overCapacity =
     maxCapacity !== null && assignedIds.length > maxCapacity;
+  const hasRoom =
+    maxCapacity === null || assignedIds.length < maxCapacity;
 
   const availableToAdd = useMemo(
     () =>
-      applicantIds
-        .filter((pid) => !assignedInWave.has(pid))
-        .map((pid) => participantById.get(pid))
-        .filter((p): p is Participant => p != null),
-    [applicantIds, assignedInWave, participantById]
+      allParticipants.filter(
+        (p) => !assignedInWave.has(p.id) && !assignedHere.has(p.id)
+      ),
+    [allParticipants, assignedInWave, assignedHere]
   );
 
   return (
@@ -246,11 +249,17 @@ const EventAllocationCard: React.FC<EventAllocationCardProps> = ({
         )}
       </div>
 
-      {/* Добавить участника */}
-      <AddParticipantCombobox
-        availableParticipants={availableToAdd}
-        onSelect={onAddParticipant}
-      />
+      {/* Добавить участника (только если есть свободные места) */}
+      {hasRoom ? (
+        <AddParticipantCombobox
+          availableParticipants={availableToAdd}
+          onSelect={onAddParticipant}
+        />
+      ) : (
+        <div className="mt-2 text-xs text-gray-400 italic">
+          Нет свободных мест — удалите участника, чтобы добавить другого
+        </div>
+      )}
 
       {/* Все заявки (сворачиваемый блок) */}
       <button
@@ -309,6 +318,7 @@ interface WaveSectionProps {
   result: WaveAllocationResult;
   waveIndex: number;
   participantById: Map<number, Participant>;
+  allParticipants: Participant[];
   onRemoveParticipant: (waveIndex: number, eventIndex: number, pid: number) => void;
   onAddParticipant: (waveIndex: number, eventIndex: number, pid: number) => void;
 }
@@ -317,6 +327,7 @@ const WaveSection: React.FC<WaveSectionProps> = ({
   result,
   waveIndex,
   participantById,
+  allParticipants,
   onRemoveParticipant,
   onAddParticipant,
 }) => {
@@ -394,6 +405,7 @@ const WaveSection: React.FC<WaveSectionProps> = ({
               key={assignment.registrationId}
               assignment={assignment}
               participantById={participantById}
+              allParticipants={allParticipants}
               assignedInWave={assignedInWave}
               participantEventMap={participantEventMap}
               onRemoveParticipant={(pid) =>
@@ -683,6 +695,7 @@ const AllocationTab: React.FC = () => {
                   result={result}
                   waveIndex={waveIdx}
                   participantById={participantById}
+                  allParticipants={participants}
                   onRemoveParticipant={handleRemoveParticipant}
                   onAddParticipant={handleAddParticipant}
                 />
