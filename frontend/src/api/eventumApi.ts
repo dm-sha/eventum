@@ -119,6 +119,29 @@ export const eventumApi = {
       'GET',
       `/eventums/${slug}/participant-groups-directory/`
     );
+  },
+
+  /** Сохранение распределения участников по мероприятиям (batch) */
+  saveAllocation: (
+    allocations: Array<{ event_id: number; participant_ids: number[] }>,
+    eventumSlug?: string
+  ) => {
+    const slug = getEventumSlugForRequest(eventumSlug);
+    const subdomainSlug = getSubdomainSlug();
+    if (subdomainSlug) {
+      return createApiRequest<{ status: string; errors?: string[] }>(
+        'POST',
+        '/save-allocation/',
+        subdomainSlug,
+        { allocations }
+      );
+    }
+    return createApiRequest<{ status: string; errors?: string[] }>(
+      'POST',
+      `/eventums/${slug}/save-allocation/`,
+      undefined,
+      { allocations }
+    );
   }
 };
 
@@ -212,10 +235,6 @@ export const eventsApi = {
   // Удалить событие
   delete: (id: number, eventumSlug?: string) => 
     createApiRequest<void>('DELETE', `/events/${id}/`, getEventumSlugForRequest(eventumSlug)),
-  
-  // Частичное обновление события (PATCH)
-  patch: (id: number, data: Record<string, unknown>, eventumSlug?: string) =>
-    createApiRequest<Event>('PATCH', `/events/${id}/`, getEventumSlugForRequest(eventumSlug), data),
   
   // Подать заявку на событие
   register: (id: number, eventumSlug?: string) => 

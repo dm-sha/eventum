@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import type { EventRegistration } from '../../api/eventRegistration';
 import { useAdminData } from '../../contexts/AdminDataContext';
 import { useEventumSlug } from '../../hooks/useEventumSlug';
-import { groupsApi, eventsApi } from '../../api/eventumApi';
+import { eventumApi } from '../../api/eventumApi';
 import {
   allocateWave,
   type WaveAllocationResult,
@@ -563,69 +563,35 @@ const AllocationTab: React.FC = () => {
     setIsSaving(true);
     setSaveStatus(null);
 
-    const tasks: Array<{ eventName: string; run: () => Promise<void> }> = [];
+    const allocations: Array<{ event_id: number; participant_ids: number[] }> = [];
 
     for (const wave of allocationResults) {
       for (const assignment of wave.events) {
         if (assignment.assignedIds.length === 0) continue;
-
-        const event = events.find((e) => e.id === assignment.eventId);
-        if (!event) continue;
-
-        const participantRelations = assignment.assignedIds.map((pid) => ({
-          participant_id: pid,
-          relation_type: 'inclusive' as const,
-        }));
-
-        tasks.push({
-          eventName: assignment.eventName,
-          run: async () => {
-            if (event.event_group_id) {
-              await groupsApi.update(
-                event.event_group_id,
-                { participant_relations: participantRelations },
-                eventumSlug
-              );
-            } else {
-              const created = await groupsApi.create(
-                {
-                  name: `Группа: ${event.name}`,
-                  is_event_group: true,
-                  participant_relations: participantRelations,
-                },
-                eventumSlug
-              );
-              const newGroup = (created as any).data ?? created;
-              await eventsApi.patch(
-                event.id,
-                { event_group_id_write: newGroup.id },
-                eventumSlug
-              );
-            }
-          },
+        allocations.push({
+          event_id: assignment.eventId,
+          participant_ids: assignment.assignedIds,
         });
       }
     }
 
-    const results = await Promise.allSettled(tasks.map((t) => t.run()));
+    try {
+      const res = await eventumApi.saveAllocation(allocations, eventumSlug);
+      const data = (res as any).data ?? res;
 
-    const errors: string[] = [];
-    results.forEach((r, i) => {
-      if (r.status === 'rejected') {
-        const msg = r.reason instanceof Error ? r.reason.message : String(r.reason);
-        errors.push(`${tasks[i].eventName}: ${msg}`);
+      await refetch(['groups', 'participants', 'events', 'registrations', 'waves']);
+
+      if (data.errors && data.errors.length > 0) {
+        setSaveStatus({
+          type: 'error',
+          message: data.errors.join('\n'),
+        });
+      } else {
+        setSaveStatus({ type: 'success', message: 'Распределение сохранено!' });
       }
-    });
-
-    await refetch(['groups', 'participants', 'events', 'registrations', 'waves']);
-
-    if (errors.length > 0) {
-      setSaveStatus({
-        type: 'error',
-        message: errors.join('\n'),
-      });
-    } else {
-      setSaveStatus({ type: 'success', message: 'Распределение сохранено!' });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setSaveStatus({ type: 'error', message: msg });
     }
 
     setIsSaving(false);

@@ -30,6 +30,7 @@ from .views import (
     ParticipantGroupGroupRelationViewSet,
     ParticipantGroupEventRelationViewSet,
     upload_image,
+    save_allocation,
 )
 from .raw_views import (
     EventumRawBundleView,
@@ -92,8 +93,11 @@ urlpatterns = [
     path('eventums/<slug:eventum_slug>/calendar/webcal', participant_calendar_webcal, name='participant_calendar_webcal'),
     # Upload image endpoint
     path('eventums/<slug:eventum_slug>/upload-image/', upload_image, name='upload_image'),
+    # Save allocation (batch)
+    path('eventums/<slug:eventum_slug>/save-allocation/', save_allocation, name='save_allocation'),
     
     # Fallback для поддоменов (обратная совместимость)
+    path('save-allocation/', save_allocation, name='save_allocation_subdomain'),
     path('', include(eventum_scoped_router.urls)),
     
     # Аутентификация

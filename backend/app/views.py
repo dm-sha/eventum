@@ -2263,3 +2263,83 @@ def participant_calendar_webcal(request, eventum_slug=None):
         )
 
 
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def save_allocation(request, eventum_slug=None):
+    """
+    Сохраняет распределение участников по мероприятиям за один запрос.
+
+    Тело запроса:
+    {
+      "allocations": [
+        { "event_id": 1, "participant_ids": [10, 20, 30] },
+        ...
+      ]
+    }
+
+    Для каждого мероприятия:
+    - если у Event есть event_group → обновляет participant_relations
+    - если нет → создаёт группу is_event_group=True и привязывает к Event
+    """
+    from django.db import transaction
+
+    if eventum_slug:
+        eventum = get_object_or_404(Eventum, slug=eventum_slug)
+    else:
+        eventum = get_eventum_from_request(request)
+
+    if not UserRole.objects.filter(user=request.user, eventum=eventum, role='organizer').exists():
+        return Response({'detail': 'Доступ запрещён'}, status=status.HTTP_403_FORBIDDEN)
+
+    allocations = request.data.get('allocations', [])
+    if not isinstance(allocations, list):
+        return Response({'detail': 'allocations должен быть массивом'}, status=status.HTTP_400_BAD_REQUEST)
+
+    errors = []
+
+    with transaction.atomic():
+        for item in allocations:
+            event_id = item.get('event_id')
+            participant_ids = item.get('participant_ids', [])
+
+            if not event_id or not isinstance(participant_ids, list):
+                errors.append(f'Некорректный элемент: {item}')
+                continue
+
+            try:
+                event = Event.objects.select_related('event_group').get(id=event_id, eventum=eventum)
+            except Event.DoesNotExist:
+                errors.append(f'Мероприятие {event_id} не найдено')
+                continue
+
+            participants = Participant.objects.filter(id__in=participant_ids, eventum=eventum)
+            valid_ids = set(participants.values_list('id', flat=True))
+
+            if event.event_group:
+                group = event.event_group
+            else:
+                group = ParticipantGroup.objects.create(
+                    eventum=eventum,
+                    name=f'Группа: {event.name}',
+                    is_event_group=True,
+                )
+                event.event_group = group
+                event.save(update_fields=['event_group'])
+
+            ParticipantGroupParticipantRelation.objects.filter(group=group).delete()
+
+            relations = [
+                ParticipantGroupParticipantRelation(
+                    group=group,
+                    participant_id=pid,
+                    relation_type='inclusive',
+                )
+                for pid in valid_ids
+            ]
+            if relations:
+                ParticipantGroupParticipantRelation.objects.bulk_create(relations)
+
+    if errors:
+        return Response({'status': 'partial', 'errors': errors}, status=status.HTTP_207_MULTI_STATUS)
+
+    return Response({'status': 'ok'})
