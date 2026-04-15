@@ -407,7 +407,6 @@ const WaveSection: React.FC<WaveSectionProps> = ({
 const AllocationTab: React.FC = () => {
   const eventumSlug = useEventumSlug();
   const {
-    eventRegistrations: registrations,
     eventWaves: waves,
     participants,
     events,
