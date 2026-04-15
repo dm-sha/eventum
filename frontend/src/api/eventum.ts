@@ -68,6 +68,14 @@ export const updateEventumGroupsTabVisible = async (slug: string, groups_tab_vis
     return response.data;
 };
 
+export const updateEventumDistributionTabVisible = async (
+    slug: string,
+    distribution_tab_visible: boolean
+): Promise<Eventum> => {
+    const response = await eventumApi.update(slug, { distribution_tab_visible });
+    return response.data;
+};
+
 export const getParticipantGroupsDirectory = async (slug: string): Promise<ParticipantGroupDirectoryEntry[]> => {
     const response = await eventumApi.getParticipantGroupsDirectory(slug);
     return response.data;

@@ -133,6 +133,7 @@ class EventumSerializer(serializers.ModelSerializer):
             'schedule_visible',
             'public_page',
             'groups_tab_visible',
+            'distribution_tab_visible',
         ]
         # Убираем slug из read_only_fields, чтобы можно было передавать его при создании
     

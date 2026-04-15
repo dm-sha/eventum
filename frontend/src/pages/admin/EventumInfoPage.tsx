@@ -1,7 +1,14 @@
 import { useEffect, useState, useRef } from "react";
 import { useEventumSlug } from "../../hooks/useEventumSlug";
 import { useAdminData } from "../../contexts/AdminDataContext";
-import { updateEventumName, updateEventumDescription, updateEventumScheduleVisible, updateEventumPublicPage, updateEventumGroupsTabVisible } from "../../api/eventum";
+import {
+  updateEventumName,
+  updateEventumDescription,
+  updateEventumScheduleVisible,
+  updateEventumPublicPage,
+  updateEventumGroupsTabVisible,
+  updateEventumDistributionTabVisible,
+} from "../../api/eventum";
 import { addEventumOrganizer, removeEventumOrganizer, searchUsers } from "../../api/organizers";
 import { useAuth } from "../../contexts/AuthContext";
 import type { User } from "../../types";
@@ -34,6 +41,7 @@ const EventumInfoPage = () => {
   const [isTogglingSchedule, setIsTogglingSchedule] = useState(false);
   const [isTogglingPublicPage, setIsTogglingPublicPage] = useState(false);
   const [isTogglingGroupsTab, setIsTogglingGroupsTab] = useState(false);
+  const [isTogglingDistributionTab, setIsTogglingDistributionTab] = useState(false);
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   
@@ -157,6 +165,24 @@ const EventumInfoPage = () => {
       alert('Не удалось изменить настройку вкладки групп');
     } finally {
       setIsTogglingGroupsTab(false);
+    }
+  };
+
+  const handleToggleDistributionTabVisible = async () => {
+    if (!eventumSlug || !eventum) return;
+    const newValue = !(eventum.distribution_tab_visible ?? false);
+    setIsTogglingDistributionTab(true);
+    try {
+      const updated = await updateEventumDistributionTabVisible(eventumSlug, newValue);
+      patchEventumDetails({
+        ...eventum,
+        distribution_tab_visible: updated.distribution_tab_visible,
+      });
+    } catch (error) {
+      console.error("Ошибка изменения вкладки распределения:", error);
+      alert("Не удалось изменить настройку вкладки распределения");
+    } finally {
+      setIsTogglingDistributionTab(false);
     }
   };
 
@@ -436,6 +462,30 @@ const EventumInfoPage = () => {
             >
               <span
                 className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${eventum.schedule_visible ? 'translate-x-5' : 'translate-x-1'}`}
+              />
+            </button>
+          </div>
+        </div>
+
+        {/* Карточка: вкладка «Распределение» */}
+        <div className="bg-white border border-gray-200 rounded-lg p-4">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h3 className="text-md font-medium text-gray-900">Вкладка «Распределение»</h3>
+              <p className="text-sm text-gray-500">
+                Участник видит итог: в какие мероприятия он включён по распределению; если ни в одно — явное
+                сообщение об этом (при наличии заявок — список заявок ниже).
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleToggleDistributionTabVisible}
+              disabled={isTogglingDistributionTab}
+              className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${(eventum.distribution_tab_visible ?? false) ? "bg-blue-600" : "bg-gray-300"} disabled:opacity-50`}
+              title={(eventum.distribution_tab_visible ?? false) ? "Скрыть вкладку" : "Показать вкладку"}
+            >
+              <span
+                className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${(eventum.distribution_tab_visible ?? false) ? "translate-x-5" : "translate-x-1"}`}
               />
             </button>
           </div>

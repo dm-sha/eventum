@@ -128,6 +128,7 @@ class EventumAdmin(admin.ModelAdmin):
         'schedule_visible',
         'public_page',
         'groups_tab_visible',
+        'distribution_tab_visible',
         'image_preview',
     )
     readonly_fields = ('image_preview', 'participants_count', 'events_count')

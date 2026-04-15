@@ -319,11 +319,10 @@ const EventumPage = () => {
   const showRegistrationTab =
     isAuthenticated && (!!eventum?.registration_open || !!participantId);
 
-  // todo: enable after refactoring
-  const showDistributionTab = false;
-    // isAuthenticated &&
-    // currentParticipant !== null &&
-    // (!!eventum?.registration_open || !!participantId);
+  const showDistributionTab = isAuthenticated &&
+    !!(eventum?.distribution_tab_visible ?? false) &&
+    currentParticipant !== null &&
+    (!!eventum?.registration_open || !!participantId);
 
   if (error || !eventum) {
     return (
@@ -569,9 +568,23 @@ const DistributionTab: React.FC<{ events: Event[]; currentParticipant: Participa
   }
 
   const registrationRelatedEvents = events.filter((e) => e.is_registered || e.is_participant);
+  const participatingCount = registrationRelatedEvents.filter((e) => e.is_participant === true).length;
 
   return (
     <div className="space-y-6">
+      {registrationRelatedEvents.length > 0 &&
+        (participatingCount > 0 ? (
+          <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900">
+            {participatingCount === 1
+              ? "Вас включили в состав одного мероприятия."
+              : `Вас включили в состав ${participatingCount} мероприятий.`}
+          </div>
+        ) : (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            По результатам распределения вы не включены ни в одно мероприятие. Ниже перечислены мероприятия, на
+            которые вы подали заявку.
+          </div>
+        ))}
       {registrationRelatedEvents.length > 0 ? (
         <div className="space-y-6">
           {/* Мероприятия, в которых участник участвует */}

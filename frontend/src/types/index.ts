@@ -10,6 +10,8 @@ export interface Eventum {
     public_page: boolean;
     /** Вкладка «Группы участников» на странице события */
     groups_tab_visible: boolean;
+    /** Вкладка «Распределение» (итоги заявок) на странице события */
+    distribution_tab_visible: boolean;
     // password_hash мы не получаем на фронтенде, поэтому его здесь нет
 }
 

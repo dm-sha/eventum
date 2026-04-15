@@ -31,6 +31,10 @@ class Eventum(models.Model):
         default=False,
         help_text="Показывать ли вкладку «Группы участников» на странице события для участников",
     )
+    distribution_tab_visible = models.BooleanField(
+        default=False,
+        help_text="Показывать ли вкладку «Распределение» на странице события участникам",
+    )
 
     def save(self, *args, **kwargs):
         # Если slug не предоставлен, генерируем его из названия
