@@ -452,7 +452,6 @@ const AllocationTab: React.FC = () => {
   const {
     eventWaves: waves,
     participants,
-    events,
     refetch,
   } = useAdminData();
 
