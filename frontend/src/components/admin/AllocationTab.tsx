@@ -87,7 +87,14 @@ const AddParticipantCombobox: React.FC<AddParticipantComboboxProps> = ({
     }
   };
 
-  if (availableParticipants.length === 0) return null;
+  if (availableParticipants.length === 0) {
+    return (
+      <div className="mt-2 flex items-center gap-1 text-xs text-gray-400 italic">
+        <IconPlus size={14} />
+        <span>Все подавшие заявку уже распределены</span>
+      </div>
+    );
+  }
 
   return (
     <div ref={containerRef} className="relative mt-2">
@@ -139,6 +146,8 @@ interface EventAllocationCardProps {
   assignment: EventAssignment;
   participantById: Map<number, Participant>;
   assignedInWave: Set<number>;
+  /** pid → название мероприятия, в которое участник распределён */
+  participantEventMap: Map<number, string>;
   onRemoveParticipant: (participantId: number) => void;
   onAddParticipant: (participantId: number) => void;
 }
@@ -147,12 +156,14 @@ const EventAllocationCard: React.FC<EventAllocationCardProps> = ({
   assignment,
   participantById,
   assignedInWave,
+  participantEventMap,
   onRemoveParticipant,
   onAddParticipant,
 }) => {
   const [showApplicants, setShowApplicants] = useState(false);
 
   const { assignedIds, applicantIds, maxCapacity, eventName } = assignment;
+  const assignedHere = useMemo(() => new Set(assignedIds), [assignedIds]);
 
   const overCapacity =
     maxCapacity !== null && assignedIds.length > maxCapacity;
@@ -259,20 +270,29 @@ const EventAllocationCard: React.FC<EventAllocationCardProps> = ({
         <div className="mt-1.5 space-y-0.5 max-h-48 overflow-y-auto">
           {applicantIds.map((pid) => {
             const p = participantById.get(pid);
-            const isAssigned = assignedInWave.has(pid);
+            const here = assignedHere.has(pid);
+            const elsewhere = !here && assignedInWave.has(pid);
+            const otherEvent = elsewhere ? participantEventMap.get(pid) : null;
             return (
               <div
                 key={pid}
                 className={`flex items-center gap-2 rounded px-2.5 py-1 text-sm ${
-                  isAssigned
+                  here
                     ? 'bg-emerald-50 text-emerald-700'
-                    : 'bg-gray-50 text-gray-600'
+                    : elsewhere
+                      ? 'bg-blue-50 text-blue-600'
+                      : 'bg-gray-50 text-gray-600'
                 }`}
               >
                 <IconUser size={12} className="shrink-0" />
                 <span>{p?.name ?? `#${pid}`}</span>
-                {isAssigned && (
-                  <span className="ml-auto text-xs text-emerald-500">распределён</span>
+                {here && (
+                  <span className="ml-auto text-xs text-emerald-500">распределён сюда</span>
+                )}
+                {elsewhere && (
+                  <span className="ml-auto text-xs text-blue-400 truncate max-w-[50%]" title={otherEvent ?? undefined}>
+                    → {otherEvent}
+                  </span>
                 )}
               </div>
             );
@@ -313,6 +333,16 @@ const WaveSection: React.FC<WaveSectionProps> = ({
     () => new Set(result.events.flatMap((e) => e.assignedIds)),
     [result.events]
   );
+
+  const participantEventMap = useMemo(() => {
+    const m = new Map<number, string>();
+    for (const ev of result.events) {
+      for (const pid of ev.assignedIds) {
+        m.set(pid, ev.eventName);
+      }
+    }
+    return m;
+  }, [result.events]);
 
   return (
     <div className="rounded-2xl border border-gray-200 bg-gray-50/50 p-4 sm:p-5">
@@ -365,6 +395,7 @@ const WaveSection: React.FC<WaveSectionProps> = ({
               assignment={assignment}
               participantById={participantById}
               assignedInWave={assignedInWave}
+              participantEventMap={participantEventMap}
               onRemoveParticipant={(pid) =>
                 onRemoveParticipant(waveIndex, eventIdx, pid)
               }
