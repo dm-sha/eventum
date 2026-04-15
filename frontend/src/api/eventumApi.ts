@@ -213,6 +213,10 @@ export const eventsApi = {
   delete: (id: number, eventumSlug?: string) => 
     createApiRequest<void>('DELETE', `/events/${id}/`, getEventumSlugForRequest(eventumSlug)),
   
+  // Частичное обновление события (PATCH)
+  patch: (id: number, data: Record<string, unknown>, eventumSlug?: string) =>
+    createApiRequest<Event>('PATCH', `/events/${id}/`, getEventumSlugForRequest(eventumSlug), data),
+  
   // Подать заявку на событие
   register: (id: number, eventumSlug?: string) => 
     createApiRequest<void>('POST', `/events/${id}/register/`, getEventumSlugForRequest(eventumSlug)),

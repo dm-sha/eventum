@@ -15,6 +15,7 @@ import type { Eventum } from '../../types';
 import { useAdminData } from '../../contexts/AdminDataContext';
 import type { Event } from '../../types';
 import RegistrationCard, { GroupCombobox, type RegistrationCardGroup } from '../../components/event/RegistrationCard';
+import AllocationTab from '../../components/admin/AllocationTab';
 
 type Mode = 'view' | 'edit' | 'create';
 
@@ -896,7 +897,7 @@ const EventRegistrationPage: React.FC = () => {
   } = useAdminData();
   const eventum: Eventum | null = eventumDetails;
   const groups: BasicItem[] = participantGroups.map((g) => ({ id: g.id, name: g.name }));
-  const [activeTab, setActiveTab] = useState<'registrations' | 'waves'>('registrations');
+  const [activeTab, setActiveTab] = useState<'registrations' | 'waves' | 'allocation'>('registrations');
   const [editingRegistrationId, setEditingRegistrationId] = useState<number | null>(null);
   const [editingWaveId, setEditingWaveId] = useState<number | null>(null);
   const [showCreateRegistration, setShowCreateRegistration] = useState(false);
@@ -1065,10 +1066,21 @@ const EventRegistrationPage: React.FC = () => {
           >
             Волны
           </button>
+          <button
+            onClick={() => setActiveTab('allocation')}
+            className={`whitespace-nowrap border-b-2 py-4 px-1 text-sm font-medium ${
+              activeTab === 'allocation'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+            }`}
+          >
+            Распределение
+          </button>
         </nav>
       </div>
 
-          {/* Поиск */}
+          {/* Поиск (скрыт для вкладки распределения) */}
+          {activeTab !== 'allocation' && (
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <div className="relative flex-1">
               <input
@@ -1083,13 +1095,14 @@ const EventRegistrationPage: React.FC = () => {
           Показано: {activeTab === 'registrations' ? filteredRegistrations.length : filteredWaves.length}
             </span>
           </div>
+          )}
 
       {/* Контент вкладок */}
       {isLoading ? (
         <WavesLoadingSkeleton />
       ) : (
         <>
-          {activeTab === 'registrations' ? (
+          {activeTab === 'registrations' && (
             <div className="space-y-4">
               {/* Кнопка добавления регистрации */}
               <div className="flex justify-start">
@@ -1135,7 +1148,9 @@ const EventRegistrationPage: React.FC = () => {
                 ))
               )}
             </div>
-          ) : (
+          )}
+
+          {activeTab === 'waves' && (
             <div className="space-y-4">
           {/* Кнопка добавления волны */}
           <div className="flex justify-start">
@@ -1190,6 +1205,8 @@ const EventRegistrationPage: React.FC = () => {
               )}
             </div>
           )}
+
+          {activeTab === 'allocation' && <AllocationTab />}
         </>
           )}
     </div>
