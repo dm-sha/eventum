@@ -35,6 +35,7 @@ from .views import (
 from .raw_views import (
     EventumRawBundleView,
     EventumRawEventRegistrationsView,
+    EventumRawParticipantsRegistrationsExportView,
     EventumRawEventsView,
     EventumRawEventTagsView,
     EventumRawEventWavesView,
@@ -83,6 +84,7 @@ urlpatterns = [
     path('eventums/<slug:eventum_slug>/raw/group-participant-relations/', EventumRawGroupParticipantRelationsView.as_view(), name='eventum_raw_group_participant_relations'),
     path('eventums/<slug:eventum_slug>/raw/group-group-relations/', EventumRawGroupGroupRelationsView.as_view(), name='eventum_raw_group_group_relations'),
     path('eventums/<slug:eventum_slug>/raw/group-event-relations/', EventumRawGroupEventRelationsView.as_view(), name='eventum_raw_group_event_relations'),
+    path('eventums/<slug:eventum_slug>/raw/participants-registrations-export/', EventumRawParticipantsRegistrationsExportView.as_view(), name='eventum_raw_participants_registrations_export'),
     path('eventums/<slug:eventum_slug>/', include(eventum_scoped_router.urls)),
     path('eventums/<slug:slug>/details/', eventum_details, name='eventum_details'),
     path('eventums/<slug:slug>/organizers/', eventum_organizers, name='eventum_organizers'),
