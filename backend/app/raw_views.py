@@ -19,7 +19,6 @@ from .models import (
     ParticipantGroupGroupRelation,
     ParticipantGroupParticipantRelation,
 )
-from .utils import EventumGroupGraph
 from .permissions import (
     IsEventumOrganizer,
     IsEventumOrganizerOrPublicReadOnly,
@@ -172,69 +171,6 @@ def raw_event_waves_list(eventum):
     return out
 
 
-def raw_participants_registrations_export_list(eventum):
-    """
-    Выгрузка для аналитики:
-    - ФИО участника
-    - группы участника (без event_group)
-    - мероприятия с регистрацией, где участник участвует
-    """
-    participants = list(Participant.objects.filter(eventum=eventum).order_by('id'))
-    participants_map = {p.id: p for p in participants}
-    graph = EventumGroupGraph(eventum, participants_map=participants_map)
-
-    participant_to_groups = {participant.id: [] for participant in participants}
-    non_event_groups = ParticipantGroup.objects.filter(
-        eventum=eventum,
-        is_event_group=False,
-    ).order_by('name')
-
-    for group in non_event_groups:
-        participant_ids = graph.get_participant_ids(group.id)
-        for participant_id in participant_ids:
-            if participant_id in participant_to_groups:
-                participant_to_groups[participant_id].append(group.name)
-
-    participant_to_events = {participant.id: [] for participant in participants}
-    registrations = (
-        EventRegistration.objects.filter(event__eventum=eventum)
-        .select_related('event')
-        .prefetch_related('applicants')
-        .order_by('event__start_time', 'event__id')
-    )
-
-    for registration in registrations:
-        event_payload = {
-            'event_id': registration.event_id,
-            'event_name': registration.event.name,
-            'registration_type': registration.registration_type,
-        }
-
-        if registration.registration_type == EventRegistration.RegistrationType.BUTTON:
-            registered_participant_ids = graph.get_participant_ids(registration.event.event_group_id)
-        else:
-            registered_participant_ids = {participant.id for participant in registration.applicants.all()}
-
-        for participant_id in registered_participant_ids:
-            if participant_id in participant_to_events:
-                participant_to_events[participant_id].append(event_payload.copy())
-
-    out = []
-    for participant in participants:
-        groups = sorted(participant_to_groups.get(participant.id, []), key=str.lower)
-        events = participant_to_events.get(participant.id, [])
-        events.sort(key=lambda event_data: (event_data['event_name'].lower(), event_data['event_id']))
-        out.append(
-            {
-                'participant_id': participant.id,
-                'full_name': participant.name,
-                'groups': groups,
-                'registered_events': events,
-            }
-        )
-    return out
-
-
 class EventumRawGroupStructureView(APIView):
     permission_classes = [IsEventumOrganizerOrReadOnly]
 
@@ -355,14 +291,6 @@ class EventumRawEventWavesView(APIView):
     def get(self, request, eventum_slug):
         eventum = get_eventum_from_request(request, kwargs={'eventum_slug': eventum_slug})
         return Response({'event_waves': raw_event_waves_list(eventum)})
-
-
-class EventumRawParticipantsRegistrationsExportView(APIView):
-    permission_classes = [IsEventumOrganizer]
-
-    def get(self, request, eventum_slug):
-        eventum = get_eventum_from_request(request, kwargs={'eventum_slug': eventum_slug})
-        return Response({'participants': raw_participants_registrations_export_list(eventum)})
 
 
 class EventumRawBundleView(APIView):
