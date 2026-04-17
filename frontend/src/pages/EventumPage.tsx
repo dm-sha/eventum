@@ -1489,8 +1489,7 @@ const ScheduleTab: React.FC<{
       {!isAuthenticated && (
         <div className="rounded-lg border border-blue-100 bg-blue-50/80 px-4 py-3 text-sm text-gray-700 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <p className="text-left">
-            Показано общее расписание (мероприятия для всех участников). Чтобы видеть персональное
-            расписание и записываться на мероприятия, войдите в аккаунт.
+            Показано общее расписание (мероприятия для всех участников). Чтобы видеть персональное расписание войдите в аккаунт.
           </p>
           <Link
             to="/login"
