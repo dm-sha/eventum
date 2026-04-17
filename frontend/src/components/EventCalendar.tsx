@@ -1,19 +1,28 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import type { RawGroupStructureResponse } from '../api/rawEventumAdmin';
 import type { Event, Participant } from '../types';
 import EventModal from './EventModal';
 import { downloadParticipantCalendar, getParticipantCalendarWebcalUrl } from '../api/event';
 import { IconCalendarDownload, IconCalendarSubscribe } from './icons';
 import { useEventumSlug } from '../hooks/useEventumSlug';
 import { resolveApiBaseUrl } from '../api/baseUrl';
+import { filterEventsVisibleForParticipant } from '../utils/participantVisibleEventsFromGroupStructure';
 import './EventCalendar.css';
 
 interface EventCalendarProps {
   events: Event[];
   participantId?: number | null;
   currentParticipant?: Participant | null;
+  /** Сырая структура групп — для фильтра расписания на фронте (как в модалке участника в админке) */
+  groupStructureRaw?: RawGroupStructureResponse | null;
 }
 
-const EventCalendar: React.FC<EventCalendarProps> = ({ events, participantId, currentParticipant }) => {
+const EventCalendar: React.FC<EventCalendarProps> = ({
+  events,
+  participantId,
+  currentParticipant,
+  groupStructureRaw = null,
+}) => {
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentDate, setCurrentDate] = useState<Date | null>(null);
@@ -22,18 +31,11 @@ const EventCalendar: React.FC<EventCalendarProps> = ({ events, participantId, cu
   
   const eventumSlug = useEventumSlug();
 
-  // Фильтруем мероприятия для участника
+  // Фильтруем мероприятия для участника по графу групп (как вкладка «Мероприятия» в модалке админки)
   const participantEvents = useMemo(() => {
     if (!participantId || !currentParticipant) return events;
-
-    return events.filter(event => {
-      // Используем is_participant, которое правильно вычисляется на бэкенде
-      // с учетом вложенных групп для всех типов мероприятий
-      // (работает и для мероприятий с регистрацией, и без)
-      // Для мероприятий без регистрации (без event_group) все участники eventum видят их
-      return event.is_participant === true;
-    });
-  }, [events, participantId, currentParticipant]);
+    return filterEventsVisibleForParticipant(events, participantId, groupStructureRaw ?? null);
+  }, [events, participantId, currentParticipant, groupStructureRaw]);
 
   // Находим первый день с мероприятием
   const firstEventDate = useMemo(() => {

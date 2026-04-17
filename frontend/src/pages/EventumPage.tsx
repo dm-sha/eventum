@@ -11,6 +11,7 @@ import {
   fetchRawEventWaves,
   fetchRawGroupStructure,
   fetchRawParticipants,
+  type RawGroupStructureResponse,
 } from "../api/rawEventumAdmin";
 import { buildEventumPageDataFromRaw } from "../utils/eventumPageFromRaw";
 import { participantsFromRawRows } from "../utils/participantDataFromRaw";
@@ -84,6 +85,10 @@ const EventumPage = () => {
   const [eventum, setEventum] = useState<Eventum | null>(null);
   const [eventWaves, setEventWaves] = useState<EventWave[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
+  /** Для фильтра расписания на фронте (как в модалке участника в админке) */
+  const [scheduleGroupStructure, setScheduleGroupStructure] = useState<RawGroupStructureResponse | null>(
+    null
+  );
   const [currentParticipant, setCurrentParticipant] = useState<Participant | null>(null);
   const [userRoles, setUserRoles] = useState<UserRole[]>([]);
   const [loading, setLoading] = useState(true);
@@ -119,6 +124,7 @@ const EventumPage = () => {
           setUserRoles([]);
           setEventWaves([]);
           setEvents([]);
+          setScheduleGroupStructure(null);
           setCurrentParticipant(null);
         } catch (err) {
           console.error("Ошибка загрузки события (гость):", err);
@@ -139,6 +145,7 @@ const EventumPage = () => {
       try {
         setLoading(true);
         setError(null);
+        setScheduleGroupStructure(null);
 
         const rolesData = await authApi.getRoles();
         setUserRoles(rolesData.data);
@@ -178,6 +185,7 @@ const EventumPage = () => {
         let wavesData: EventWave[] = [];
         let eventsData: Event[] = [];
         let participantData: Participant | null = null;
+        let loadedGroupStructure: RawGroupStructureResponse | null = null;
 
         const parsedParticipantParam = participantId ? parseInt(participantId, 10) : NaN;
 
@@ -191,6 +199,7 @@ const EventumPage = () => {
             fetchRawGroupStructure(eventumSlug),
             fetchRawParticipants(eventumSlug),
           ]);
+          loadedGroupStructure = structure;
 
           const organizerViewingParticipant =
             Number.isFinite(parsedParticipantParam) &&
@@ -210,6 +219,7 @@ const EventumPage = () => {
           if (!loadParticipantContent) {
             setEventWaves([]);
             setEvents([]);
+            setScheduleGroupStructure(null);
             setCurrentParticipant(null);
             return;
           }
@@ -233,6 +243,7 @@ const EventumPage = () => {
           eventsData = built.events;
         } catch (rawErr: unknown) {
           console.error("EventumPage: ошибка загрузки raw данных:", rawErr);
+          setScheduleGroupStructure(null);
           const httpErr = rawErr as { response?: { status?: number } };
           if (httpErr?.response?.status === 403) {
             setError(
@@ -247,8 +258,10 @@ const EventumPage = () => {
         setEventWaves(wavesData);
         setEvents(eventsData);
         setCurrentParticipant(participantData);
+        setScheduleGroupStructure(loadedGroupStructure);
       } catch (err) {
         console.error("Ошибка загрузки данных:", err);
+        setScheduleGroupStructure(null);
         const error = err as { response?: { status?: number } };
         if (error?.response?.status === 403) {
           setError(
@@ -497,7 +510,12 @@ const EventumPage = () => {
           )}
           {currentTab === 'schedule' && eventumSlug && eventum && (eventum.schedule_visible || (isUserOrganizer(eventum.id) && participantId)) && (
             isAuthenticated ? (
-              <ScheduleTab events={events} currentParticipant={currentParticipant} participantId={participantId} />
+              <ScheduleTab
+                events={events}
+                currentParticipant={currentParticipant}
+                participantId={participantId}
+                groupStructureRaw={scheduleGroupStructure}
+              />
             ) : (
               <AuthRequiredPanel returnTo={{ pathname: location.pathname, search: location.search }} />
             )
@@ -1422,7 +1440,12 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string; isViewingAsOtherP
 };
 
 // Компонент для вкладки "Расписание"
-const ScheduleTab: React.FC<{ events: Event[]; currentParticipant: Participant | null; participantId: string | null }> = ({ events, currentParticipant, participantId }) => {
+const ScheduleTab: React.FC<{
+  events: Event[];
+  currentParticipant: Participant | null;
+  participantId: string | null;
+  groupStructureRaw: RawGroupStructureResponse | null;
+}> = ({ events, currentParticipant, participantId, groupStructureRaw }) => {
   // Если пользователь не является участником
   if (!currentParticipant) {
     return (
@@ -1453,10 +1476,11 @@ const ScheduleTab: React.FC<{ events: Event[]; currentParticipant: Participant |
 
   return (
     <div className="space-y-6">
-      <EventCalendar 
-        events={events} 
-        participantId={participantId ? parseInt(participantId) : currentParticipant.id} 
+      <EventCalendar
+        events={events}
+        participantId={participantId ? parseInt(participantId, 10) : currentParticipant.id}
         currentParticipant={currentParticipant}
+        groupStructureRaw={groupStructureRaw}
       />
     </div>
   );

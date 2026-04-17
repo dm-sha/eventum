@@ -8,6 +8,7 @@ import LazyImage from "../LazyImage";
 import SuggestPickInput from "../SuggestPickInput";
 import { useAdminData } from "../../contexts/AdminDataContext";
 import { createEventumGroupGraphFromRaw } from "../../utils/eventumGroupGraphFromRaw";
+import { filterEventsVisibleForParticipant } from "../../utils/participantVisibleEventsFromGroupStructure";
 
 type ParticipantModalTab = "general" | "groups" | "events";
 
@@ -374,26 +375,23 @@ const ParticipantModal = ({
     if (pid == null) {
       return { participantEventsList: [] as Event[], eventsAvailableToAdd: [] as Event[] };
     }
-    const inList: Event[] = [];
+    const inList = filterEventsVisibleForParticipant(adminEvents, pid, groupStructureRaw);
+    const inIds = new Set(inList.map((e) => e.id));
     const addList: Event[] = [];
-    for (const ev of adminEvents) {
-      const gid = ev.event_group_id ?? null;
-      if (gid == null) {
-        inList.push(ev);
-      } else if (!groupGraph) {
-        continue;
-      } else if (groupGraph.hasParticipant(gid, pid)) {
-        inList.push(ev);
-      } else {
-        addList.push(ev);
+    if (groupGraph) {
+      for (const ev of adminEvents) {
+        const gid = ev.event_group_id ?? null;
+        if (gid == null || inIds.has(ev.id)) continue;
+        if (!groupGraph.hasParticipant(gid, pid)) {
+          addList.push(ev);
+        }
       }
     }
     const byStart = (a: Event, b: Event) =>
       new Date(a.start_time).getTime() - new Date(b.start_time).getTime();
-    inList.sort(byStart);
     addList.sort(byStart);
     return { participantEventsList: inList, eventsAvailableToAdd: addList };
-  }, [effectiveParticipant?.id, groupGraph, adminEvents]);
+  }, [effectiveParticipant?.id, groupGraph, groupStructureRaw, adminEvents]);
 
   const eventSuggestItems = useMemo(
     () =>
