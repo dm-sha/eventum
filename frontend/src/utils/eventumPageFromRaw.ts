@@ -185,6 +185,44 @@ export function buildEventumPageDataFromRaw(
   return { events, eventWaves: waves };
 }
 
+/** Пустая структура групп для сборки событий без доступа к raw group-structure. */
+export function makeEmptyRawGroupStructure(eventumId: number): RawGroupStructureResponse {
+  return {
+    eventum_id: eventumId,
+    groups: [],
+    participant_relations: [],
+    group_relations: [],
+    event_relations: [],
+  };
+}
+
+/**
+ * События для страницы без участника/организатора: только публичные raw endpoints
+ * (мероприятия, теги, локации) и сборка как при viewingParticipantId = null.
+ */
+export async function loadScheduleEventsForNonParticipant(
+  eventumSlug: string,
+  eventumId: number
+): Promise<Event[]> {
+  const [rawEv, rawTags, rawLoc] = await Promise.all([
+    fetchRawEvents(eventumSlug),
+    fetchRawEventTags(eventumSlug),
+    fetchRawLocations(eventumSlug),
+  ]);
+  const built = buildEventumPageDataFromRaw(
+    eventumId,
+    rawEv,
+    rawTags,
+    rawLoc,
+    [],
+    [],
+    makeEmptyRawGroupStructure(eventumId),
+    [],
+    null
+  );
+  return built.events;
+}
+
 /** Список мероприятий из публичных raw (без тяжёлого ViewSet). */
 export async function loadEventsPickListFromRaw(eventumSlug: string): Promise<Event[]> {
   const [rawEv, rawTags, rawLoc] = await Promise.all([

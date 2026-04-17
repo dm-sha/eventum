@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate, useSearchParams, Navigate } from "react-router-dom";
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { getEventumBySlug } from "../api/eventum";
 import { registerForEvent, unregisterFromEvent } from "../api/event";
 import { authApi } from "../api/eventumApi";
@@ -13,7 +13,8 @@ import {
   fetchRawParticipants,
   type RawGroupStructureResponse,
 } from "../api/rawEventumAdmin";
-import { buildEventumPageDataFromRaw } from "../utils/eventumPageFromRaw";
+import { buildEventumPageDataFromRaw, loadScheduleEventsForNonParticipant } from "../utils/eventumPageFromRaw";
+import { filterPublicScheduleEvents } from "../utils/participantVisibleEventsFromGroupStructure";
 import { participantsFromRawRows } from "../utils/participantDataFromRaw";
 import type { Eventum, Event, Participant, UserRole } from "../types";
 import type { EventWave } from "../api/eventWave";
@@ -126,6 +127,14 @@ const EventumPage = () => {
           setEvents([]);
           setScheduleGroupStructure(null);
           setCurrentParticipant(null);
+          if (eventumData.schedule_visible) {
+            try {
+              const scheduleEv = await loadScheduleEventsForNonParticipant(eventumSlug, eventumData.id);
+              setEvents(scheduleEv);
+            } catch (scheduleErr) {
+              console.error("EventumPage: загрузка общего расписания (гость):", scheduleErr);
+            }
+          }
         } catch (err) {
           console.error("Ошибка загрузки события (гость):", err);
           const httpErr = err as { response?: { status?: number } };
@@ -217,10 +226,18 @@ const EventumPage = () => {
           const loadParticipantContent = isOrganizer || participantData !== null;
 
           if (!loadParticipantContent) {
-            setEventWaves([]);
-            setEvents([]);
             setScheduleGroupStructure(null);
             setCurrentParticipant(null);
+            setEventWaves([]);
+            setEvents([]);
+            if (eventumData.schedule_visible) {
+              try {
+                const scheduleEv = await loadScheduleEventsForNonParticipant(eventumSlug, eventumData.id);
+                setEvents(scheduleEv);
+              } catch (scheduleErr) {
+                console.error("EventumPage: загрузка общего расписания (не участник):", scheduleErr);
+              }
+            }
             return;
           }
 
@@ -445,8 +462,7 @@ const EventumPage = () => {
                 Группы
               </button>
             )}
-            {isAuthenticated &&
-              eventum &&
+            {eventum &&
               (eventum.schedule_visible || (isUserOrganizer(eventum.id) && participantId)) && (
               <button
                 onClick={() => handleTabChange('schedule')}
@@ -509,16 +525,14 @@ const EventumPage = () => {
             )
           )}
           {currentTab === 'schedule' && eventumSlug && eventum && (eventum.schedule_visible || (isUserOrganizer(eventum.id) && participantId)) && (
-            isAuthenticated ? (
-              <ScheduleTab
-                events={events}
-                currentParticipant={currentParticipant}
-                participantId={participantId}
-                groupStructureRaw={scheduleGroupStructure}
-              />
-            ) : (
-              <AuthRequiredPanel returnTo={{ pathname: location.pathname, search: location.search }} />
-            )
+            <ScheduleTab
+              events={events}
+              currentParticipant={currentParticipant}
+              participantId={participantId}
+              groupStructureRaw={scheduleGroupStructure}
+              isAuthenticated={isAuthenticated}
+              loginReturnTo={{ pathname: location.pathname, search: location.search }}
+            />
           )}
         </div>
       </div>
@@ -1445,42 +1459,55 @@ const ScheduleTab: React.FC<{
   currentParticipant: Participant | null;
   participantId: string | null;
   groupStructureRaw: RawGroupStructureResponse | null;
-}> = ({ events, currentParticipant, participantId, groupStructureRaw }) => {
-  // Если пользователь не является участником
-  if (!currentParticipant) {
+  isAuthenticated: boolean;
+  loginReturnTo: { pathname: string; search: string };
+}> = ({
+  events,
+  currentParticipant,
+  participantId,
+  groupStructureRaw,
+  isAuthenticated,
+  loginReturnTo,
+}) => {
+  const publicScheduleEvents = useMemo(() => filterPublicScheduleEvents(events), [events]);
+
+  if (currentParticipant) {
     return (
-      <div className="text-center py-8">
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-amber-100">
-          <svg
-            className="h-8 w-8 text-amber-600"
-            fill="none"
-            viewBox="0 0 24 24"
-            strokeWidth="1.5"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"
-            />
-          </svg>
-        </div>
-        <h3 className="mt-4 text-lg font-semibold text-gray-900">Вы не являетесь участником</h3>
-        <p className="mt-2 text-gray-600">
-          Чтобы просматривать расписание мероприятий, вам нужно стать участником этого события. 
-          Обратитесь к организаторам для получения доступа.
-        </p>
+      <div className="space-y-6">
+        <EventCalendar
+          events={events}
+          participantId={participantId ? parseInt(participantId, 10) : currentParticipant.id}
+          currentParticipant={currentParticipant}
+          groupStructureRaw={groupStructureRaw}
+        />
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
+      {!isAuthenticated && (
+        <div className="rounded-lg border border-blue-100 bg-blue-50/80 px-4 py-3 text-sm text-gray-700 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <p className="text-left">
+            Показано общее расписание (мероприятия для всех участников). Чтобы видеть персональное
+            расписание и записываться на мероприятия, войдите в аккаунт.
+          </p>
+          <Link
+            to="/login"
+            state={{ from: loginReturnTo }}
+            className="inline-flex shrink-0 items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+          >
+            Войти
+          </Link>
+        </div>
+      )}
       <EventCalendar
-        events={events}
-        participantId={participantId ? parseInt(participantId, 10) : currentParticipant.id}
-        currentParticipant={currentParticipant}
-        groupStructureRaw={groupStructureRaw}
+        events={publicScheduleEvents}
+        participantId={undefined}
+        currentParticipant={null}
+        groupStructureRaw={null}
+        showCalendarExport={false}
+        scheduleEmptyHint="public"
       />
     </div>
   );

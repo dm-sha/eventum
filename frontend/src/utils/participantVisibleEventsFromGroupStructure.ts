@@ -2,6 +2,13 @@ import type { RawGroupStructureResponse } from "../api/rawEventumAdmin";
 import type { Event } from "../types";
 import { createEventumGroupGraphFromRaw } from "./eventumGroupGraphFromRaw";
 
+/** Мероприятия без группы участников — в расписании видны всем (гости и не-участники). */
+export function filterPublicScheduleEvents(events: Event[]): Event[] {
+  const out = events.filter((ev) => (ev.event_group_id ?? null) == null);
+  out.sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
+  return out;
+}
+
 /**
  * Мероприятия, видимые участнику в расписании / вкладке «Мероприятия» (как в ParticipantModal):
  * без event_group — для всех; иначе — если участник входит в состав группы мероприятия (с вложенностью).

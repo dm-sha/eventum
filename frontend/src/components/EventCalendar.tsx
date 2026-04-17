@@ -15,6 +15,10 @@ interface EventCalendarProps {
   currentParticipant?: Participant | null;
   /** Сырая структура групп — для фильтра расписания на фронте (как в модалке участника в админке) */
   groupStructureRaw?: RawGroupStructureResponse | null;
+  /** Скачивание / подписка на .ics — только для участника */
+  showCalendarExport?: boolean;
+  /** Текст пустого расписания: личное участника или общее для гостя */
+  scheduleEmptyHint?: 'participant' | 'public';
 }
 
 const EventCalendar: React.FC<EventCalendarProps> = ({
@@ -22,6 +26,8 @@ const EventCalendar: React.FC<EventCalendarProps> = ({
   participantId,
   currentParticipant,
   groupStructureRaw = null,
+  showCalendarExport = true,
+  scheduleEmptyHint = 'participant',
 }) => {
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -170,8 +176,16 @@ const EventCalendar: React.FC<EventCalendarProps> = ({
     }
   };
 
-  // Если нет мероприятий для участника
+  // Если нет мероприятий для участника / в общем расписании
   if (participantEvents.length === 0) {
+    const emptyTitle =
+      scheduleEmptyHint === 'public'
+        ? 'Нет общих мероприятий'
+        : 'Нет мероприятий в расписании';
+    const emptyDescription =
+      scheduleEmptyHint === 'public'
+        ? 'Здесь отображаются только мероприятия без привязки к группе участников. Остальное расписание доступно участникам после входа в аккаунт.'
+        : 'У вас пока нет мероприятий в расписании. Возможно, вы не подали заявки на мероприятия или регистрация еще не завершена.';
     return (
       <div className="w-full">
         <div className="text-center py-12 bg-white rounded-lg shadow-sm border">
@@ -190,10 +204,8 @@ const EventCalendar: React.FC<EventCalendarProps> = ({
               />
             </svg>
           </div>
-          <h3 className="mt-4 text-lg font-semibold text-gray-900">Нет мероприятий в расписании</h3>
-          <p className="mt-2 text-gray-600">
-            У вас пока нет мероприятий в расписании. Возможно, вы не подали заявки на мероприятия или регистрация еще не завершена.
-          </p>
+          <h3 className="mt-4 text-lg font-semibold text-gray-900">{emptyTitle}</h3>
+          <p className="mt-2 text-gray-600 max-w-lg mx-auto">{emptyDescription}</p>
         </div>
       </div>
     );
@@ -208,29 +220,36 @@ const EventCalendar: React.FC<EventCalendarProps> = ({
         <div className="p-4 pb-2">
           <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-4">
             <h2 className="text-lg font-semibold text-gray-900">Расписание мероприятий</h2>
-            <div className="flex flex-row items-center gap-2 calendar-header-buttons">
-              <button
-                onClick={handleDownloadCalendar}
-                disabled={isDownloading || participantEvents.length === 0}
-                className="flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-                title="Скачать календарь в формате iCalendar (.ics)"
-              >
-                <IconCalendarDownload size={16} />
-                <span className="hidden xs:inline">{isDownloading ? 'Скачивание...' : 'Скачать календарь'}</span>
-                <span className="xs:hidden">{isDownloading ? 'Скачивание...' : 'Скачать'}</span>
-              </button>
-              
-              <button
-                onClick={handleSubscribeToCalendar}
-                disabled={isLoadingWebcal || participantEvents.length === 0 || !participantId}
-                className="flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-green-600 bg-green-50 rounded-lg hover:bg-green-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-                title="Подписаться на календарь в приложении календаря"
-              >
-                <IconCalendarSubscribe size={16} />
-                <span className="hidden xs:inline">{isLoadingWebcal ? 'Открытие...' : 'Подписаться в календарь'}</span>
-                <span className="xs:hidden">{isLoadingWebcal ? 'Открытие...' : 'Подписаться'}</span>
-              </button>
-            </div>
+            {showCalendarExport && (
+              <div className="flex flex-row items-center gap-2 calendar-header-buttons">
+                <button
+                  onClick={handleDownloadCalendar}
+                  disabled={
+                    isDownloading ||
+                    participantEvents.length === 0 ||
+                    participantId == null ||
+                    !currentParticipant
+                  }
+                  className="flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                  title="Скачать календарь в формате iCalendar (.ics)"
+                >
+                  <IconCalendarDownload size={16} />
+                  <span className="hidden xs:inline">{isDownloading ? 'Скачивание...' : 'Скачать календарь'}</span>
+                  <span className="xs:hidden">{isDownloading ? 'Скачивание...' : 'Скачать'}</span>
+                </button>
+
+                <button
+                  onClick={handleSubscribeToCalendar}
+                  disabled={isLoadingWebcal || participantEvents.length === 0 || !participantId}
+                  className="flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-green-600 bg-green-50 rounded-lg hover:bg-green-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                  title="Подписаться на календарь в приложении календаря"
+                >
+                  <IconCalendarSubscribe size={16} />
+                  <span className="hidden xs:inline">{isLoadingWebcal ? 'Открытие...' : 'Подписаться в календарь'}</span>
+                  <span className="xs:hidden">{isLoadingWebcal ? 'Открытие...' : 'Подписаться'}</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
         
