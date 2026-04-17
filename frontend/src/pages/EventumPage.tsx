@@ -15,6 +15,7 @@ import {
 } from "../api/rawEventumAdmin";
 import { buildEventumPageDataFromRaw, loadScheduleEventsForNonParticipant } from "../utils/eventumPageFromRaw";
 import { filterPublicScheduleEvents } from "../utils/participantVisibleEventsFromGroupStructure";
+import { formatEventLocationsDisplay } from "../utils/formatEventLocationsDisplay";
 import { participantsFromRawRows } from "../utils/participantDataFromRaw";
 import type { Eventum, Event, Participant, UserRole } from "../types";
 import type { EventWave } from "../api/eventWave";
@@ -665,24 +666,7 @@ const DistributionTab: React.FC<{ events: Event[]; currentParticipant: Participa
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25s-7.5-4.108-7.5-11.25a7.5 7.5 0 1115 0z" />
                                 </svg>
-                                <span>
-                                  {(() => {
-                                    // Функция для получения уникальных частей пути локаций
-                                    const getUniqueLocationParts = (locations: any[]) => {
-                                      const allParts = new Set<string>();
-                                      
-                                      locations.forEach(loc => {
-                                        const parts = loc.full_path.split(', ');
-                                        parts.forEach((part: string) => allParts.add(part.trim()));
-                                      });
-                                      
-                                      return Array.from(allParts);
-                                    };
-                                    
-                                    const uniqueParts = getUniqueLocationParts(event.locations);
-                                    return uniqueParts.join(', ');
-                                  })()}
-                                </span>
+                                <span>{formatEventLocationsDisplay(event.locations)}</span>
                               </div>
                             )}
                           </div>
@@ -753,24 +737,7 @@ const DistributionTab: React.FC<{ events: Event[]; currentParticipant: Participa
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25s-7.5-4.108-7.5-11.25a7.5 7.5 0 1115 0z" />
                               </svg>
-                              <span>
-                                {(() => {
-                                  // Функция для получения уникальных частей пути локаций
-                                  const getUniqueLocationParts = (locations: any[]) => {
-                                    const allParts = new Set<string>();
-                                    
-                                    locations.forEach(loc => {
-                                      const parts = loc.full_path.split(', ');
-                                      parts.forEach((part: string) => allParts.add(part.trim()));
-                                    });
-                                    
-                                    return Array.from(allParts);
-                                  };
-                                  
-                                  const uniqueParts = getUniqueLocationParts(event.locations);
-                                  return uniqueParts.join(', ');
-                                })()}
-                              </span>
+                              <span>{formatEventLocationsDisplay(event.locations)}</span>
                             </div>
                           )}
                         </div>
@@ -1233,21 +1200,7 @@ const EventCard: React.FC<{ event: Event; eventumSlug: string; isViewingAsOtherP
     if (!event.locations || event.locations.length === 0) {
       return null;
     }
-    
-    // Функция для получения уникальных частей пути локаций
-    const getUniqueLocationParts = (locations: any[]) => {
-      const allParts = new Set<string>();
-      
-      locations.forEach(loc => {
-        const parts = loc.full_path.split(', ');
-        parts.forEach((part: string) => allParts.add(part.trim()));
-      });
-      
-      return Array.from(allParts);
-    };
-    
-    const uniqueParts = getUniqueLocationParts(event.locations);
-    return uniqueParts.join(', ');
+    return formatEventLocationsDisplay(event.locations) || null;
   };
 
   const getParticipantsInfo = () => {

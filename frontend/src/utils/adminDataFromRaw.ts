@@ -15,8 +15,28 @@ function isoTime(v: string | { toString?: () => string }): string {
   return String(v);
 }
 
+/** Полный путь локации по parent_id, как в backend LocationSerializer.get_full_path (через ", "). */
+function fullPathFromRawRows(
+  locationId: number,
+  byId: Map<number, RawLocationRow>
+): string {
+  const names: string[] = [];
+  const seen = new Set<number>();
+  let id: number | null = locationId;
+  while (id != null) {
+    if (seen.has(id)) break;
+    seen.add(id);
+    const row = byId.get(id);
+    if (!row) break;
+    names.unshift(row.name);
+    id = row.parent_id;
+  }
+  return names.join(", ");
+}
+
 /** Плоские локации → карта id → объект для M2M у событий (без дерева). */
 export function rawLocationsToMap(rows: RawLocationRow[]): Map<number, Location> {
+  const byId = new Map(rows.map((r) => [r.id, r]));
   const map = new Map<number, Location>();
   for (const r of rows) {
     map.set(r.id, {
@@ -27,7 +47,7 @@ export function rawLocationsToMap(rows: RawLocationRow[]): Map<number, Location>
       address: r.address || "",
       floor: r.floor || "",
       notes: r.notes || "",
-      full_path: r.name,
+      full_path: fullPathFromRawRows(r.id, byId),
     });
   }
   return map;

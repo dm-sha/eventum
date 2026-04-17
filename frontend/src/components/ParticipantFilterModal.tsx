@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { IconX, IconCheck } from '../components/icons';
 import { getEventsForEventum, getParticipantsByEventFilter } from '../api';
 import { loadEventsPickListFromRaw } from '../utils/eventumPageFromRaw';
+import { formatEventLocationsDisplay } from '../utils/formatEventLocationsDisplay';
 import type { Event, Participant } from '../types';
 
 interface ParticipantFilterModalProps {
@@ -110,21 +111,7 @@ const ParticipantFilterModal: React.FC<ParticipantFilterModalProps> = ({
     if (!event.locations || event.locations.length === 0) {
       return 'Локация не указана';
     }
-    
-    // Функция для получения уникальных частей пути локаций
-    const getUniqueLocationParts = (locations: any[]) => {
-      const allParts = new Set<string>();
-      
-      locations.forEach(loc => {
-        const parts = loc.full_path.split(', ');
-        parts.forEach((part: string) => allParts.add(part.trim()));
-      });
-      
-      return Array.from(allParts);
-    };
-    
-    const uniqueParts = getUniqueLocationParts(event.locations);
-    return uniqueParts.join(', ');
+    return formatEventLocationsDisplay(event.locations) || 'Локация не указана';
   };
 
   // Фильтруем события для саджестов

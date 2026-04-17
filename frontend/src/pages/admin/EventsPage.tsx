@@ -13,6 +13,7 @@ import {
 import EventEditModal from "../../components/event/EventEditModal";
 import { useEventumSlug } from "../../hooks/useEventumSlug";
 import EventsLoadingSkeleton from "../../components/admin/skeletons/EventsLoadingSkeleton";
+import { formatEventLocationsDisplay } from "../../utils/formatEventLocationsDisplay";
 
 interface EventWithTags extends Event {
   tags_data: EventTag[];
@@ -321,22 +322,7 @@ const AdminEventsPage = () => {
                         {event.locations && event.locations.length > 0 && (
                           <div className="text-xs text-gray-500 flex-shrink-0">
                             <span className="whitespace-nowrap">
-                              {(() => {
-                                // Функция для получения уникальных частей пути локаций
-                                const getUniqueLocationParts = (locations: any[]) => {
-                                  const allParts = new Set<string>();
-                                  
-                                  locations.forEach(loc => {
-                                    const parts = loc.full_path.split(', ');
-                                    parts.forEach((part: string) => allParts.add(part.trim()));
-                                  });
-                                  
-                                  return Array.from(allParts);
-                                };
-                                
-                                const uniqueParts = getUniqueLocationParts(event.locations);
-                                return uniqueParts.join(', ');
-                              })()}
+                              {formatEventLocationsDisplay(event.locations)}
                             </span>
                           </div>
                         )}

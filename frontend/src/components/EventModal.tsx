@@ -1,5 +1,6 @@
 import React from 'react';
 import type { Event } from '../types';
+import { formatEventLocationsDisplay } from '../utils/formatEventLocationsDisplay';
 import './EventCalendar.css';
 
 interface EventModalProps {
@@ -26,21 +27,7 @@ const EventModal: React.FC<EventModalProps> = ({ event, isOpen, onClose }) => {
     if (!event.locations || event.locations.length === 0) {
       return 'Локация не указана';
     }
-    
-    // Функция для получения уникальных частей пути локаций
-    const getUniqueLocationParts = (locations: any[]) => {
-      const allParts = new Set<string>();
-      
-      locations.forEach(loc => {
-        const parts = loc.full_path.split(', ');
-        parts.forEach((part: string) => allParts.add(part.trim()));
-      });
-      
-      return Array.from(allParts);
-    };
-    
-    const uniqueParts = getUniqueLocationParts(event.locations);
-    return uniqueParts.join(', ');
+    return formatEventLocationsDisplay(event.locations) || 'Локация не указана';
   };
 
   const getLocationAddress = () => {

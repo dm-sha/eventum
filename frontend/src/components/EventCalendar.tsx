@@ -7,6 +7,7 @@ import { IconCalendarDownload, IconCalendarSubscribe } from './icons';
 import { useEventumSlug } from '../hooks/useEventumSlug';
 import { resolveApiBaseUrl } from '../api/baseUrl';
 import { filterEventsVisibleForParticipant } from '../utils/participantVisibleEventsFromGroupStructure';
+import { formatEventLocationsDisplay } from '../utils/formatEventLocationsDisplay';
 import './EventCalendar.css';
 
 interface EventCalendarProps {
@@ -337,7 +338,7 @@ const EventCalendar: React.FC<EventCalendarProps> = ({
                           </div>
                           {event.locations && event.locations.length > 0 && (
                             <div className="event-location">
-                              {event.locations.map(loc => loc.full_path).join(', ')}
+                              {formatEventLocationsDisplay(event.locations)}
                             </div>
                           )}
                         </div>
